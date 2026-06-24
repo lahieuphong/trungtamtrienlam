@@ -16,5 +16,6 @@ urlpatterns = [
     path('refresh/', TokenRefreshView.as_view(), name='auth-refresh'),
     path('forgot-password/', views.ForgotPasswordView.as_view(), name='auth-forgot-password'),
     path('reset-password/', views.ResetPasswordView.as_view(), name='auth-reset-password'),
+    path('permissions/by-user/', views.UserMenuPermissionsView.as_view(), name='user-menu-permissions'),
     path('', include(router.urls)),
 ]

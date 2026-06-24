@@ -10,6 +10,34 @@ img {
   -webkit-user-drag: none;
 }
 
+/* ── Sidebar scrollbar ── */
+#bodySidebar {
+  scrollbar-gutter: stable;
+}
+
+#bodySidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+#bodySidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#bodySidebar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 99px;
+}
+
+#bodySidebar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Firefox */
+#bodySidebar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

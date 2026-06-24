@@ -10,114 +10,82 @@ import {
 } from 'lucide-react'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissionContext } from '@/contexts/PermissionContext'
 
-const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Tổng quan', path: '/dashboard', icon: '/icons/Icon_dashboard.svg' },
-    { id: 'calendar', label: 'Lịch', path: '/calendar', icon: '/icons/Icon_calendar.svg' },
-    { id: 'documents', label: 'Công văn', path: '/documents', icon: '/icons/Icon_mail.svg' },
-    { id: 'archives', label: 'Lưu trữ', path: '/archives', icon: '/icons/Icon_archives.svg' },
-    { id: 'tasks', label: 'Công việc', path: '/tasks', icon: '/icons/Icon_task.svg' },
-    { id: 'media', label: 'Kho lưu trữ', path: '/media', icon: '/icons/Icon_qlykholuutru.svg' },
-    { id: 'ratings', label: 'Thi đua', path: '/ratings', icon: '/icons/Icon_rating.svg' },
-    { id: 'templates', label: 'Biểu mẫu', path: '/templates', icon: '/icons/Icon_templates.svg' },
-    { id: 'chats', label: 'Tin nhắn', path: '/chats', icon: '/icons/Icon_mail.svg' },
-    {
-        id: 'management', label: 'Quản trị', path: null, icon: '/icons/Icon_users.svg',
-        children: [
-            { id: 'departments', label: 'Phòng ban', path: '/departments' },
-            { id: 'accounts', label: 'Người dùng', path: '/accounts' },
-            { id: 'permissions', label: 'Phân quyền', path: '/permissions' },
-        ],
-    },
-    {
-        id: 'system', label: 'Hệ thống', path: null, icon: '/icons/Icon_setting.svg',
-        children: [
-            { id: 'notifications-settings', label: 'Thông báo', path: '/notifications' },
-            { id: 'settings', label: 'Cài đặt', path: '/settings' },
-            { id: 'backup', label: 'Sao lưu', path: '/backup' },
-        ],
-    },
-]
-
-function NavIcon({ src, alt }) {
+// Mirror of 185's getIcon() — maps uniqueKey → <img> element
+function getIcon(uniqueKey) {
+    const icons = {
+        dashboard:      '/icons/Icon_dashboard.svg',
+        Calendar:       '/icons/Icon_calendar.svg',
+        documents:      '/icons/Icon_mail.svg',
+        Tasks:          '/icons/Icon_task.svg',
+        Media:          '/icons/Icon_qlykholuutru.svg',
+        Ratings:        '/icons/Icon_rating.svg',
+        templates:      '/icons/Icon_templates.svg',
+        Staff:          '/icons/Icon_users.svg',
+        Permission:     '/icons/Icon_users.svg',
+        Settings:       '/icons/Icon_setting.svg',
+        Monument:       '/icons/Icon_quanlyditich.svg',
+        wordprocessing: '/icons/Icon_thuvienvanban.svg',
+    }
+    const src = icons[uniqueKey]
+    if (!src) return null
     return (
         <img
             src={src}
-            alt={alt}
+            alt={uniqueKey}
             className="w-5 h-5 flex-shrink-0"
             onError={(e) => { e.currentTarget.style.display = 'none' }}
         />
     )
 }
 
-function renderItems(items, level, collapsed, isMobile, expandedMenus, toggleMenu, pathname) {
-    return (
-        <ul className={level > 0 ? 'pl-4 py-1 bg-gray-50' : ''}>
-            {items.map(item => {
-                const hasChildren = item.children && item.children.length > 0
-                const isExpanded = expandedMenus[item.id]
-                const isCurrent = pathname === item.path
-                const isParentActive = hasChildren && item.children.some(c => pathname === c.path)
-
-                return (
-                    <li key={item.id} className="mb-0.5">
-                        {hasChildren ? (
-                            <>
-                                <button
-                                    onClick={() => toggleMenu(item.id)}
-                                    className={`flex items-center justify-between w-full px-4 py-2 text-sm ${
-                                        isParentActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100'
-                                    }`}
-                                >
-                                    <span className="flex items-center gap-2 flex-1">
-                                        {item.icon && <NavIcon src={item.icon} alt={item.label} />}
-                                        {(!collapsed || isMobile) && <span>{item.label}</span>}
-                                    </span>
-                                    {(!collapsed || isMobile) && (
-                                        isExpanded
-                                            ? <ChevronDown className="w-4 h-4 flex-shrink-0" />
-                                            : <ChevronRight className="w-4 h-4 flex-shrink-0" />
-                                    )}
-                                </button>
-                                {(!collapsed || isMobile) && isExpanded &&
-                                    renderItems(item.children, level + 1, collapsed, isMobile, expandedMenus, toggleMenu, pathname)
-                                }
-                            </>
-                        ) : (
-                            <Link
-                                href={item.path}
-                                className={`flex items-center px-4 py-2 text-sm ${
-                                    isCurrent ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100'
-                                }`}
-                                title={collapsed && !isMobile ? item.label : ''}
-                            >
-                                <span className="flex items-center gap-2 flex-1">
-                                    {item.icon && <NavIcon src={item.icon} alt={item.label} />}
-                                    {(!collapsed || isMobile) && <span>{item.label}</span>}
-                                </span>
-                            </Link>
-                        )}
-                    </li>
-                )
-            })}
-        </ul>
-    )
+function buildMenuTree(items, parentId = null) {
+    return items
+        .filter(item => item.parrentID === parentId)
+        .map(item => ({
+            id: item.uniqueKey || item.functionID,
+            functionID: item.functionID,
+            label: item.functionName,
+            path: item.path,
+            icon: getIcon(item.uniqueKey),
+            children: buildMenuTree(items, item.functionID),
+        }))
 }
+
 
 export default function Sidebar() {
     const pathname = usePathname()
     const { collapsed, setCollapsed, mobileOpen, setMobileOpen, isMobile } = useSidebar()
     const { user, logout } = useAuth()
+    const { permissions } = usePermissionContext()
     const [expandedMenus, setExpandedMenus] = useState({})
+    const [menuItems, setMenuItems] = useState([])
 
-    // Auto-expand parent if child is active
+    // Build tree whenever permissions change
     useEffect(() => {
-        NAV_ITEMS.forEach(item => {
-            if (item.children?.some(c => pathname === c.path)) {
-                setExpandedMenus(prev => ({ ...prev, [item.id]: true }))
-            }
-        })
-    }, [pathname])
+        if (!permissions?.length) return
+        const viewable = permissions.filter(
+            p => p.actionNames === 'View' || p.actionNames === 'View, View'
+        )
+        setMenuItems(buildMenuTree(viewable, null))
+    }, [permissions])
+
+    // Auto-expand parent if a child route is active
+    useEffect(() => {
+        const expand = (items) => {
+            items.forEach(item => {
+                if (item.children?.length) {
+                    const hasActive = item.children.some(c => pathname.startsWith(c.path || '___'))
+                    if (hasActive) {
+                        setExpandedMenus(prev => ({ ...prev, [item.id]: true }))
+                    }
+                    expand(item.children)
+                }
+            })
+        }
+        expand(menuItems)
+    }, [pathname, menuItems])
 
     const handleResize = useCallback(() => {
         requestAnimationFrame(() => {
@@ -142,21 +110,76 @@ export default function Sidebar() {
         handleResize()
     }
 
-    const sidebarClasses = [
+    const renderMenuItems = (items, level = 0) => (
+        <ul className={level > 0 ? 'pl-4 py-1 bg-gray-50' : ''}>
+            {items.map(item => {
+                const hasChildren = item.children?.length > 0
+                const isExpanded = expandedMenus[item.id]
+                const isCurrent = pathname === item.path
+
+                return (
+                    <li key={item.id} className="mb-1">
+                        {hasChildren ? (
+                            <>
+                                <button
+                                    onClick={() => { toggleMenu(item.id); handleResize() }}
+                                    className={`flex items-center justify-between w-full px-4 py-2 text-sm ${
+                                        isCurrent || (item.path && pathname.startsWith(item.path))
+                                            ? 'bg-blue-50 text-blue-600'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2 w-full">
+                                        <span className="flex items-center gap-2 flex-1">
+                                            {item.icon}
+                                            {(!collapsed || isMobile) && <span>{item.label}</span>}
+                                        </span>
+                                    </div>
+                                    {(!collapsed || isMobile) && (
+                                        isExpanded
+                                            ? <ChevronDown className="w-4 h-4 flex-shrink-0" />
+                                            : <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                                    )}
+                                </button>
+                                {(!collapsed || isMobile) && isExpanded &&
+                                    renderMenuItems(item.children, level + 1)}
+                            </>
+                        ) : (
+                            <Link
+                                href={item.path || '#'}
+                                className={`flex items-center px-4 py-2 text-sm ${
+                                    isCurrent ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                                title={collapsed && !isMobile ? item.label : ''}
+                                onClick={() => isMobile && setMobileOpen(false)}
+                            >
+                                <span className="flex items-center gap-2 flex-1">
+                                    {item.icon}
+                                    {(!collapsed || isMobile) && <span>{item.label}</span>}
+                                </span>
+                            </Link>
+                        )}
+                    </li>
+                )
+            })}
+        </ul>
+    )
+
+    const avatarInitial = (user?.full_name || user?.username || 'U')[0].toUpperCase()
+
+    const sidebarCls = [
         'h-screen fixed top-0 left-0 bg-white border-r border-gray-200 transition-all duration-300 z-[49]',
         isMobile
             ? `w-64 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
-            : `${collapsed ? 'w-16' : 'w-64'}`,
+            : collapsed ? 'w-16' : 'w-64',
     ].join(' ')
-
-    const avatarInitial = (user?.full_name || user?.username || 'U')[0].toUpperCase()
 
     return (
         <>
             {/* Mobile overlay */}
             {isMobile && mobileOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-30"
+                    className="fixed inset-0 bg-black bg-opacity-50 z-30"
                     onClick={() => setMobileOpen(false)}
                 />
             )}
@@ -183,12 +206,18 @@ export default function Sidebar() {
                 {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
-            <aside id="sidebarFull" className={sidebarClasses}>
+            <aside id="sidebarFull" className={sidebarCls}>
                 {/* Header */}
-                <div id="headerSidebar" className="p-4 border-b border-gray-200 flex items-center h-16">
+                <div id="headerSidebar" className="p-4 border-b border-gray-200 flex items-center justify-between h-16">
                     {(!collapsed || isMobile) ? (
                         <div className="flex items-center gap-2 overflow-hidden">
-                            <Image src="/logo.png" alt="Logo" width={36} height={36} className="w-9 h-9 object-contain flex-shrink-0" />
+                            <Image
+                                src="/logo.png"
+                                alt="Logo"
+                                width={36}
+                                height={36}
+                                className="w-[37px] h-[37px] object-contain flex-shrink-0"
+                            />
                             <div className="text-[10px] leading-tight">
                                 <p className="font-semibold">TT BẢO TỒN & PHÁT HUY GIÁ TRỊ</p>
                                 <p className="font-semibold">DI TÍCH LỊCH SỬ VĂN HÓA TP HCM</p>
@@ -196,20 +225,25 @@ export default function Sidebar() {
                         </div>
                     ) : (
                         <div className="mx-auto">
-                            <Image src="/logo.png" alt="Logo" width={36} height={36} className="w-9 h-9 object-contain" />
+                            <Image src="/logo.png" alt="Logo" width={36} height={36} className="w-[37px] h-[37px] object-contain" />
                         </div>
                     )}
                 </div>
 
                 {/* Nav body */}
                 <div id="bodySidebar" className="py-4 overflow-y-auto">
-                    {renderItems(NAV_ITEMS, 0, collapsed, isMobile, expandedMenus, toggleMenu, pathname)}
+                    {menuItems.length > 0
+                        ? renderMenuItems(menuItems)
+                        : (!collapsed || isMobile) && (
+                            <p className="text-xs text-gray-400 px-4 py-2">Chưa có quyền truy cập</p>
+                        )
+                    }
                 </div>
 
                 {/* Footer */}
                 <div
                     id="footerSidebar"
-                    className={`absolute bottom-0 left-0 ${collapsed && !isMobile ? 'w-16' : 'w-full'} border-t border-gray-200 p-2 bg-white`}
+                    className={`absolute bottom-0 left-0 border-t border-gray-200 p-2 bg-white ${collapsed && !isMobile ? 'w-16' : 'w-full'}`}
                 >
                     {(!collapsed || isMobile) ? (
                         <div className="flex items-center justify-between">
@@ -219,7 +253,7 @@ export default function Sidebar() {
                                 </div>
                                 <div className="text-xs min-w-0">
                                     <p className="font-semibold truncate">{user?.full_name || user?.username || 'Người dùng'}</p>
-                                    <p className="text-gray-500 truncate">{user?.position || 'Nhân viên'}</p>
+                                    <p className="text-gray-500 truncate">{user?.position || 'Admin'}</p>
                                 </div>
                             </div>
                             <div className="relative">

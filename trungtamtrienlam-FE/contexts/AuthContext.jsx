@@ -29,18 +29,29 @@ export function AuthProvider({ children }) {
         localStorage.setItem(ConfigConstants.localstorageUserInfoKey, JSON.stringify(userInfo))
         setToken(access)
         setUser(userInfo)
+        // Fetch menu permissions after login
+        try {
+            const permRes = await apiClient.get('/auth/permissions/by-user/', {
+                headers: { Authorization: `Bearer ${access}` },
+            })
+            if (permRes.data?.data) {
+                localStorage.setItem('permissionInfo', JSON.stringify(permRes.data.data))
+            }
+        } catch {
+            // Non-critical — sidebar will show empty menu
+        }
         return userInfo
     }
 
     const logout = async () => {
         const refreshToken = localStorage.getItem(ConfigConstants.localstorageRefreshTokenKey)
         if (refreshToken) {
-            // Blacklist token on backend — fire and forget
             apiClient.post('/auth/logout/', { refresh: refreshToken }).catch(() => {})
         }
         localStorage.removeItem(ConfigConstants.localstorageTokenKey)
         localStorage.removeItem(ConfigConstants.localstorageRefreshTokenKey)
         localStorage.removeItem(ConfigConstants.localstorageUserInfoKey)
+        localStorage.removeItem('permissionInfo')
         setToken(null)
         setUser(null)
         window.location.href = '/login'

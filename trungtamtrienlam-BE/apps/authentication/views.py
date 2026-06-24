@@ -180,3 +180,40 @@ class PermissionViewSet(viewsets.ModelViewSet):
     def bulk_update(self, request):
         # TODO: implement bulk permission update by role
         return ResponseServer.success(message='Cập nhật quyền thành công')
+
+
+class UserMenuPermissionsView(APIView):
+    """Returns the menu function tree for the authenticated user."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.is_superuser:
+            functions = Function.objects.filter(is_deleted=False).order_by('sort_order')
+        else:
+            role_ids = list(
+                user.user_roles.values_list('role_id', flat=True)
+            )
+            func_ids = list(
+                Permission.objects.filter(role_id__in=role_ids)
+                .values_list('function_id', flat=True)
+                .distinct()
+            )
+            functions = Function.objects.filter(
+                id__in=func_ids, is_deleted=False
+            ).order_by('sort_order')
+
+        result = [
+            {
+                'uniqueKey': func.icon or '',
+                'functionID': str(func.id),
+                'parrentID': str(func.parent_id) if func.parent_id else None,
+                'functionName': func.name,
+                'path': func.url or '',
+                'actionNames': 'View',
+            }
+            for func in functions
+        ]
+
+        return ResponseServer.success(data=result)
