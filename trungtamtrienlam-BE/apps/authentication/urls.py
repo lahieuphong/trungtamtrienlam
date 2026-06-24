@@ -1,4 +1,4 @@
-from django.urls import path, include
+﻿from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
@@ -17,5 +17,9 @@ urlpatterns = [
     path('forgot-password/', views.ForgotPasswordView.as_view(), name='auth-forgot-password'),
     path('reset-password/', views.ResetPasswordView.as_view(), name='auth-reset-password'),
     path('permissions/by-user/', views.UserMenuPermissionsView.as_view(), name='user-menu-permissions'),
+    path('permissions/matrix/', views.PermissionMatrixView.as_view(), name='permission-matrix'),
+    path('permissions/toggle/', views.PermissionToggleView.as_view(), name='permission-toggle'),
+    path('permissions/clone/', views.PermissionCloneView.as_view(), name='permission-clone'),
     path('', include(router.urls)),
 ]
+

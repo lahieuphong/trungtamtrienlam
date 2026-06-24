@@ -49,6 +49,8 @@ class StaffDetailSerializer(serializers.ModelSerializer):
     firstName = serializers.CharField(source='first_name', default='')
     lastName = serializers.CharField(source='last_name', default='')
     phoneNumber = serializers.CharField(source='phone', default='')
+    provinceID = serializers.SerializerMethodField()
+    districtID = serializers.SerializerMethodField()
     provinceName = serializers.SerializerMethodField()
     districtName = serializers.SerializerMethodField()
     status = serializers.BooleanField(source='is_active')
@@ -58,9 +60,15 @@ class StaffDetailSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'userName', 'firstName', 'lastName', 'email', 'phoneNumber',
-            'provinceName', 'districtName', 'address',
+            'provinceID', 'districtID', 'provinceName', 'districtName', 'address',
             'status', 'staffFiles',
         ]
+
+    def get_provinceID(self, obj):
+        return str(obj.province_id) if obj.province_id else ''
+
+    def get_districtID(self, obj):
+        return str(obj.district_id) if obj.district_id else ''
 
     def get_provinceName(self, obj):
         if not obj.province_id:

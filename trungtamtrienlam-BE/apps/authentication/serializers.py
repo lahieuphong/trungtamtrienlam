@@ -1,4 +1,4 @@
-from rest_framework import serializers
+﻿from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User, Role, UserRole, Function, Action, Permission
 
@@ -20,18 +20,27 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    provinceID = serializers.SerializerMethodField()
+    districtID = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
             'phone', 'avatar', 'department_id', 'position', 'is_active',
+            'provinceID', 'districtID', 'address',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_full_name(self, obj):
         return obj.get_full_name()
+
+    def get_provinceID(self, obj):
+        return str(obj.province_id) if obj.province_id else ''
+
+    def get_districtID(self, obj):
+        return str(obj.district_id) if obj.district_id else ''
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -41,7 +50,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'username', 'email', 'password', 'first_name', 'last_name',
-            'phone', 'department_id', 'position',
+            'phone', 'department_id', 'position', 'province_id', 'district_id',
+            'address',
         ]
 
     def create(self, validated_data):
@@ -51,13 +61,23 @@ class UserCreateSerializer(serializers.ModelSerializer):
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['email', 'first_name', 'last_name', 'phone', 'avatar', 'department_id', 'position']
+        fields = [
+            'email', 'first_name', 'last_name', 'phone', 'avatar',
+            'department_id', 'position', 'province_id', 'district_id',
+            'address',
+        ]
 
 
 class RoleSerializer(serializers.ModelSerializer):
+    isDirector = serializers.BooleanField(source='is_director', read_only=True)
+    isAdmin = serializers.BooleanField(source='is_admin', read_only=True)
+
     class Meta:
         model = Role
-        fields = ['id', 'name', 'description', 'created_at']
+        fields = [
+            'id', 'name', 'description', 'is_director', 'is_admin',
+            'isDirector', 'isAdmin', 'created_at',
+        ]
         read_only_fields = ['id', 'created_at']
 
 
@@ -76,6 +96,14 @@ class ActionSerializer(serializers.ModelSerializer):
 
 
 class PermissionSerializer(serializers.ModelSerializer):
+    departmentID = serializers.CharField(source='department_id', required=False, allow_blank=True)
+    roleName = serializers.CharField(source='role.name', read_only=True)
+    functionName = serializers.CharField(source='function.name', read_only=True)
+    actionCode = serializers.CharField(source='action.code', read_only=True)
+
     class Meta:
         model = Permission
-        fields = ['id', 'role', 'function', 'action']
+        fields = [
+            'id', 'role', 'roleName', 'department_id', 'departmentID',
+            'function', 'functionName', 'action', 'actionCode',
+        ]

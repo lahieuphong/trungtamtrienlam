@@ -90,12 +90,13 @@ class Action(models.Model):
 
 class Permission(models.Model):
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='permissions')
+    department_id = models.CharField(max_length=36, blank=True, default='')
     function = models.ForeignKey(Function, on_delete=models.CASCADE)
     action = models.ForeignKey(Action, on_delete=models.CASCADE)
 
     class Meta:
         db_table = 'permissions'
-        unique_together = ('role', 'function', 'action')
+        unique_together = ('role', 'department_id', 'function', 'action')
         verbose_name = 'Quyền hạn'
         verbose_name_plural = 'Quyền hạn'
 
