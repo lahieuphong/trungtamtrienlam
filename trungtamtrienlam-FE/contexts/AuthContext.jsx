@@ -32,7 +32,12 @@ export function AuthProvider({ children }) {
         return userInfo
     }
 
-    const logout = () => {
+    const logout = async () => {
+        const refreshToken = localStorage.getItem(ConfigConstants.localstorageRefreshTokenKey)
+        if (refreshToken) {
+            // Blacklist token on backend — fire and forget
+            apiClient.post('/auth/logout/', { refresh: refreshToken }).catch(() => {})
+        }
         localStorage.removeItem(ConfigConstants.localstorageTokenKey)
         localStorage.removeItem(ConfigConstants.localstorageRefreshTokenKey)
         localStorage.removeItem(ConfigConstants.localstorageUserInfoKey)

@@ -88,3 +88,18 @@ class Permission(models.Model):
         db_table = 'permissions'
         unique_together = ('role', 'function', 'action')
         verbose_name = 'Quyền hạn'
+
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_tokens')
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'password_reset_tokens'
+
+    def is_valid(self):
+        from django.utils import timezone
+        expiry = self.created_at + timezone.timedelta(hours=1)
+        return not self.is_used and timezone.now() < expiry
