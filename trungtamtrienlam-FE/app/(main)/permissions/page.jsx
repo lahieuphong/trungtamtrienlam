@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, RefreshCw } from 'lucide-react'
 import { Breadcrumb } from '@/components/common/Breadcrumb'
 import { Button } from '@/components/common/Button'
 import { FormGroup } from '@/components/common/FormGroup'
@@ -41,7 +41,7 @@ function isPrivilegedRole(role) {
     return Boolean(role?.isAdmin || role?.isDirector || role?.is_admin || role?.is_director)
 }
 
-function flattenPermissionRows(rows) {
+function flattenPermissionRows(rows, expandedRowIds) {
     const byParent = new Map()
     rows.forEach((row) => {
         const parentKey = row.functionParrentID || ''
@@ -53,20 +53,28 @@ function flattenPermissionRows(rows) {
     const result = []
     const visited = new Set()
 
-    const walk = (parentKey, depth) => {
+    const walk = (parentKey, depth, prefix = '') => {
         const children = byParent.get(parentKey) || []
-        children.forEach((row) => {
+        children.forEach((row, index) => {
             if (visited.has(row.functionID)) return
+            const treeIndex = prefix ? `${prefix}.${index + 1}` : `${index + 1}`
+            const hasChildren = byParent.has(row.functionID)
+            const isExpanded = expandedRowIds.has(row.functionID)
+
             visited.add(row.functionID)
-            result.push({ ...row, id: row.functionID, depth })
-            walk(row.functionID, depth + 1)
+            result.push({ ...row, id: row.functionID, depth, treeIndex, hasChildren, isExpanded })
+
+            if (hasChildren && isExpanded) {
+                walk(row.functionID, depth + 1, treeIndex)
+            }
         })
     }
 
     walk('', 0)
     rows.forEach((row) => {
         if (!visited.has(row.functionID)) {
-            result.push({ ...row, id: row.functionID, depth: 0 })
+            const rootCount = result.filter((item) => item.depth === 0).length
+            result.push({ ...row, id: row.functionID, depth: 0, treeIndex: `${rootCount + 1}` })
         }
     })
 
@@ -94,6 +102,7 @@ export default function PermissionsPage() {
     const [roleOptions, setRoleOptions] = useState([])
     const [departmentOptions, setDepartmentOptions] = useState([])
     const [permissions, setPermissions] = useState([])
+    const [expandedRowIds, setExpandedRowIds] = useState(() => new Set())
     const [loading, setLoading] = useState(true)
     const [savingKey, setSavingKey] = useState('')
     const [error, setError] = useState('')
@@ -106,7 +115,7 @@ export default function PermissionsPage() {
         [roleOptions, roleID]
     )
     const needsDepartment = Boolean(roleID && !isPrivilegedRole(selectedRole))
-    const tableData = useMemo(() => flattenPermissionRows(permissions), [permissions])
+    const tableData = useMemo(() => flattenPermissionRows(permissions, expandedRowIds), [expandedRowIds, permissions])
 
     const loadDropdowns = useCallback(async () => {
         setLoading(true)
@@ -130,8 +139,6 @@ export default function PermissionsPage() {
 
             setRoleOptions(roles)
             setDepartmentOptions(departments)
-            setRoleID((current) => current || roles[0]?.value || '')
-            setDepartmentID((current) => current || departments[0]?.value || '')
         } catch (err) {
             console.error('Error loading permission dropdowns:', err)
             setError('Không tải được danh sách chức vụ/phòng ban')
@@ -144,6 +151,7 @@ export default function PermissionsPage() {
     const loadPermissions = useCallback(async () => {
         if (!roleID || (needsDepartment && !departmentID)) {
             setPermissions([])
+            setExpandedRowIds(new Set())
             return
         }
 
@@ -156,7 +164,14 @@ export default function PermissionsPage() {
             })
 
             if (response?.status === 200) {
-                setPermissions(response.data?.permissions || [])
+                const nextPermissions = response.data?.permissions || []
+                const parentIds = new Set(
+                    nextPermissions
+                        .map((permission) => permission.functionParrentID)
+                        .filter(Boolean)
+                )
+                setPermissions(nextPermissions)
+                setExpandedRowIds(parentIds)
             } else {
                 setError(response?.message || 'Không tải được danh sách phân quyền')
             }
@@ -221,19 +236,65 @@ export default function PermissionsPage() {
         }
     }, [departmentID, loadPermissions, needsDepartment, roleID, toast])
 
+    const toggleExpandedRow = useCallback((functionID) => {
+        setExpandedRowIds((current) => {
+            const next = new Set(current)
+            if (next.has(functionID)) {
+                next.delete(functionID)
+            } else {
+                next.add(functionID)
+            }
+            return next
+        })
+    }, [])
     const columns = useMemo(() => [
+        {
+            key: 'treeIndex',
+            title: 'STT',
+            sortable: false,
+            width: 76,
+            render: (value) => <span className="text-gray-600">{value}</span>,
+        },
         {
             key: 'functionName',
             title: 'Tên chức năng',
             sortable: false,
-            render: (_, row) => (
-                <div
-                    className={row.depth === 0 ? 'font-medium text-gray-900' : 'text-gray-700'}
-                    style={{ paddingLeft: `${row.depth * 18}px` }}
-                >
-                    {row.functionName}
-                </div>
-            ),
+            render: (_, row) => {
+                const textClass = row.depth === 0 ? 'font-medium text-gray-900' : 'text-gray-700'
+                const content = (
+                    <>
+                        {row.hasChildren ? (
+                            row.isExpanded ? <ChevronDown className="h-4 w-4 flex-shrink-0" /> : <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                        ) : (
+                            <span className="h-4 w-4 flex-shrink-0" />
+                        )}
+                        <span>{row.functionName}</span>
+                    </>
+                )
+
+                if (row.hasChildren) {
+                    return (
+                        <button
+                            type="button"
+                            onClick={() => toggleExpandedRow(row.functionID)}
+                            className={`flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-gray-100 ${textClass}`}
+                            style={{ paddingLeft: `${8 + row.depth * 18}px` }}
+                            aria-label={row.isExpanded ? 'Thu gọn chức năng con' : 'Mở rộng chức năng con'}
+                        >
+                            {content}
+                        </button>
+                    )
+                }
+
+                return (
+                    <div
+                        className={`flex min-h-8 items-center gap-2 px-2 ${textClass}`}
+                        style={{ paddingLeft: `${8 + row.depth * 18}px` }}
+                    >
+                        {content}
+                    </div>
+                )
+            },
         },
         ...ACTION_COLUMNS.map((action) => ({
             key: action.key,
@@ -251,7 +312,7 @@ export default function PermissionsPage() {
                 )
             },
         })),
-    ], [departmentID, handleTogglePermission, needsDepartment, roleID, savingKey])
+    ], [departmentID, handleTogglePermission, needsDepartment, roleID, savingKey, toggleExpandedRow])
 
     const updateCloneField = (field, value) => {
         setCloneForm((current) => ({ ...current, [field]: value }))
@@ -341,7 +402,6 @@ export default function PermissionsPage() {
                         data={tableData}
                         loading={loading}
                         emptyText="Không có dữ liệu phân quyền"
-                        showRowNumbers
                     />
                 </div>
             </div>
@@ -404,3 +464,10 @@ export default function PermissionsPage() {
         </div>
     )
 }
+
+
+
+
+
+
+
