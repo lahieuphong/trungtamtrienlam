@@ -1,0 +1,78 @@
+# =====================
+# Python / Django (BE)
+# =====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.tox/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Database
+db.sqlite3
+*.db
+
+# Django
+staticfiles/
+media/
+/trungtamtrienlam-BE/logs/
+
+# Migrations (bỏ comment nếu muốn commit migrations)
+# */migrations/
+
+# =====================
+# Node.js / Next.js (FE)
+# =====================
+node_modules/
+.next/
+out/
+.cache/
+
+# Yarn
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+yarn-error.log*
+
+# npm
+npm-debug.log*
+package-lock.json
+
+# Environment
+/trungtamtrienlam-FE/.env
+/trungtamtrienlam-FE/.env.local
+/trungtamtrienlam-FE/.env.development.local
+/trungtamtrienlam-FE/.env.production.local
+/trungtamtrienlam-FE/.env.test.local
+
+# Build output
+/trungtamtrienlam-FE/build/
+
+# =====================
+# General
+# =====================
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.swo
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
