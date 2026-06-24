@@ -12,6 +12,7 @@ class EvaluationCriteria(BaseModel):
     class Meta:
         db_table = 'evaluation_criterias'
         verbose_name = 'Tiêu chí đánh giá'
+        verbose_name_plural = 'Tiêu chí đánh giá'
 
 
 class RatingAwardTitle(BaseModel):
@@ -23,6 +24,7 @@ class RatingAwardTitle(BaseModel):
     class Meta:
         db_table = 'rating_award_titles'
         verbose_name = 'Danh hiệu'
+        verbose_name_plural = 'Danh hiệu'
 
 
 class Rating(BaseModel):
@@ -41,6 +43,7 @@ class Rating(BaseModel):
     class Meta:
         db_table = 'ratings'
         verbose_name = 'Đợt đánh giá'
+        verbose_name_plural = 'Đợt đánh giá'
 
 
 class RatingParticipant(BaseModel):

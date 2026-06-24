@@ -19,3 +19,4 @@ class Template(BaseModel):
     class Meta:
         db_table = 'templates'
         verbose_name = 'Mẫu biểu'
+        verbose_name_plural = 'Mẫu biểu'

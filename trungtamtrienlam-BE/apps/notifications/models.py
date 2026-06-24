@@ -22,6 +22,7 @@ class Notification(BaseModel):
     class Meta:
         db_table = 'notifications'
         verbose_name = 'Thông báo'
+        verbose_name_plural = 'Thông báo'
         ordering = ['-created_at']
 
 
@@ -34,3 +35,4 @@ class PushSubscription(BaseModel):
     class Meta:
         db_table = 'push_subscriptions'
         verbose_name = 'Đăng ký push notification'
+        verbose_name_plural = 'Đăng ký push notification'

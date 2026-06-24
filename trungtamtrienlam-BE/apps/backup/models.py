@@ -29,6 +29,7 @@ class BackupLog(BaseModel):
     class Meta:
         db_table = 'backup_logs'
         verbose_name = 'Nhật ký sao lưu'
+        verbose_name_plural = 'Nhật ký sao lưu'
         ordering = ['-created_at']
 
 
@@ -50,4 +51,5 @@ class RestoreLog(BaseModel):
     class Meta:
         db_table = 'restore_logs'
         verbose_name = 'Nhật ký phục hồi'
+        verbose_name_plural = 'Nhật ký phục hồi'
         ordering = ['-created_at']

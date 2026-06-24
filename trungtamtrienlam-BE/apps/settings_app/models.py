@@ -11,6 +11,7 @@ class SystemConfig(BaseModel):
     class Meta:
         db_table = 'system_configs'
         verbose_name = 'Cấu hình hệ thống'
+        verbose_name_plural = 'Cấu hình hệ thống'
 
     def __str__(self):
         return self.key

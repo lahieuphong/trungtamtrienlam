@@ -11,6 +11,7 @@ class Folder(BaseModel):
     class Meta:
         db_table = 'folders'
         verbose_name = 'Thư mục'
+        verbose_name_plural = 'Thư mục'
 
     def __str__(self):
         return self.name
@@ -38,3 +39,4 @@ class MediaFile(BaseModel):
     class Meta:
         db_table = 'media_files'
         verbose_name = 'Tệp tin'
+        verbose_name_plural = 'Tệp tin'

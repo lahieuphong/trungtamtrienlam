@@ -46,6 +46,8 @@ class UserRole(models.Model):
     class Meta:
         db_table = 'user_roles'
         unique_together = ('user', 'role')
+        verbose_name = 'Phân quyền người dùng'
+        verbose_name_plural = 'Phân quyền người dùng'
 
 
 class Function(models.Model):
@@ -60,6 +62,7 @@ class Function(models.Model):
     class Meta:
         db_table = 'functions'
         verbose_name = 'Chức năng'
+        verbose_name_plural = 'Chức năng'
         ordering = ['sort_order']
 
     def __str__(self):
@@ -74,6 +77,7 @@ class Action(models.Model):
     class Meta:
         db_table = 'actions'
         verbose_name = 'Hành động'
+        verbose_name_plural = 'Hành động'
 
     def __str__(self):
         return self.code
@@ -88,6 +92,7 @@ class Permission(models.Model):
         db_table = 'permissions'
         unique_together = ('role', 'function', 'action')
         verbose_name = 'Quyền hạn'
+        verbose_name_plural = 'Quyền hạn'
 
 
 class PasswordResetToken(models.Model):

@@ -14,6 +14,7 @@ class Chat(BaseModel):
     class Meta:
         db_table = 'chats'
         verbose_name = 'Cuộc trò chuyện'
+        verbose_name_plural = 'Cuộc trò chuyện'
 
 
 class ChatMember(BaseModel):
