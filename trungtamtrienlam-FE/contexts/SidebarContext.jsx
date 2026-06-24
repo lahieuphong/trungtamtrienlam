@@ -1,18 +1,29 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
 
 const SidebarContext = createContext(null)
 
 export function SidebarProvider({ children }) {
     const [collapsed, setCollapsed] = useState(false)
     const [mobileOpen, setMobileOpen] = useState(false)
+    const [isMobile, setIsMobile] = useState(false)
 
-    const toggle = () => setCollapsed(v => !v)
-    const toggleMobile = () => setMobileOpen(v => !v)
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 768)
+        check()
+        window.addEventListener('resize', check)
+        return () => window.removeEventListener('resize', check)
+    }, [])
 
     return (
-        <SidebarContext.Provider value={{ collapsed, mobileOpen, toggle, toggleMobile }}>
+        <SidebarContext.Provider value={{
+            collapsed, setCollapsed,
+            mobileOpen, setMobileOpen,
+            isMobile,
+            toggle: () => setCollapsed(v => !v),
+            toggleMobile: () => setMobileOpen(v => !v),
+        }}>
             {children}
         </SidebarContext.Provider>
     )
