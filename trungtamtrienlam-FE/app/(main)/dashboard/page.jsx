@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft } from 'lucide-react'
+import { Breadcrumb } from '@/components/common/Breadcrumb'
 
 const meetings = [
     { id: 1, title: 'Bảo dưỡng phòng khách', type: 'Cuộc họp', time: '13:00', color: 'bg-green-500' },
@@ -33,13 +33,8 @@ export default function DashboardPage() {
     const date = '20, Thg12 2024'
 
     return (
-        <div className="bg-gray-50">
-            <div className="flex items-center mb-6">
-                <button className="mr-2 hover:bg-gray-100 rounded p-1">
-                    <ChevronLeft className="w-5 h-5" />
-                </button>
-                <h1 className="text-xl font-semibold">Thống kê</h1>
-            </div>
+        <div className="p-6 bg-gray-50">
+            <Breadcrumb items={[{ label: 'Tổng quan', isHome: true }]} />
 
             {/* Row 1: Calendar + Medal */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -122,7 +117,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="relative h-64">
                     <div className="flex h-full items-end pb-6">
-                        {chartData.months.map((month, mIdx) => (
+                        {chartData.months.map((_month, mIdx) => (
                             <div key={mIdx} className="flex-1 flex justify-center items-end">
                                 <div className="flex items-end gap-0.5">
                                     {chartData.series.map((series, sIdx) => {

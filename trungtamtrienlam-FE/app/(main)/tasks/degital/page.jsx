@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
+
+import { Breadcrumb } from '@/components/common/Breadcrumb'
 
 export default function TasksDigitalPage() {
   return (
-    <div className="animate-fadeIn">
-      <h1 className="text-xl font-semibold text-gray-800 mb-4">Số hóa</h1>
-      {/* TODO: convert UI từ 185/TrangQuanLy/app/(main)/tasks/degital/page.jsx */}
+    <div className="p-6">
+      <Breadcrumb items={[{ label: 'Số hóa', isHome: true }]} />
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-400">
         Đang phát triển...
       </div>

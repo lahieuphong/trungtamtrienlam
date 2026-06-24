@@ -1,7 +1,11 @@
-﻿export default function WebsitesNewsCreatePage() {
+﻿'use client'
+
+import { Breadcrumb } from '@/components/common/Breadcrumb'
+
+export default function WebsitesNewsCreatePage() {
     return (
-        <div>
-            <h1 className="text-xl font-semibold mb-6">Tạo tin tức mới</h1>
+        <div className="p-6">
+            <Breadcrumb items={[{ label: 'Tạo tin tức mới', isHome: true }]} />
             <div className="bg-white rounded-lg shadow-sm p-8 text-center">
                 <p className="text-gray-400">Tính năng đang được phát triển.</p>
             </div>

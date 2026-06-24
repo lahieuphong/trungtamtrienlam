@@ -1,7 +1,11 @@
-﻿export default function MonumentAllPage() {
+﻿'use client'
+
+import { Breadcrumb } from '@/components/common/Breadcrumb'
+
+export default function MonumentAllPage() {
     return (
-        <div>
-            <h1 className="text-xl font-semibold mb-6">Toàn bộ hồ sơ</h1>
+        <div className="p-6">
+            <Breadcrumb items={[{ label: 'Toàn bộ hồ sơ', isHome: true }]} />
             <div className="bg-white rounded-lg shadow-sm p-8 text-center">
                 <p className="text-gray-400">Tính năng đang được phát triển.</p>
             </div>

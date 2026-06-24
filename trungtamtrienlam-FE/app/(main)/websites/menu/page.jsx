@@ -1,7 +1,11 @@
-﻿export default function WebsitesMenuPage() {
+﻿'use client'
+
+import { Breadcrumb } from '@/components/common/Breadcrumb'
+
+export default function WebsitesMenuPage() {
     return (
-        <div>
-            <h1 className="text-xl font-semibold mb-6">Quản lý menu</h1>
+        <div className="p-6">
+            <Breadcrumb items={[{ label: 'Quản lý menu', isHome: true }]} />
             <div className="bg-white rounded-lg shadow-sm p-8 text-center">
                 <p className="text-gray-400">Tính năng đang được phát triển.</p>
             </div>

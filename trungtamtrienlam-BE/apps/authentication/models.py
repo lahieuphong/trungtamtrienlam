@@ -9,6 +9,9 @@ class User(AbstractUser):
     avatar = models.TextField(blank=True, null=True)
     department_id = models.UUIDField(blank=True, null=True, db_index=True)
     position = models.CharField(max_length=255, blank=True, null=True)
+    province_id = models.UUIDField(blank=True, null=True)
+    district_id = models.UUIDField(blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -26,6 +29,8 @@ class Role(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
+    is_director = models.BooleanField(default=False)
+    is_admin = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     is_deleted = models.BooleanField(default=False)
 

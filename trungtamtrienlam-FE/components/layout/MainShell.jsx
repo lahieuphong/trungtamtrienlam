@@ -15,7 +15,7 @@ export default function MainShell({ children }) {
             <Sidebar />
             <div className={`flex-1 flex flex-col transition-all duration-300 min-w-0 ${marginLeft}`}>
                 <Header />
-                <main className="flex-1 pt-16 overflow-y-auto p-4 md:p-6 bg-gray-50">
+                <main className="flex-1 pt-16 overflow-y-auto px-4 pb-4 md:px-6 md:pb-6 bg-gray-50">
                     {children}
                 </main>
             </div>

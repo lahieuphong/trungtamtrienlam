@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
+
+import { Breadcrumb } from '@/components/common/Breadcrumb'
 
 export default function NotificationsPage() {
   return (
-    <div className="animate-fadeIn">
-      <h1 className="text-xl font-semibold text-gray-800 mb-4">Thông báo</h1>
-      {/* TODO: convert UI từ 185/TrangQuanLy/app/(main)/notifications/page.jsx */}
+    <div className="p-6">
+      <Breadcrumb items={[{ label: 'Thông báo', isHome: true }]} />
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-400">
         Đang phát triển...
       </div>
