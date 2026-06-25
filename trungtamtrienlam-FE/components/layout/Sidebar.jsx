@@ -17,7 +17,7 @@ function getIcon(uniqueKey) {
     const icons = {
         dashboard:      '/icons/Icon_dashboard.svg',
         Calendar:       '/icons/Icon_calendar.svg',
-        documents:      '/icons/Icon_mail.svg',
+        documents:      '/icons/Icon_thuvienvanban.svg',
         Tasks:          '/icons/Icon_task.svg',
         Media:          '/icons/Icon_qlykholuutru.svg',
         Ratings:        '/icons/Icon_rating.svg',
@@ -26,7 +26,7 @@ function getIcon(uniqueKey) {
         Permission:     '/icons/Icon_users.svg',
         Settings:       '/icons/Icon_setting.svg',
         Monument:       '/icons/Icon_quanlyditich.svg',
-        wordprocessing: '/icons/Icon_thuvienvanban.svg',
+        wordprocessing: '/icons/Icon_mail.svg',
     }
     const src = icons[uniqueKey]
     if (!src) return null

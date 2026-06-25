@@ -1,50 +1,55 @@
-# Trung Tâm Triển Lãm
+﻿# Hướng dẫn chạy dự án
 
-Hệ thống quản lý trung tâm triển lãm gồm backend Django và frontend Next.js.
+Trong Docker Desktop đang có 2 container:
 
-## Cấu trúc dự án
+- `pg-trienlam`: PostgreSQL, port `5432`
+- `redis-trienlam`: Redis, port `6379`
 
+Nhưng nếu thấy nút tam giác **Play** thì có khả năng container đang **tắt**. Bật lại bằng:
+
+```powershell
+docker start pg-trienlam redis-trienlam
 ```
-trungtamtrienlam/
-├── trungtamtrienlam-BE/   # Django REST Framework
-└── trungtamtrienlam-FE/   # Next.js 15
+
+Sau đó kiểm tra:
+
+```powershell
+docker ps
 ```
 
-## Backend (Django)
+Nếu thấy `pg-trienlam` và `redis-trienlam` trong danh sách là ok.
 
-**Yêu cầu:** Python 3.11+, PostgreSQL, Redis
+Tiếp theo chạy Backend:
 
-```bash
-cd trungtamtrienlam-BE
-python -m venv venv
-venv\Scripts\activate        # Windows
-pip install -r requirements.txt
-cp .env.example .env         # cấu hình biến môi trường
+```powershell
+cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE
+.\venv\Scripts\activate
 python manage.py migrate
-python manage.py runserver
+python manage.py runserver 0.0.0.0:8000
 ```
 
-**Các module chính:** accounts, authentication, departments, tasks, documents, archives, calendars, chats, notifications, ratings, media_files
+Rồi chạy Frontend ở PowerShell khác:
 
-## Frontend (Next.js)
-
-**Yêu cầu:** Node.js 18+, Yarn
-
-```bash
-cd trungtamtrienlam-FE
-yarn install
-cp .env.example .env.local   # cấu hình biến môi trường
+```powershell
+cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-FE
+Copy-Item .env.example .env.local
 yarn dev
 ```
 
-Truy cập tại `http://localhost:3000`
+Mở:
 
-## Công nghệ sử dụng
+```text
+http://localhost:3000
+```
 
-| Thành phần | Công nghệ |
-|---|---|
-| Backend | Django 5, DRF, Celery, Channels (WebSocket) |
-| Frontend | Next.js 15, React 19, Tailwind CSS, Radix UI |
-| Database | PostgreSQL |
-| Cache / Queue | Redis |
-Sở Văn hóa và Thể thao TPHCM - Trung tâm Thông tin Triển Lãm
+Nếu `python manage.py migrate` báo lỗi database không tồn tại, tạo database trong container `pg-trienlam`:
+
+```powershell
+docker exec -it pg-trienlam psql -U postgres -c "CREATE DATABASE trungtamtrienlam_dev;"
+```
+
+Sau đó chạy lại:
+
+```powershell
+python manage.py migrate
+```
