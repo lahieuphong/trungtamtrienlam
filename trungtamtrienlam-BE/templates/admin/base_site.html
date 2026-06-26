@@ -1,0 +1,21 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="icon" href="{% static 'admin_custom/img/admin-logo.ico' %}" sizes="any">
+<link rel="shortcut icon" href="{% static 'admin_custom/img/admin-logo.ico' %}">
+<link rel="stylesheet" href="{% static 'admin_custom/css/admin_branding.css' %}">
+{% endblock %}
+
+{% block branding %}
+<div id="site-name" class="admin-custom-branding">
+    <a href="{% url 'admin:index' %}" class="admin-custom-branding-link">
+        <img src="{% static 'admin_custom/img/admin-logo.png' %}" alt="" class="admin-custom-branding-logo">
+        <span class="admin-custom-branding-title">{{ site_header|default:_('Django administration') }}</span>
+    </a>
+</div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
