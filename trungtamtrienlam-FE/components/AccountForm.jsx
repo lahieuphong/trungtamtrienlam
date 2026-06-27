@@ -65,7 +65,6 @@ export default function AccountForm({ mode = 'create', id = null }) {
                 ])
                 if (rolesRes?.status === 200) {
                     setPositionOptions((rolesRes.data?.roles || [])
-                        .filter(r => !r.isAdmin)
                         .map(r => ({ ...r, value: r.id, label: r.name })))
                 }
                 if (deptsRes?.status === 200) {
@@ -119,16 +118,34 @@ export default function AccountForm({ mode = 'create', id = null }) {
 
     // Set default role row when options are ready (create mode)
     useEffect(() => {
-        if (isCreate && positionOptions.length > 0 && organizationOptions.length > 0 && departmentOptions.length > 0 && additionalRoles.length === 0) {
+        if (isCreate && positionOptions.length > 0 && additionalRoles.length === 0) {
+            const defaultRole = positionOptions.find(role => !role.isAdmin) || positionOptions[0]
+            const skipsDefaultDepartment = defaultRole?.isDirector || defaultRole?.isAdmin || defaultRole?.isViceDirector
             setAdditionalRoles([{
                 id: Date.now(),
                 organizationID: organizationOptions[0]?.value || '',
-                departmentID: departmentOptions[0]?.value || '',
-                roleID: positionOptions[0]?.value || '',
+                departmentID: skipsDefaultDepartment ? '' : departmentOptions[0]?.value || '',
+                roleID: defaultRole?.value || '',
                 isDefault: true,
             }])
         }
-    }, [isCreate, positionOptions, departmentOptions, organizationOptions])
+    }, [isCreate, positionOptions, departmentOptions, organizationOptions, additionalRoles.length])
+
+    useEffect(() => {
+        if (additionalRoles.length === 0) return
+
+        setAdditionalRoles(prev => prev.map((role) => {
+            const selectedRole = positionOptions.find(position => position.value === role.roleID)
+            const skipsRowDepartment = selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector
+            const nextDepartmentID = role.departmentID || (!skipsRowDepartment ? departmentOptions[0]?.value || '' : '')
+
+            return {
+                ...role,
+                organizationID: role.organizationID || organizationOptions[0]?.value || '',
+                departmentID: skipsRowDepartment ? '' : nextDepartmentID,
+            }
+        }))
+    }, [positionOptions, departmentOptions, organizationOptions])
 
     // Load user data in edit mode
     useEffect(() => {
@@ -167,6 +184,14 @@ export default function AccountForm({ mode = 'create', id = null }) {
                             roleID: uc.roleID || '',
                             isDefault: i === 0,
                         })))
+                    } else {
+                        setAdditionalRoles([{
+                            id: Date.now(),
+                            organizationID: '',
+                            departmentID: '',
+                            roleID: '',
+                            isDefault: true,
+                        }])
                     }
                 }
             } catch (e) {
@@ -184,19 +209,10 @@ export default function AccountForm({ mode = 'create', id = null }) {
         )
     }, [positionOptions, additionalRoles])
 
-    const isAdmin = useMemo(() => {
-        return positionOptions.some(p =>
-            additionalRoles.some(r => r.roleID === p.value && p.isAdmin)
-        )
-    }, [positionOptions, additionalRoles])
-
-    const isViceDirector = useMemo(() => {
-        return positionOptions.some(p =>
-            additionalRoles.some(r => r.roleID === p.value && p.isViceDirector)
-        )
-    }, [positionOptions, additionalRoles])
-
-    const skipsDepartment = isDireactor || isAdmin || isViceDirector
+    const roleSkipsDepartment = useCallback((roleID) => {
+        const selectedRole = positionOptions.find(p => p.value === roleID)
+        return Boolean(selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector)
+    }, [positionOptions])
 
     const handleChange = useCallback((e) => {
         const { name, value } = e.target
@@ -219,9 +235,12 @@ export default function AccountForm({ mode = 'create', id = null }) {
 
             const nextRole = { ...r, [field]: value }
             if (field === 'roleID') {
+                nextRole.organizationID = nextRole.organizationID || organizationOptions[0]?.value || ''
                 const selectedRole = positionOptions.find(p => p.value === value)
                 if (selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector) {
                     nextRole.departmentID = ''
+                } else if (!nextRole.departmentID) {
+                    nextRole.departmentID = departmentOptions[0]?.value || ''
                 }
             }
 
@@ -230,11 +249,13 @@ export default function AccountForm({ mode = 'create', id = null }) {
     }
 
     const handleAddRole = () => {
+        const defaultRole = positionOptions.find(role => !role.isAdmin) || positionOptions[0]
+        const skipsDefaultDepartment = defaultRole?.isDirector || defaultRole?.isAdmin || defaultRole?.isViceDirector
         setAdditionalRoles(prev => [...prev, {
             id: Date.now(),
             organizationID: organizationOptions[0]?.value || '',
-            departmentID: departmentOptions[0]?.value || '',
-            roleID: positionOptions[0]?.value || '',
+            departmentID: skipsDefaultDepartment ? '' : departmentOptions[0]?.value || '',
+            roleID: defaultRole?.value || '',
             isDefault: false,
         }])
     }
@@ -250,7 +271,6 @@ export default function AccountForm({ mode = 'create', id = null }) {
     const validate = () => {
         const errs = {}
         if (!formData.userName) errs.userName = 'Vui lòng nhập tài khoản'
-        else if (formData.userName.length < 6) errs.userName = 'Tài khoản phải có ít nhất 6 ký tự'
         if (!formData.firstName) errs.firstName = 'Vui lòng nhập họ'
         if (!formData.lastName) errs.lastName = 'Vui lòng nhập tên'
         if (!formData.email) errs.email = 'Vui lòng nhập email'
@@ -266,6 +286,8 @@ export default function AccountForm({ mode = 'create', id = null }) {
         if (isDireactor && !formData.stamp) errs.stamp = 'Vui lòng chọn chữ ký có con dấu'
         additionalRoles.forEach((r, i) => {
             if (!r.roleID) errs[`role_${i}`] = 'Vui lòng chọn chức vụ'
+            else if (!roleSkipsDepartment(r.roleID) && !r.departmentID) errs[`department_${i}`] = 'Vui lòng chọn bộ phận'
+            if (!r.organizationID) errs[`organization_${i}`] = 'Vui lòng chọn tổ chức'
         })
         setErrors(errs)
         return Object.keys(errs).length === 0
@@ -479,7 +501,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                                     placeholder="-- Chọn chức vụ --"
                                                 />
                                             </FormGroup>
-                                            {!skipsDepartment && (
+                                            {!roleSkipsDepartment(role.roleID) && (
                                                 <FormGroup label="Bộ phận" required>
                                                     <Select
                                                         options={departmentOptions}
@@ -490,11 +512,17 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                                 </FormGroup>
                                             )}
                                         </div>
-                                        {errors[`role_${index}`] && (
-                                            <p className="mt-2 text-xs text-red-500">{errors[`role_${index}`]}</p>
+                                        {(errors[`role_${index}`] || errors[`department_${index}`] || errors[`organization_${index}`]) && (
+                                            <p className="mt-2 text-xs text-red-500">
+                                                {errors[`role_${index}`] || errors[`department_${index}`] || errors[`organization_${index}`]}
+                                            </p>
                                         )}
                                     </div>
                                 ))}
+                                <Button variant="outline" type="button" onClick={handleAddRole} disabled={!positionOptions.length}>
+                                    <Plus className="w-4 h-4" />
+                                    Thêm chức vụ kiêm nhiệm
+                                </Button>
                             </div>
 
                             {/* Chữ ký (chỉ hiện khi là giám đốc) */}

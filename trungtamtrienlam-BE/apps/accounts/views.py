@@ -185,8 +185,6 @@ class StaffCreateView(APIView):
     def _validate_required(username, password, first_name, last_name, email, phone, address):
         if not username:
             return 'Vui lòng nhập tài khoản'
-        if len(username) < 6:
-            return 'Tài khoản phải có ít nhất 6 ký tự'
         if not password:
             return 'Vui lòng nhập mật khẩu'
         if len(password) < 6:

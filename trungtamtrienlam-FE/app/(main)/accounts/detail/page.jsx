@@ -7,20 +7,12 @@ import Link from 'next/link'
 import { Breadcrumb } from '@/components/common/Breadcrumb'
 import { ConfirmModal } from '@/components/common/Modal'
 import { fetchUserById, deleteUser } from '@/lib/api/usersApi'
-import { ApiConstants } from '@/constants/apiConstants'
 import { UserFileConstants } from '@/constants/userConstants'
+import { getStaffFileUrl } from '@/lib/mediaUrl'
 import { ConfigConstants } from '@/constants/configConstants'
 
 function getFileUrl(staffFilesJson, typeFile) {
-    try {
-        const files = JSON.parse(staffFilesJson || '[]')
-        const f = files.find(x => x.TypeFile === typeFile)
-        if (!f?.File) return null
-        if (f.File.startsWith('http')) return f.File
-        return `${ApiConstants.cdnUrl}/${f.File}`
-    } catch {
-        return null
-    }
+    return getStaffFileUrl(staffFilesJson, typeFile)
 }
 
 function InfoField({ label, value }) {

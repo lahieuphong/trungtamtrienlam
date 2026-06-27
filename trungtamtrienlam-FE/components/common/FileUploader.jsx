@@ -2,17 +2,13 @@
 
 import { useRef, useState } from 'react'
 import { Upload, X } from 'lucide-react'
-import { ApiConstants } from '@/constants/apiConstants'
+import { buildMediaUrl } from '@/lib/mediaUrl'
 
 function getPreviewUrl(value) {
     if (!value) return null
     if (value.isLocalFile && value.File) return value.File
     if (value.file instanceof File) return URL.createObjectURL(value.file)
-    if (value.File) {
-        if (value.File.startsWith('http')) return value.File
-        return `${ApiConstants.cdnUrl}/${value.File}`
-    }
-    return null
+    return buildMediaUrl(value.File)
 }
 
 export function FileUploader({

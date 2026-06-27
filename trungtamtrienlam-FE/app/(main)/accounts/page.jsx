@@ -8,19 +8,11 @@ import { Table } from '@/components/common/Table'
 import { Button } from '@/components/common/Button'
 import { ConfirmModal } from '@/components/common/Modal'
 import { fetchUsers, deleteUser, resetUser } from '@/lib/api/usersApi'
-import { ApiConstants } from '@/constants/apiConstants'
+import { getStaffFileUrl } from '@/lib/mediaUrl'
 import { UserFileConstants } from '@/constants/userConstants'
 
 function getAvatarUrl(staffFilesJson) {
-    try {
-        const files = JSON.parse(staffFilesJson || '[]')
-        const avatar = files.find((file) => file.TypeFile === UserFileConstants.typeFile.Avatar)
-        if (!avatar?.File) return null
-        if (avatar.File.startsWith('http')) return avatar.File
-        return `${ApiConstants.cdnUrl}/${avatar.File}`
-    } catch {
-        return null
-    }
+    return getStaffFileUrl(staffFilesJson, UserFileConstants.typeFile.Avatar)
 }
 
 export default function AccountsPage() {
