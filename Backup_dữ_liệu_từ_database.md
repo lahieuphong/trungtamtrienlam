@@ -89,6 +89,7 @@ Mỗi lần có dữ liệu mới trong hệ thống, chạy lại:
 
 ```cmd
 cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam
+
 docker exec pg-trienlam pg_dump -U postgres -d trungtamtrienlam_dev -Fc -f /tmp/trungtamtrienlam_backup.dump
 docker cp pg-trienlam:/tmp/trungtamtrienlam_backup.dump backup\trungtamtrienlam_backup.dump
 ```

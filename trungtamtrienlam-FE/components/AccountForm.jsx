@@ -64,7 +64,9 @@ export default function AccountForm({ mode = 'create', id = null }) {
                     fetchProvinceDropdown(),
                 ])
                 if (rolesRes?.status === 200) {
-                    setPositionOptions((rolesRes.data?.roles || []).map(r => ({ ...r, value: r.id, label: r.name })))
+                    setPositionOptions((rolesRes.data?.roles || [])
+                        .filter(r => !r.isAdmin)
+                        .map(r => ({ ...r, value: r.id, label: r.name })))
                 }
                 if (deptsRes?.status === 200) {
                     setDepartmentOptions((deptsRes.data?.departments || []).map(d => ({ ...d, value: d.id, label: d.name })))
@@ -188,6 +190,14 @@ export default function AccountForm({ mode = 'create', id = null }) {
         )
     }, [positionOptions, additionalRoles])
 
+    const isViceDirector = useMemo(() => {
+        return positionOptions.some(p =>
+            additionalRoles.some(r => r.roleID === p.value && p.isViceDirector)
+        )
+    }, [positionOptions, additionalRoles])
+
+    const skipsDepartment = isDireactor || isAdmin || isViceDirector
+
     const handleChange = useCallback((e) => {
         const { name, value } = e.target
         if (name === 'status') {
@@ -204,7 +214,19 @@ export default function AccountForm({ mode = 'create', id = null }) {
     }
 
     const handleRoleChange = (roleId, field, value) => {
-        setAdditionalRoles(prev => prev.map(r => r.id === roleId ? { ...r, [field]: value } : r))
+        setAdditionalRoles(prev => prev.map(r => {
+            if (r.id !== roleId) return r
+
+            const nextRole = { ...r, [field]: value }
+            if (field === 'roleID') {
+                const selectedRole = positionOptions.find(p => p.value === value)
+                if (selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector) {
+                    nextRole.departmentID = ''
+                }
+            }
+
+            return nextRole
+        }))
     }
 
     const handleAddRole = () => {
@@ -457,7 +479,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                                     placeholder="-- Chọn chức vụ --"
                                                 />
                                             </FormGroup>
-                                            {!isDireactor && !isAdmin && (
+                                            {!skipsDepartment && (
                                                 <FormGroup label="Bộ phận" required>
                                                     <Select
                                                         options={departmentOptions}

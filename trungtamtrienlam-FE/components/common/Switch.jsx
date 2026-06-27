@@ -15,7 +15,7 @@ export function Switch({ id, name, checked, onChange, onText = 'Bật', offText 
                 <div
                     onClick={onChange}
                     className={`w-11 h-6 rounded-full transition-colors cursor-pointer
-                        ${checked ? 'bg-blue-500' : 'bg-gray-300'}`}
+                        ${checked ? 'bg-green-500' : 'bg-gray-300'}`}
                 />
                 <div
                     onClick={onChange}

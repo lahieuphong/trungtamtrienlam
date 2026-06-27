@@ -121,7 +121,7 @@ def validate_positions(positions):
 
         check_is_director = check_is_director or role.is_director
         check_is_admin = check_is_admin or role.is_admin
-        can_skip_department = role.is_director or role.is_admin
+        can_skip_department = role.is_director or role.is_admin or role.is_vice_director
         if not can_skip_department:
             if not department_id:
                 return False, 'Vui lòng chọn bộ phận', False, False

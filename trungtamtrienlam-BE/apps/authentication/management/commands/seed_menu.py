@@ -12,89 +12,89 @@ from apps.accounts.vn_admin_units import CURRENT_PROVINCES
 from apps.departments.models import Department
 
 FUNCTIONS = [
-    {'_key': 'dashboard', 'sort': 1, 'icon': 'dashboard', 'name': 'T\u1ed5ng quan', 'url': '/dashboard', 'parent': None},
-    {'_key': 'calendar', 'sort': 2, 'icon': 'Calendar', 'name': 'Qu\u1ea3n l\u00fd l\u1ecbch', 'url': '/calendar', 'parent': None},
-    {'_key': 'documents', 'sort': 3, 'icon': 'documents', 'name': 'Th\u01b0 vi\u1ec7n v\u0103n b\u1ea3n', 'url': '/documents', 'parent': None},
+    {'_key': 'dashboard', 'sort': 1, 'icon': 'dashboard', 'name': 'Tổng quan', 'url': '/dashboard', 'parent': None},
+    {'_key': 'calendar', 'sort': 2, 'icon': 'Calendar', 'name': 'Quản lý lịch', 'url': '/calendar', 'parent': None},
+    {'_key': 'documents', 'sort': 3, 'icon': 'documents', 'name': 'Thư viện văn bản', 'url': '/documents', 'parent': None},
 
-    {'_key': 'media', 'sort': 4, 'icon': 'Media', 'name': 'Qu\u1ea3n l\u00fd kho l\u01b0u tr\u1eef', 'url': None, 'parent': None},
-    {'_key': 'media_audio', 'sort': 41, 'icon': 'Media-audio', 'name': '\u00c2m thanh', 'url': '/media/audio', 'parent': 'media'},
-    {'_key': 'media_img', 'sort': 42, 'icon': 'Media-images', 'name': 'H\u00ecnh \u1ea3nh', 'url': '/media/images', 'parent': 'media'},
-    {'_key': 'media_video', 'sort': 43, 'icon': 'Media-videos', 'name': 'Phim \u1ea3nh', 'url': '/media/videos', 'parent': 'media'},
-    {'_key': 'media_doc', 'sort': 44, 'icon': 'Media-documents', 'name': 'T\u00e0i li\u1ec7u', 'url': '/media/documents', 'parent': 'media'},
+    {'_key': 'media', 'sort': 4, 'icon': 'Media', 'name': 'Quản lý kho lưu trữ', 'url': None, 'parent': None},
+    {'_key': 'media_audio', 'sort': 41, 'icon': 'Media-audio', 'name': 'Âm thanh', 'url': '/media/audio', 'parent': 'media'},
+    {'_key': 'media_img', 'sort': 42, 'icon': 'Media-images', 'name': 'Hình ảnh', 'url': '/media/images', 'parent': 'media'},
+    {'_key': 'media_video', 'sort': 43, 'icon': 'Media-videos', 'name': 'Phim ảnh', 'url': '/media/videos', 'parent': 'media'},
+    {'_key': 'media_doc', 'sort': 44, 'icon': 'Media-documents', 'name': 'Tài liệu', 'url': '/media/documents', 'parent': 'media'},
     {'_key': 'media_3d', 'sort': 45, 'icon': 'Media-3d', 'name': '3D', 'url': '/media/3d', 'parent': 'media'},
-    {'_key': 'media_share', 'sort': 46, 'icon': 'Media-share-foler', 'name': 'Chia s\u1ebb th\u01b0 m\u1ee5c', 'url': '/media/share-folder', 'parent': 'media'},
-    {'_key': 'media_trash', 'sort': 47, 'icon': 'Media-trash', 'name': 'Th\u00f9ng r\u00e1c', 'url': '/media/trash', 'parent': 'media'},
-    {'_key': 'archives', 'sort': 48, 'icon': 'Archives', 'name': 'T\u1ed5ng h\u1ee3p d\u1eef li\u1ec7u', 'url': '/archives', 'parent': 'media'},
+    {'_key': 'media_share', 'sort': 46, 'icon': 'Media-share-foler', 'name': 'Chia sẻ thư mục', 'url': '/media/share-folder', 'parent': 'media'},
+    {'_key': 'media_trash', 'sort': 47, 'icon': 'Media-trash', 'name': 'Thùng rác', 'url': '/media/trash', 'parent': 'media'},
+    {'_key': 'archives', 'sort': 48, 'icon': 'Archives', 'name': 'Tổng hợp dữ liệu', 'url': '/archives', 'parent': 'media'},
 
-    {'_key': 'tasks', 'sort': 5, 'icon': 'Tasks', 'name': 'Qu\u1ea3n l\u00fd nhi\u1ec7m v\u1ee5', 'url': None, 'parent': None},
-    {'_key': 'task', 'sort': 51, 'icon': 'Task', 'name': 'Nhi\u1ec7m v\u1ee5', 'url': '/tasks/tasks', 'parent': 'tasks'},
-    {'_key': 'internal', 'sort': 52, 'icon': 'internal', 'name': 'C\u00f4ng v\u0103n n\u1ed9i b\u1ed9', 'url': '/tasks/internal', 'parent': 'tasks'},
-    {'_key': 'pending', 'sort': 53, 'icon': 'pendingIssuance', 'name': 'C\u00f4ng v\u0103n \u0111i \u0111\u1ebfn', 'url': '/tasks/pendingIssuance', 'parent': 'tasks'},
-    {'_key': 'issued', 'sort': 54, 'icon': 'degital', 'name': 'C\u00f4ng v\u0103n ban h\u00e0nh', 'url': '/tasks/degital', 'parent': 'tasks'},
+    {'_key': 'tasks', 'sort': 5, 'icon': 'Tasks', 'name': 'Quản lý nhiệm vụ', 'url': None, 'parent': None},
+    {'_key': 'task', 'sort': 51, 'icon': 'Task', 'name': 'Nhiệm vụ', 'url': '/tasks/tasks', 'parent': 'tasks'},
+    {'_key': 'internal', 'sort': 52, 'icon': 'internal', 'name': 'Công văn nội bộ', 'url': '/tasks/internal', 'parent': 'tasks'},
+    {'_key': 'pending', 'sort': 53, 'icon': 'pendingIssuance', 'name': 'Công văn đi đến', 'url': '/tasks/pendingIssuance', 'parent': 'tasks'},
+    {'_key': 'issued', 'sort': 54, 'icon': 'degital', 'name': 'Công văn ban hành', 'url': '/tasks/degital', 'parent': 'tasks'},
 
-    {'_key': 'monument', 'sort': 6, 'icon': 'Monument', 'name': 'Qu\u1ea3n l\u00fd di t\u00edch', 'url': None, 'parent': None},
-    {'_key': 'mon_review', 'sort': 61, 'icon': 'Mon-review', 'name': 'H\u1ed3 s\u01a1 x\u00e9t duy\u1ec7t', 'url': '/monument-profile', 'parent': 'monument'},
-    {'_key': 'mon_private', 'sort': 62, 'icon': 'Monument-Private', 'name': 'H\u1ed3 s\u01a1 kh\u00f4ng c\u00f4ng khai', 'url': '/monument-profile/private', 'parent': 'monument'},
-    {'_key': 'mon_all', 'sort': 63, 'icon': 'Mon-all', 'name': 'To\u00e0n b\u1ed9 h\u1ed3 s\u01a1', 'url': '/monument-profile/all', 'parent': 'monument'},
-    {'_key': 'mon_public', 'sort': 64, 'icon': 'Mon-public', 'name': 'H\u1ed3 s\u01a1 c\u00f4ng khai', 'url': None, 'parent': 'monument'},
-    {'_key': 'mon_menu', 'sort': 641, 'icon': 'Mon-menu', 'name': 'Qu\u1ea3n l\u00fd menu', 'url': '/websites/menu', 'parent': 'mon_public'},
-    {'_key': 'mon_news', 'sort': 642, 'icon': 'Mon-news', 'name': 'Qu\u1ea3n l\u00fd tin t\u1ee9c', 'url': '/websites/news', 'parent': 'mon_public'},
-    {'_key': 'mon_home', 'sort': 643, 'icon': 'Mon-home', 'name': 'Qu\u1ea3n l\u00fd trang ch\u1ee7', 'url': '/websites/home', 'parent': 'mon_public'},
-    {'_key': 'mon_about', 'sort': 644, 'icon': 'Mon-about', 'name': 'Qu\u1ea3n l\u00fd gi\u1edbi thi\u1ec7u', 'url': '/websites/about-us', 'parent': 'mon_public'},
-    {'_key': 'mon_config', 'sort': 645, 'icon': 'Mon-config', 'name': 'C\u1ea5u h\u00ecnh', 'url': '/websites/config', 'parent': 'mon_public'},
-    {'_key': 'mon_contacts', 'sort': 646, 'icon': 'Mon-contacts', 'name': 'Danh s\u00e1ch li\u00ean h\u1ec7', 'url': '/websites/contact', 'parent': 'mon_public'},
-    {'_key': 'mon_3d', 'sort': 647, 'icon': 'Mon-3d', 'name': 'Di t\u00edch 3D', 'url': '/websites/monument-3d', 'parent': 'mon_public'},
+    {'_key': 'monument', 'sort': 6, 'icon': 'Monument', 'name': 'Quản lý di tích', 'url': None, 'parent': None},
+    {'_key': 'mon_review', 'sort': 61, 'icon': 'Mon-review', 'name': 'Hồ sơ xét duyệt', 'url': '/monument-profile', 'parent': 'monument'},
+    {'_key': 'mon_private', 'sort': 62, 'icon': 'Monument-Private', 'name': 'Hồ sơ không công khai', 'url': '/monument-profile/private', 'parent': 'monument'},
+    {'_key': 'mon_all', 'sort': 63, 'icon': 'Mon-all', 'name': 'Toàn bộ hồ sơ', 'url': '/monument-profile/all', 'parent': 'monument'},
+    {'_key': 'mon_public', 'sort': 64, 'icon': 'Mon-public', 'name': 'Hồ sơ công khai', 'url': None, 'parent': 'monument'},
+    {'_key': 'mon_menu', 'sort': 641, 'icon': 'Mon-menu', 'name': 'Quản lý menu', 'url': '/websites/menu', 'parent': 'mon_public'},
+    {'_key': 'mon_news', 'sort': 642, 'icon': 'Mon-news', 'name': 'Quản lý tin tức', 'url': '/websites/news', 'parent': 'mon_public'},
+    {'_key': 'mon_home', 'sort': 643, 'icon': 'Mon-home', 'name': 'Quản lý trang chủ', 'url': '/websites/home', 'parent': 'mon_public'},
+    {'_key': 'mon_about', 'sort': 644, 'icon': 'Mon-about', 'name': 'Quản lý giới thiệu', 'url': '/websites/about-us', 'parent': 'mon_public'},
+    {'_key': 'mon_config', 'sort': 645, 'icon': 'Mon-config', 'name': 'Cấu hình', 'url': '/websites/config', 'parent': 'mon_public'},
+    {'_key': 'mon_contacts', 'sort': 646, 'icon': 'Mon-contacts', 'name': 'Danh sách liên hệ', 'url': '/websites/contact', 'parent': 'mon_public'},
+    {'_key': 'mon_3d', 'sort': 647, 'icon': 'Mon-3d', 'name': 'Di tích 3D', 'url': '/websites/monument-3d', 'parent': 'mon_public'},
 
-    {'_key': 'ratings', 'sort': 7, 'icon': 'Ratings', 'name': '\u0110\u00e1nh gi\u00e1 x\u1ebfp h\u1ea1ng', 'url': None, 'parent': None},
-    {'_key': 'crit_set', 'sort': 71, 'icon': 'Setting-criterias', 'name': 'Thi\u1ebft l\u1eadp ti\u00eau ch\u00ed', 'url': '/ratings/setting-criterias', 'parent': 'ratings'},
-    {'_key': 'award_set', 'sort': 72, 'icon': 'Setting-awards', 'name': 'Thi\u1ebft l\u1eadp danh hi\u1ec7u', 'url': '/ratings/setting-awards', 'parent': 'ratings'},
-    {'_key': 'rank_set', 'sort': 73, 'icon': 'Setting-rankings', 'name': 'Thi\u1ebft l\u1eadp x\u1ebfp h\u1ea1ng', 'url': '/ratings/setting-ranking', 'parent': 'ratings'},
-    {'_key': 'leaderboard', 'sort': 74, 'icon': 'rankings', 'name': 'B\u1ea3ng x\u1ebfp h\u1ea1ng', 'url': '/ratings/rankings', 'parent': 'ratings'},
-    {'_key': 'awards', 'sort': 75, 'icon': 'awards', 'name': 'Danh hi\u1ec7u', 'url': '/ratings/awards', 'parent': 'ratings'},
+    {'_key': 'ratings', 'sort': 7, 'icon': 'Ratings', 'name': 'Đánh giá xếp hạng', 'url': None, 'parent': None},
+    {'_key': 'crit_set', 'sort': 71, 'icon': 'Setting-criterias', 'name': 'Thiết lập tiêu chí', 'url': '/ratings/setting-criterias', 'parent': 'ratings'},
+    {'_key': 'award_set', 'sort': 72, 'icon': 'Setting-awards', 'name': 'Thiết lập danh hiệu', 'url': '/ratings/setting-awards', 'parent': 'ratings'},
+    {'_key': 'rank_set', 'sort': 73, 'icon': 'Setting-rankings', 'name': 'Thiết lập xếp hạng', 'url': '/ratings/setting-ranking', 'parent': 'ratings'},
+    {'_key': 'leaderboard', 'sort': 74, 'icon': 'rankings', 'name': 'Bảng xếp hạng', 'url': '/ratings/rankings', 'parent': 'ratings'},
+    {'_key': 'awards', 'sort': 75, 'icon': 'awards', 'name': 'Danh hiệu', 'url': '/ratings/awards', 'parent': 'ratings'},
 
-    {'_key': 'permission', 'sort': 8, 'icon': 'Permission', 'name': 'Ph\u00e2n quy\u1ec1n ch\u1ee9c n\u0103ng', 'url': '/permissions', 'parent': None},
-    {'_key': 'staff', 'sort': 9, 'icon': 'Staff', 'name': 'Qu\u1ea3n l\u00fd t\u00e0i kho\u1ea3n', 'url': '/accounts', 'parent': None},
-    {'_key': 'wordprocess', 'sort': 10, 'icon': 'wordprocessing', 'name': 'V\u0103n b\u1ea3n h\u00e0nh ch\u00ednh c\u00e1 nh\u00e2n', 'url': '/templates/wordprocessing', 'parent': None},
+    {'_key': 'permission', 'sort': 8, 'icon': 'Permission', 'name': 'Phân quyền chức năng', 'url': '/permissions', 'parent': None},
+    {'_key': 'staff', 'sort': 9, 'icon': 'Staff', 'name': 'Quản lý tài khoản', 'url': '/accounts', 'parent': None},
+    {'_key': 'wordprocess', 'sort': 10, 'icon': 'wordprocessing', 'name': 'Văn bản hành chính cá nhân', 'url': '/templates/wordprocessing', 'parent': None},
 
-    {'_key': 'settings', 'sort': 11, 'icon': 'Settings', 'name': 'C\u00e0i \u0111\u1eb7t h\u1ec7 th\u1ed1ng', 'url': None, 'parent': None},
-    {'_key': 'set_config', 'sort': 111, 'icon': 'Set-config', 'name': 'C\u1ea5u h\u00ecnh h\u1ec7 th\u1ed1ng', 'url': '/settings/system', 'parent': 'settings'},
-    {'_key': 'set_notif', 'sort': 112, 'icon': 'Set-notif', 'name': 'C\u00e0i \u0111\u1eb7t th\u00f4ng b\u00e1o', 'url': '/settings/notification', 'parent': 'settings'},
-    {'_key': 'set_maint', 'sort': 113, 'icon': 'Set-maint', 'name': 'B\u1ea3o tr\u00ec h\u1ec7 th\u1ed1ng', 'url': '/settings/maintenance', 'parent': 'settings'},
+    {'_key': 'settings', 'sort': 11, 'icon': 'Settings', 'name': 'Cài đặt hệ thống', 'url': None, 'parent': None},
+    {'_key': 'set_config', 'sort': 111, 'icon': 'Set-config', 'name': 'Cấu hình hệ thống', 'url': '/settings/system', 'parent': 'settings'},
+    {'_key': 'set_notif', 'sort': 112, 'icon': 'Set-notif', 'name': 'Cài đặt thông báo', 'url': '/settings/notification', 'parent': 'settings'},
+    {'_key': 'set_maint', 'sort': 113, 'icon': 'Set-maint', 'name': 'Bảo trì hệ thống', 'url': '/settings/maintenance', 'parent': 'settings'},
 
-    {'_key': 'templates', 'sort': 12, 'icon': 'templates', 'name': 'Bi\u1ec3u m\u1eabu & \u0111\u01a1n t\u1eeb', 'url': None, 'parent': None},
-    {'_key': 'form_proc', 'sort': 121, 'icon': 'formmanagement', 'name': 'X\u1eed l\u00fd \u0111\u01a1n t\u1eeb', 'url': '/templates/formmanagement', 'parent': 'templates'},
-    {'_key': 'form_mgmt', 'sort': 122, 'icon': 'form-manage', 'name': 'Qu\u1ea3n l\u00fd bi\u1ec3u m\u1eabu', 'url': '/templates', 'parent': 'templates'},
+    {'_key': 'templates', 'sort': 12, 'icon': 'templates', 'name': 'Biểu mẫu & đơn từ', 'url': None, 'parent': None},
+    {'_key': 'form_proc', 'sort': 121, 'icon': 'formmanagement', 'name': 'Xử lý đơn từ', 'url': '/templates/formmanagement', 'parent': 'templates'},
+    {'_key': 'form_mgmt', 'sort': 122, 'icon': 'form-manage', 'name': 'Quản lý biểu mẫu', 'url': '/templates', 'parent': 'templates'},
 ]
 
 ACTION_SEEDS = [
     ('view', 'Xem'),
-    ('add', 'Th\u00eam'),
-    ('edit', 'S\u1eeda'),
-    ('delete', 'X\u00f3a'),
-    ('verify', 'Duy\u1ec7t'),
-    ('refuse', 'Kh\u00f4ng duy\u1ec7t'),
-    ('download', 'T\u1ea3i xu\u1ed1ng'),
-    ('isPublic', 'C\u00f4ng khai'),
+    ('add', 'Thêm'),
+    ('edit', 'Sửa'),
+    ('delete', 'Xóa'),
+    ('verify', 'Duyệt'),
+    ('refuse', 'Không duyệt'),
+    ('download', 'Tải xuống'),
+    ('isPublic', 'Công khai'),
 ]
 
 ROLE_SEEDS = [
-    {'name': 'Admin', 'description': 'Full access', 'is_director': False, 'is_admin': True},
-    {'name': 'Gi\u00e1m \u0111\u1ed1c', 'description': 'Vai tr\u00f2 l\u00e3nh \u0111\u1ea1o', 'is_director': True, 'is_admin': False},
-    {'name': 'Tr\u01b0\u1edfng ph\u00f2ng', 'description': 'Qu\u1ea3n l\u00fd ph\u00f2ng ban', 'is_director': False, 'is_admin': False},
-    {'name': 'Chuy\u00ean vi\u00ean', 'description': 'Nh\u00e2n s\u1ef1 nghi\u1ec7p v\u1ee5', 'is_director': False, 'is_admin': False},
+    {'name': 'Admin', 'description': 'Full access', 'level': 0, 'is_director': False, 'is_vice_director': False, 'is_admin': True, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
+    {'name': 'Trưởng phòng', 'description': 'Quản lý phòng ban', 'level': 1, 'is_director': False, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
+    {'name': 'Giám đốc', 'description': 'Vai trò lãnh đạo', 'level': 2, 'is_director': True, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
+    {'name': 'Phó giám đốc', 'description': 'Vai trò phó lãnh đạo', 'level': 3, 'is_director': False, 'is_vice_director': True, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
+    {'name': 'Nhân viên', 'description': 'Nhân sự nghiệp vụ', 'level': 4, 'is_director': False, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': False, 'can_see_department_tasks': False},
 ]
-
 DEPARTMENT_SEEDS = [
-    {'code': 'BGD', 'name': 'Ban Gi\u00e1m \u0111\u1ed1c', 'sort_order': 1},
-    {'code': 'HCTH', 'name': 'Ph\u00f2ng H\u00e0nh ch\u00ednh - T\u1ed5ng h\u1ee3p', 'sort_order': 2},
-    {'code': 'NV', 'name': 'Ph\u00f2ng Nghi\u1ec7p v\u1ee5', 'sort_order': 3},
+    {'code': 'HCTH', 'name': 'Phòng Hành Chính Tổng hợp', 'sort_order': 1},
+    {'code': 'TBDT', 'name': 'Phòng Tu Bổ Di Tích', 'sort_order': 2},
+    {'code': 'LHSDT', 'name': 'Phòng Lập Hồ Sơ Di Tích', 'sort_order': 3},
 ]
 
 DISTRICT_SEEDS = [
-    {'code': 'Q1', 'name': 'Qu\u1eadn 1'},
-    {'code': 'GV', 'name': 'Qu\u1eadn G\u00f2 V\u1ea5p'},
-    {'code': 'BT', 'name': 'Qu\u1eadn B\u00ecnh Th\u1ea1nh'},
-    {'code': 'TPTD', 'name': 'Th\u00e0nh ph\u1ed1 Th\u1ee7 \u0110\u1ee9c'},
+    {'code': 'Q1', 'name': 'Quận 1'},
+    {'code': 'GV', 'name': 'Quận Gò Vấp'},
+    {'code': 'BT', 'name': 'Quận Bình Thạnh'},
+    {'code': 'TPTD', 'name': 'Thành phố Thủ Đức'},
 ]
 
 
@@ -151,8 +151,10 @@ class Command(BaseCommand):
 
         Organization.objects.update_or_create(
             code='TTTTL',
-            defaults={'name': 'Trung t\u00e2m Th\u00f4ng tin Tri\u1ec3n l\u00e3m', 'is_deleted': False},
+            defaults={'name': 'Trung tâm Thông tin Triển lãm', 'is_deleted': False},
         )
+
+        Department.objects.filter(code__in=['BGD', 'NV']).update(is_deleted=True)
 
         for item in DEPARTMENT_SEEDS:
             Department.objects.update_or_create(
@@ -200,10 +202,18 @@ class Command(BaseCommand):
                     'description': item['description'],
                     'is_director': item['is_director'],
                     'is_admin': item['is_admin'],
+                    'is_vice_director': item['is_vice_director'],
+                    'level': item['level'],
+                    'can_receive_task': item['can_receive_task'],
+                    'can_assign_task': item['can_assign_task'],
+                    'can_see_department_tasks': item['can_see_department_tasks'],
+                    'is_disabled': False,
                     'is_deleted': False,
                 },
             )
             roles[item['name']] = role
+
+        Role.objects.filter(name='Chuyên viên').update(is_disabled=True)
 
         admin_role = roles['Admin']
         created = 0
