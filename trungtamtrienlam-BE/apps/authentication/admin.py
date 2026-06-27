@@ -1,6 +1,6 @@
-﻿from django.contrib import admin
+from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Role, UserRole, Function, Action, Permission
+from .models import User, Role, RoleDepartment, UserRole, Function, Action, Permission
 
 
 @admin.register(User)
@@ -14,7 +14,7 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ['username', 'email', 'first_name', 'last_name', 'phone']
     readonly_fields = ['created_at', 'updated_at']
     fieldsets = UserAdmin.fieldsets + (
-        ('Thong tin tai khoan mo rong', {
+        ('Thông tin tài khoản mở rộng', {
             'fields': (
                 'phone', 'avatar', 'department_id', 'position',
                 'province_id', 'district_id', 'address', 'is_deleted',
@@ -26,9 +26,19 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    list_display = ['name', 'description', 'is_director', 'is_admin', 'is_deleted', 'created_at']
-    list_filter = ['is_director', 'is_admin', 'is_deleted']
+    list_display = [
+        'name', 'level', 'is_director', 'is_vice_director', 'is_admin', 'is_disabled',
+        'can_receive_task', 'can_assign_task', 'can_see_department_tasks', 'is_deleted', 'created_at',
+    ]
+    list_filter = ['is_director', 'is_vice_director', 'is_admin', 'is_disabled', 'is_deleted']
     search_fields = ['name']
+
+
+@admin.register(RoleDepartment)
+class RoleDepartmentAdmin(admin.ModelAdmin):
+    list_display = ['role', 'department']
+    list_filter = ['role', 'department']
+    search_fields = ['role__name', 'department__name']
 
 
 @admin.register(UserRole)

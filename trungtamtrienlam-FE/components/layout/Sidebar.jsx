@@ -122,8 +122,9 @@ export default function Sidebar() {
                         {hasChildren ? (
                             <>
                                 <button
-                                    onClick={() => { toggleMenu(item.id); handleResize() }}
-                                    className={`flex items-center justify-between w-full px-4 py-2 text-sm ${
+                                    onClick={() => toggleMenu(item.id)}
+                                    aria-expanded={isExpanded}
+                                    className={`flex items-center justify-between w-full px-4 py-2 text-sm transition-colors duration-200 ${
                                         isCurrent || (item.path && pathname.startsWith(item.path))
                                             ? 'bg-blue-50 text-blue-600'
                                             : 'text-gray-700 hover:bg-gray-100'
@@ -136,13 +137,21 @@ export default function Sidebar() {
                                         </span>
                                     </div>
                                     {(!collapsed || isMobile) && (
-                                        isExpanded
-                                            ? <ChevronDown className="w-4 h-4 flex-shrink-0" />
-                                            : <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                                        <ChevronDown
+                                            className={`w-4 h-4 flex-shrink-0 transition-transform duration-300 ease-in-out ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
+                                        />
                                     )}
                                 </button>
-                                {(!collapsed || isMobile) && isExpanded &&
-                                    renderMenuItems(item.children, level + 1)}
+                                {(!collapsed || isMobile) && (
+                                    <div
+                                        className={`grid overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'opacity-100' : 'opacity-0'}`}
+                                        style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
+                                    >
+                                        <div className="min-h-0 overflow-hidden">
+                                            {renderMenuItems(item.children, level + 1)}
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         ) : (
                             <Link
@@ -243,10 +252,10 @@ export default function Sidebar() {
                 {/* Footer */}
                 <div
                     id="footerSidebar"
-                    className={`absolute bottom-0 left-0 border-t border-gray-200 p-2 bg-white ${collapsed && !isMobile ? 'w-16' : 'w-full'}`}
+                    className={`absolute bottom-0 left-0 border-t border-gray-200 p-2 bg-white h-16 flex items-center ${collapsed && !isMobile ? 'w-16' : 'w-full'}`}
                 >
                     {(!collapsed || isMobile) ? (
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-2 min-w-0">
                                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm flex-shrink-0">
                                     {avatarInitial}

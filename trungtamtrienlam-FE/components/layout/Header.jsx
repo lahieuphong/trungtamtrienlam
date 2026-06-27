@@ -88,7 +88,7 @@ export default function Header() {
                 </div>
 
                 <div className='flex items-center'>
-                    <div className='relative'>
+                    <div className='relative flex items-center gap-3'>
                         {/* Messages button */}
                         <div className='relative inline-block'>
                             {unreadMessagesCount > 0 && (

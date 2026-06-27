@@ -1,4 +1,4 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User, Role, UserRole, Function, Action, Permission
 
@@ -71,12 +71,18 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class RoleSerializer(serializers.ModelSerializer):
     isDirector = serializers.BooleanField(source='is_director', read_only=True)
     isAdmin = serializers.BooleanField(source='is_admin', read_only=True)
+    isViceDirector = serializers.BooleanField(source='is_vice_director', read_only=True)
+    canReceiveTask = serializers.BooleanField(source='can_receive_task', read_only=True)
+    canAssignTask = serializers.BooleanField(source='can_assign_task', read_only=True)
+    canSeeDepartmentTasks = serializers.BooleanField(source='can_see_department_tasks', read_only=True)
 
     class Meta:
         model = Role
         fields = [
-            'id', 'name', 'description', 'is_director', 'is_admin',
-            'isDirector', 'isAdmin', 'created_at',
+            'id', 'name', 'description', 'is_director', 'is_admin', 'is_disabled',
+            'level', 'can_receive_task', 'can_assign_task', 'can_see_department_tasks', 'is_vice_director',
+            'isDirector', 'isAdmin', 'isViceDirector', 'canReceiveTask', 'canAssignTask', 'canSeeDepartmentTasks',
+            'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 

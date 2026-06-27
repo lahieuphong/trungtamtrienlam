@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Eye, Pencil, Trash2, Plus, KeyRound } from 'lucide-react'
 import { Breadcrumb } from '@/components/common/Breadcrumb'
-import { Table, TablePagination } from '@/components/common/Table'
+import { Table } from '@/components/common/Table'
 import { Button } from '@/components/common/Button'
 import { ConfirmModal } from '@/components/common/Modal'
 import { fetchUsers, deleteUser, resetUser } from '@/lib/api/usersApi'
@@ -14,7 +14,7 @@ import { UserFileConstants } from '@/constants/userConstants'
 function getAvatarUrl(staffFilesJson) {
     try {
         const files = JSON.parse(staffFilesJson || '[]')
-        const avatar = files.find(f => f.TypeFile === UserFileConstants.typeFile.Avatar)
+        const avatar = files.find((file) => file.TypeFile === UserFileConstants.typeFile.Avatar)
         if (!avatar?.File) return null
         if (avatar.File.startsWith('http')) return avatar.File
         return `${ApiConstants.cdnUrl}/${avatar.File}`
@@ -25,87 +25,94 @@ function getAvatarUrl(staffFilesJson) {
 
 export default function AccountsPage() {
     const router = useRouter()
+    const [searchQuery, setSearchQuery] = useState('')
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize] = useState(15)
     const [accounts, setAccounts] = useState([])
-    const [total, setTotal] = useState(0)
-    const [page, setPage] = useState(1)
-    const pageSize = 15
-    const [keyword, setKeyword] = useState('')
-    const [searchInput, setSearchInput] = useState('')
-    const [loading, setLoading] = useState(false)
+    const [totalItems, setTotalItems] = useState(0)
+    const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [toast, setToast] = useState(null)
-
-    const [deleteTarget, setDeleteTarget] = useState(null)
-    const [resetTarget, setResetTarget] = useState(null)
+    const [accountToDelete, setAccountToDelete] = useState(null)
+    const [accountToResetPassword, setAccountToResetPassword] = useState(null)
     const [actionLoading, setActionLoading] = useState(false)
 
-    const showToast = (msg, type = 'success') => {
-        setToast({ msg, type })
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type })
         setTimeout(() => setToast(null), 3500)
     }
 
-    const loadData = async (p = page, kw = keyword) => {
+    const loadAccounts = async () => {
         try {
             setLoading(true)
             setError(null)
-            const res = await fetchUsers({ page: p, pageSize, keyword: kw })
-            if (res?.status === 200) {
-                setAccounts(res.data?.staffs || [])
-                setTotal(res.data?.total || 0)
+            const response = await fetchUsers({
+                page: currentPage,
+                pageSize,
+                keyword: searchQuery,
+            })
+
+            if (response?.status === 200) {
+                setAccounts(response.data?.staffs || [])
+                setTotalItems(response.data?.total || 0)
             } else {
-                setError('Không thể tải danh sách tài khoản')
+                setError('Không thể tải danh sách tài khoản. Vui lòng thử lại sau.')
             }
-        } catch {
-            setError('Không thể tải danh sách tài khoản')
+        } catch (err) {
+            console.error('Error fetching accounts:', err)
+            setError('Không thể tải danh sách tài khoản. Vui lòng thử lại sau.')
         } finally {
             setLoading(false)
         }
     }
 
     useEffect(() => {
-        loadData(page, keyword)
-    }, [page, keyword])
+        loadAccounts()
+    }, [currentPage, pageSize, searchQuery])
 
-    const handleSearch = (e) => {
-        e.preventDefault()
-        setPage(1)
-        setKeyword(searchInput)
+    const handleSearch = (event) => {
+        event.preventDefault()
+        setCurrentPage(1)
+        loadAccounts()
     }
 
-    const handleDelete = async () => {
-        if (!deleteTarget) return
-        setActionLoading(true)
+    const handleDeleteConfirm = async () => {
+        if (!accountToDelete) return
         try {
-            const res = await deleteUser(deleteTarget.id)
-            if (res?.status === 200) {
+            setActionLoading(true)
+            const response = await deleteUser(accountToDelete.id)
+            if (response?.status === 200) {
                 showToast('Xóa tài khoản thành công!')
-                loadData()
+                await loadAccounts()
             } else {
                 showToast('Xóa tài khoản thất bại!', 'error')
             }
-        } catch {
+        } catch (err) {
+            console.error('Error deleting account:', err)
             showToast('Xóa tài khoản thất bại!', 'error')
         } finally {
             setActionLoading(false)
-            setDeleteTarget(null)
+            setAccountToDelete(null)
         }
     }
 
-    const handleResetPassword = async () => {
-        if (!resetTarget) return
-        setActionLoading(true)
+    const handleResetPasswordConfirm = async () => {
+        if (!accountToResetPassword) return
         try {
-            const res = await resetUser(resetTarget.id)
-            if (res?.status === 200) {
-                showToast('Đã gửi đường dẫn đặt lại mật khẩu đến email người dùng!')
+            setActionLoading(true)
+            const response = await resetUser(accountToResetPassword.id)
+            if (response?.status === 200) {
+                showToast('Đặt lại mật khẩu thành công. Hệ thống đã gửi đường dẫn đặt lại mật khẩu đến email của người dùng!')
+                await loadAccounts()
             } else {
                 showToast('Đặt lại mật khẩu thất bại!', 'error')
             }
-        } catch {
+        } catch (err) {
+            console.error('Error resetting password:', err)
             showToast('Đặt lại mật khẩu thất bại!', 'error')
         } finally {
             setActionLoading(false)
-            setResetTarget(null)
+            setAccountToResetPassword(null)
         }
     }
 
@@ -113,61 +120,84 @@ export default function AccountsPage() {
         {
             key: 'avatar',
             title: '',
-            width: 56,
-            render: (_, row) => {
-                const src = getAvatarUrl(row.staffFiles)
+            sortable: false,
+            render: (_, account) => {
+                const avatarUrl = getAvatarUrl(account.staffFiles)
                 return (
-                    <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
-                        {src ? (
-                            <img src={src} alt={row.fullName} className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 font-medium">
-                                {(row.fullName || '?')[0].toUpperCase()}
-                            </div>
-                        )}
+                    <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 mr-3 overflow-hidden">
+                            {avatarUrl ? (
+                                <img
+                                    src={avatarUrl}
+                                    alt={account.fullName}
+                                    title={account.fullName}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xs text-gray-500 font-medium">
+                                    {(account.fullName || '?')[0].toUpperCase()}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )
             },
         },
-        { key: 'userName', title: 'Mã số', width: 120, sortable: true },
+        { key: 'userName', title: 'Mã số', sortable: true },
         { key: 'fullName', title: 'Họ và tên', sortable: true },
         { key: 'email', title: 'Email', sortable: true },
-        { key: 'phoneNumber', title: 'Số điện thoại', width: 140, sortable: true },
+        { key: 'phoneNumber', title: 'Số điện thoại', sortable: true },
         { key: 'roleName', title: 'Chức vụ', sortable: true },
         {
             key: 'status',
             title: 'Trạng thái',
-            width: 140,
             sortable: true,
-            render: (_, row) => (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium
-                    ${row.status ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${row.status ? 'bg-green-500' : 'bg-gray-400'}`} />
-                    {row.status ? 'Đang hoạt động' : 'Không hoạt động'}
-                </span>
+            render: (_, account) => (
+                <div
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${account.status ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
+                >
+                    <span className={`w-2 h-2 rounded-full mr-1.5 ${account.status ? 'bg-green-500' : 'bg-gray-500'}`} />
+                    {account.status ? 'Đang hoạt động' : 'Không hoạt động'}
+                </div>
             ),
         },
         {
             key: 'actions',
             title: 'Thao tác',
-            width: 120,
-            render: (_, row) => (
-                <div className="flex items-center gap-2">
-                    <button onClick={() => router.push(`/accounts/detail?id=${row.id}`)}
-                        className="text-gray-400 hover:text-blue-500 transition-colors" title="Xem chi tiết">
-                        <Eye className="w-4 h-4" />
+            sortable: false,
+            render: (_, account) => (
+                <div className="flex justify-start space-x-2 items-center">
+                    <button
+                        type="button"
+                        className="inline-flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 text-sm px-4 py-2 rounded-lg cursor-pointer text-gray-500 hover:text-blue-500 hover:bg-transparent !p-0"
+                        title="Xem chi tiết"
+                        onClick={() => router.push(`/accounts/detail?id=${account.id}`)}
+                    >
+                        <Eye className="w-5 h-5" />
                     </button>
-                    <button onClick={() => router.push(`/accounts/edit?id=${row.id}`)}
-                        className="text-gray-400 hover:text-blue-500 transition-colors" title="Chỉnh sửa">
-                        <Pencil className="w-4 h-4" />
+                    <button
+                        type="button"
+                        className="inline-flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 text-sm px-4 py-2 rounded-lg cursor-pointer text-gray-500 hover:text-blue-500 hover:bg-transparent !p-0"
+                        title="Chỉnh sửa"
+                        onClick={() => router.push(`/accounts/edit?id=${account.id}`)}
+                    >
+                        <Pencil className="w-5 h-5" />
                     </button>
-                    <button onClick={() => setDeleteTarget(row)}
-                        className="text-gray-400 hover:text-red-500 transition-colors" title="Xóa">
-                        <Trash2 className="w-4 h-4" />
+                    <button
+                        type="button"
+                        className="inline-flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 text-sm px-4 py-2 rounded-lg cursor-pointer text-gray-500 hover:text-red-500 hover:bg-transparent !p-0"
+                        title="Xóa"
+                        onClick={() => setAccountToDelete(account)}
+                    >
+                        <Trash2 className="w-5 h-5" />
                     </button>
-                    <button onClick={() => setResetTarget(row)}
-                        className="text-gray-400 hover:text-orange-500 transition-colors" title="Đặt lại mật khẩu">
-                        <KeyRound className="w-4 h-4" />
+                    <button
+                        type="button"
+                        className="inline-flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 text-sm px-4 py-2 rounded-lg cursor-pointer text-gray-500 hover:text-red-500 hover:bg-transparent !p-0"
+                        title="Đặt lại mật khẩu"
+                        onClick={() => setAccountToResetPassword(account)}
+                    >
+                        <KeyRound className="w-5 h-5" />
                     </button>
                 </div>
             ),
@@ -180,58 +210,66 @@ export default function AccountsPage() {
 
             {toast && (
                 <div className={`mb-4 px-4 py-3 rounded-md text-sm ${toast.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                    {toast.msg}
+                    {toast.message}
                 </div>
             )}
 
-            <div className="flex justify-between items-center mb-6 gap-4">
+            <div className="flex justify-between items-center mb-6">
                 <form onSubmit={handleSearch} className="relative w-full max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <Search className="w-5 h-5 text-gray-400" />
+                    </div>
                     <input
+                        id="search"
+                        name="search"
                         type="text"
-                        value={searchInput}
-                        onChange={e => setSearchInput(e.target.value)}
-                        placeholder="Tìm kiếm tài khoản..."
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
+                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Tìm kiếm tài khoản"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
                     />
+                    <button type="submit" className="hidden">
+                        Tìm kiếm
+                    </button>
                 </form>
 
-                <Button onClick={() => router.push('/accounts/new')} className="flex-shrink-0">
-                    <Plus className="w-4 h-4" />
+                <Button onClick={() => router.push('/accounts/new')}>
+                    <Plus className="w-5 h-5" />
                     Thêm tài khoản mới
                 </Button>
             </div>
 
-            {error && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4 text-sm">{error}</div>
-            )}
+            {error && <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">{error}</div>}
 
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <Table
-                    columns={columns}
-                    data={accounts}
-                    loading={loading}
-                    emptyText="Không tìm thấy tài khoản nào"
-                    showRowNumbers={true}
-                    startRowNumber={(page - 1) * pageSize + 1}
-                />
-                <TablePagination total={total} page={page} pageSize={pageSize} onChange={setPage} />
-            </div>
+            <Table
+                columns={columns}
+                data={accounts}
+                defaultSortColumn="fullName"
+                defaultSortDirection="asc"
+                currentPage={currentPage}
+                itemsPerPage={pageSize}
+                totalItems={totalItems}
+                onPageChange={setCurrentPage}
+                emptyMessage="Không tìm thấy tài khoản nào"
+                loading={loading}
+                showRowNumbers={true}
+                startRowNumberFrom={1}
+            />
 
             <ConfirmModal
-                open={!!deleteTarget}
-                onClose={() => setDeleteTarget(null)}
-                onConfirm={handleDelete}
+                open={!!accountToDelete}
+                onClose={() => setAccountToDelete(null)}
+                onConfirm={handleDeleteConfirm}
                 title="Xoá tài khoản"
-                message={`Bạn có chắc muốn xóa tài khoản "${deleteTarget?.fullName || deleteTarget?.userName}"? Hành động này không thể hoàn tác.`}
+                message="Hành động này không thể hoàn tác và tất cả dữ liệu liên quan sẽ bị xoá vĩnh viễn."
                 loading={actionLoading}
             />
             <ConfirmModal
-                open={!!resetTarget}
-                onClose={() => setResetTarget(null)}
-                onConfirm={handleResetPassword}
+                open={!!accountToResetPassword}
+                onClose={() => setAccountToResetPassword(null)}
+                onConfirm={handleResetPasswordConfirm}
                 title="Đặt lại mật khẩu"
-                message={`Hệ thống sẽ gửi đường dẫn đặt lại mật khẩu đến email của "${resetTarget?.fullName || resetTarget?.userName}". Tiếp tục?`}
+                message="Bạn có chắc chắn muốn đặt lại mật khẩu cho tài khoản này?"
                 loading={actionLoading}
             />
         </div>

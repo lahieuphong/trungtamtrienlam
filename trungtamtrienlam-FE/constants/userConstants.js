@@ -1,7 +1,7 @@
 export const UserFileConstants = {
     typeFile: {
-        Avatar: 1,
-        Sign: 2,
-        Stamp: 3,
+        Avatar: 0,
+        Sign: 1,
+        Stamp: 2,
     },
 }

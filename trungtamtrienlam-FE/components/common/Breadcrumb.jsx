@@ -1,34 +1,38 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Home } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 
-export function Breadcrumb({ items = [] }) {
-    const isSingleHomePage = items.length === 1 && items[0].isHome && !items[0].href
+export function Breadcrumb({ items = [], className = '', onClick }) {
+    if (!items || items.length === 0) return null
 
-    if (isSingleHomePage) {
-        return (
-            <h2 className="font-semibold text-gray-800 mb-6">{items[0].label}</h2>
-        )
+    const handleClick = (item) => () => {
+        onClick?.(item)
     }
 
     return (
-        <nav className="flex items-center gap-1.5 text-sm mb-6">
+        <div className={`flex items-center mb-4 ${className}`}>
             {items.map((item, idx) => (
-                <span key={idx} className="flex items-center gap-1.5">
-                    {idx > 0 && <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-                    {item.isHome && <Home className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-                    {item.href ? (
-                        <Link href={item.href} className="text-blue-500 hover:underline">
-                            {item.label}
+                <div key={idx} className="flex items-center">
+                    {idx > 0 && (
+                        <span className="mx-2 text-gray-400">
+                            <ChevronRight className="w-5 h-5 mr-1" />
+                        </span>
+                    )}
+                    {item.href && idx < items.length - 1 ? (
+                        <Link href={item.href} className="flex items-center text-blue-500 hover:text-blue-700">
+                            <span className="text-sm font-medium">{item.label}</span>
                         </Link>
                     ) : (
-                        <span className={idx === items.length - 1 ? 'text-gray-700 font-medium' : 'text-gray-500'}>
+                        <span
+                            onClick={handleClick(item)}
+                            className={`${idx === items.length - 1 ? 'text-gray-900 font-medium' : 'text-blue-500 hover:text-blue-700 cursor-pointer'} text-sm`}
+                        >
                             {item.label}
                         </span>
                     )}
-                </span>
+                </div>
             ))}
-        </nav>
+        </div>
     )
 }

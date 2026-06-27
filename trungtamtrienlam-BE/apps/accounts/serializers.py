@@ -1,68 +1,74 @@
 import json
 from rest_framework import serializers
-from apps.authentication.models import User, Role
-from apps.departments.models import Department
-from .models import Province, District, Organization, StaffFile, UserConcurrently
+from apps.departments.models import Department, Staff
+from .models import Organization, StaffFile, UserConcurrently
 
 
 class StaffListSerializer(serializers.ModelSerializer):
-    """Serializer cho danh sách staff — format y chang 185."""
-    userName = serializers.CharField(source='username')
+    userName = serializers.SerializerMethodField()
     fullName = serializers.SerializerMethodField()
-    phoneNumber = serializers.CharField(source='phone', default='')
+    phoneNumber = serializers.CharField(source='phone_number', default='', allow_blank=True)
     roleName = serializers.SerializerMethodField()
-    status = serializers.BooleanField(source='is_active')
+    status = serializers.SerializerMethodField()
     staffFiles = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
+        model = Staff
         fields = ['id', 'userName', 'fullName', 'email', 'phoneNumber', 'roleName', 'status', 'staffFiles']
 
+    def get_userName(self, obj):
+        return obj.user.username if obj.user else ''
+
     def get_fullName(self, obj):
-        return f'{obj.last_name} {obj.first_name}'.strip() or obj.username
+        return obj.full_name or (obj.user.get_full_name() if obj.user else '')
 
     def get_roleName(self, obj):
-        uc = UserConcurrently.objects.filter(user_id=str(obj.id), is_deleted=False).first()
-        if not uc or not uc.role_id:
+        if not obj.user_id:
             return ''
-        role = Role.objects.filter(id=uc.role_id).first()
-        return role.name if role else ''
+        uc = UserConcurrently.objects.select_related('role').filter(user_id=obj.user_id, is_deleted=False).first()
+        return uc.role.name if uc and uc.role else ''
+
+    def get_status(self, obj):
+        return bool(obj.user and obj.user.is_active)
 
     def get_staffFiles(self, obj):
-        files = StaffFile.objects.filter(user_id=str(obj.id), is_deleted=False)
-        result = [
-            {
-                'TypeFile': f.type_file,
-                'File': f.file or '',
-                'FileName': f.file_name or '',
-                'Extension': f.extension or '',
-                'Size': f.size,
-            }
-            for f in files
-        ]
+        files = StaffFile.objects.filter(staff=obj, is_deleted=False)
+        result = [serialize_staff_file(f) for f in files]
         return json.dumps(result)
 
 
 class StaffDetailSerializer(serializers.ModelSerializer):
-    """Serializer cho chi tiết staff — format y chang 185."""
-    userName = serializers.CharField(source='username')
-    firstName = serializers.CharField(source='first_name', default='')
-    lastName = serializers.CharField(source='last_name', default='')
-    phoneNumber = serializers.CharField(source='phone', default='')
+    userID = serializers.SerializerMethodField()
+    userName = serializers.SerializerMethodField()
+    firstName = serializers.CharField(source='first_name', default='', allow_blank=True)
+    lastName = serializers.CharField(source='last_name', default='', allow_blank=True)
+    fullName = serializers.SerializerMethodField()
+    phoneNumber = serializers.CharField(source='phone_number', default='', allow_blank=True)
     provinceID = serializers.SerializerMethodField()
     districtID = serializers.SerializerMethodField()
+    wardID = serializers.SerializerMethodField()
     provinceName = serializers.SerializerMethodField()
     districtName = serializers.SerializerMethodField()
-    status = serializers.BooleanField(source='is_active')
+    wardName = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
     staffFiles = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
+        model = Staff
         fields = [
-            'id', 'userName', 'firstName', 'lastName', 'email', 'phoneNumber',
-            'provinceID', 'districtID', 'provinceName', 'districtName', 'address',
-            'status', 'staffFiles',
+            'id', 'userID', 'userName', 'firstName', 'lastName', 'fullName', 'email', 'phoneNumber',
+            'provinceID', 'districtID', 'wardID', 'provinceName', 'districtName', 'wardName', 'address',
+            'status', 'avatar', 'sign', 'stamp', 'sign_encrypted', 'stamp_encrypted', 'email_personal', 'staffFiles',
         ]
+
+    def get_userID(self, obj):
+        return str(obj.user_id) if obj.user_id else ''
+
+    def get_userName(self, obj):
+        return obj.user.username if obj.user else ''
+
+    def get_fullName(self, obj):
+        return obj.full_name or (obj.user.get_full_name() if obj.user else '')
 
     def get_provinceID(self, obj):
         return str(obj.province_id) if obj.province_id else ''
@@ -70,60 +76,70 @@ class StaffDetailSerializer(serializers.ModelSerializer):
     def get_districtID(self, obj):
         return str(obj.district_id) if obj.district_id else ''
 
+    def get_wardID(self, obj):
+        return str(obj.ward_id) if obj.ward_id else ''
+
     def get_provinceName(self, obj):
-        if not obj.province_id:
-            return ''
-        prov = Province.objects.filter(id=obj.province_id).first()
-        return prov.name if prov else ''
+        return obj.province.name if obj.province else ''
 
     def get_districtName(self, obj):
-        if not obj.district_id:
-            return ''
-        dist = District.objects.filter(id=obj.district_id).first()
-        return dist.name if dist else ''
+        return obj.district.name if obj.district else ''
+
+    def get_wardName(self, obj):
+        return obj.ward.name if obj.ward else ''
+
+    def get_status(self, obj):
+        return bool(obj.user and obj.user.is_active)
 
     def get_staffFiles(self, obj):
-        files = StaffFile.objects.filter(user_id=str(obj.id), is_deleted=False)
-        result = [
-            {
-                'TypeFile': f.type_file,
-                'File': f.file or '',
-                'FileName': f.file_name or '',
-                'Extension': f.extension or '',
-                'Size': f.size,
-            }
-            for f in files
-        ]
+        files = StaffFile.objects.filter(staff=obj, is_deleted=False)
+        result = [serialize_staff_file(f) for f in files]
         return json.dumps(result)
 
 
 class UserConcurrentlySerializer(serializers.ModelSerializer):
-    roleID = serializers.CharField(source='role_id', default='')
+    roleID = serializers.SerializerMethodField()
     roleName = serializers.SerializerMethodField()
-    departmentID = serializers.CharField(source='department_id', default='')
+    departmentID = serializers.SerializerMethodField()
     departmentName = serializers.SerializerMethodField()
-    organizationID = serializers.CharField(source='organization_id', default='')
+    organizationID = serializers.SerializerMethodField()
     organizationName = serializers.SerializerMethodField()
-    userID = serializers.CharField(source='user_id', default='')
+    userID = serializers.SerializerMethodField()
 
     class Meta:
         model = UserConcurrently
         fields = ['id', 'userID', 'roleID', 'roleName', 'departmentID', 'departmentName', 'organizationID', 'organizationName']
 
+    def get_userID(self, obj):
+        return str(obj.user_id) if obj.user_id else ''
+
+    def get_roleID(self, obj):
+        return str(obj.role_id) if obj.role_id else ''
+
     def get_roleName(self, obj):
-        if not obj.role_id:
-            return ''
-        role = Role.objects.filter(id=obj.role_id).first()
-        return role.name if role else ''
+        return obj.role.name if obj.role else ''
+
+    def get_departmentID(self, obj):
+        return str(obj.department_id) if obj.department_id else ''
 
     def get_departmentName(self, obj):
-        if not obj.department_id:
-            return ''
-        dept = Department.objects.filter(id=obj.department_id).first()
-        return dept.name if dept else ''
+        return obj.department.name if obj.department else ''
+
+    def get_organizationID(self, obj):
+        return str(obj.organization_id) if obj.organization_id else ''
 
     def get_organizationName(self, obj):
-        if not obj.organization_id:
-            return ''
-        org = Organization.objects.filter(id=obj.organization_id).first()
-        return org.name if org else ''
+        return obj.organization.name if obj.organization else ''
+
+
+def serialize_staff_file(file_obj):
+    return {
+        'ID': str(file_obj.id),
+        'StaffID': str(file_obj.staff_id) if file_obj.staff_id else '',
+        'TypeFile': file_obj.type_file,
+        'File': file_obj.file or '',
+        'FileName': file_obj.file_name or '',
+        'Extension': file_obj.extension or '',
+        'Size': file_obj.size,
+        'Type': file_obj.type,
+    }

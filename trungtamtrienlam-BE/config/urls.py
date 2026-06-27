@@ -1,4 +1,4 @@
-﻿from django.contrib import admin
+from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -14,43 +14,42 @@ urlpatterns = [
     path('api/Permissions/Clone', auth_views.PermissionCloneView.as_view(), name='legacy-permissions-clone'),
     path('api/Permissions/GetByUserID', auth_views.UserMenuPermissionsView.as_view(), name='legacy-permissions-by-user'),
 
-    # Quáº£n lÃ½ tÃ i khoáº£n
+    # Quản lý tài khoản
     path('api/accounts/', include('apps.accounts.urls')),
 
-    # PhÃ²ng ban & nhÃ¢n sá»±
+    # Phòng ban & nhân sự
     path('api/departments/', include('apps.departments.urls')),
 
-    # CÃ´ng viá»‡c
+    # Công việc
     path('api/tasks/', include('apps.tasks.urls')),
 
-    # VÄƒn báº£n
+    # Văn bản
     path('api/documents/', include('apps.documents.urls')),
 
-    # LÆ°u trá»¯ há»“ sÆ¡
+    # Lưu trữ hồ sơ
     path('api/archives/', include('apps.archives.urls')),
 
-    # Lá»‹ch lÃ m viá»‡c
+    # Lịch làm việc
     path('api/calendars/', include('apps.calendars.urls')),
 
-    # Tin nháº¯n ná»™i bá»™
+    # Tin nhắn nội bộ
     path('api/chats/', include('apps.chats.urls')),
 
-    # Quáº£n lÃ½ file media
+    # Quản lý file media
     path('api/media/', include('apps.media_files.urls')),
 
-    # ÄÃ¡nh giÃ¡ thi Ä‘ua
+    # Đánh giá thi đua
     path('api/ratings/', include('apps.ratings.urls')),
 
-    # Máº«u biá»ƒu
+    # Mẫu biểu
     path('api/templates/', include('apps.templates_app.urls')),
 
-    # ThÃ´ng bÃ¡o
+    # Thông báo
     path('api/notifications/', include('apps.notifications.urls')),
 
-    # CÃ i Ä‘áº·t há»‡ thá»‘ng
+    # Cài đặt hệ thống
     path('api/settings/', include('apps.settings_app.urls')),
 
-    # Sao lÆ°u & phá»¥c há»“i
+    # Sao lưu & phục hồi
     path('api/backup/', include('apps.backup.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-

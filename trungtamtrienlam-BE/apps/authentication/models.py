@@ -22,7 +22,12 @@ class User(AbstractUser):
         verbose_name_plural = 'Người dùng'
 
     def get_full_name(self):
-        return f'{self.last_name} {self.first_name}'.strip() or self.username
+        return f'{self.first_name} {self.last_name}'.strip() or self.username
+
+    def soft_delete(self, deleted_by=None):
+        self.is_deleted = True
+        self.is_active = False
+        self.save(update_fields=['is_deleted', 'is_active', 'updated_at'])
 
 
 class Role(models.Model):
@@ -31,16 +36,41 @@ class Role(models.Model):
     description = models.TextField(blank=True, null=True)
     is_director = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
+    is_disabled = models.BooleanField(default=False)
+    level = models.IntegerField(default=0)
+    can_receive_task = models.BooleanField(default=False)
+    can_assign_task = models.BooleanField(default=False)
+    can_see_department_tasks = models.BooleanField(default=False)
+    is_vice_director = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=255, blank=True, null=True)
+    updated_by = models.CharField(max_length=255, blank=True, null=True)
     is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'roles'
         verbose_name = 'Vai trò'
         verbose_name_plural = 'Vai trò'
+        ordering = ['level', 'name']
 
     def __str__(self):
         return self.name
+
+
+class RoleDepartment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='role_departments')
+    department = models.ForeignKey('departments.Department', on_delete=models.CASCADE, related_name='role_departments')
+
+    class Meta:
+        db_table = 'roles_department'
+        unique_together = ('role', 'department')
+        verbose_name = 'Vai trò theo phòng ban'
+        verbose_name_plural = 'Vai trò theo phòng ban'
+
+    def __str__(self):
+        return f'{self.role_id} - {self.department_id}'
 
 
 class UserRole(models.Model):

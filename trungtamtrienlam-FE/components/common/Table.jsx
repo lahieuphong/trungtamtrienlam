@@ -1,94 +1,147 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 
 export function Table({
     columns = [],
     data = [],
-    loading = false,
-    emptyText = 'Không có dữ liệu',
-    showRowNumbers = false,
-    startRowNumber = 1,
     onSortChange,
     defaultSortColumn,
     defaultSortDirection = 'asc',
+    currentPage = 1,
+    totalItems = 1,
+    onPageChange,
+    emptyMessage,
+    emptyText = 'Không có dữ liệu',
+    loading = false,
+    showRowNumbers = false,
+    rowNumberTitle = 'STT',
+    startRowNumber = 1,
+    startRowNumberFrom,
+    itemsPerPage = 10,
+    classNameColumn = '',
 }) {
-    const [sortColumn, setSortColumn] = useState(defaultSortColumn || null)
+    const [sortColumn, setSortColumn] = useState(defaultSortColumn || '')
     const [sortDirection, setSortDirection] = useState(defaultSortDirection)
 
-    const handleSort = (col) => {
-        if (!col.sortable) return
-        const newDir = sortColumn === col.key && sortDirection === 'asc' ? 'desc' : 'asc'
-        setSortColumn(col.key)
-        setSortDirection(newDir)
-        onSortChange?.(col.key, newDir)
+    const handleSort = (column) => {
+        if (!column.sortable) return
+        const nextDirection = sortColumn === column.key && sortDirection === 'asc' ? 'desc' : 'asc'
+        setSortColumn(column.key)
+        setSortDirection(nextDirection)
+        onSortChange?.(column.key, nextDirection)
+    }
+
+    const sortedData = useMemo(() => {
+        if (!data.length || !sortColumn) return data
+
+        return [...data].sort((a, b) => {
+            const aValue = a[sortColumn]
+            const bValue = b[sortColumn]
+
+            if (aValue == null) return sortDirection === 'asc' ? -1 : 1
+            if (bValue == null) return sortDirection === 'asc' ? 1 : -1
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                return sortDirection === 'asc'
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue)
+            }
+            if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
+                if (aValue === bValue) return 0
+                return sortDirection === 'asc'
+                    ? aValue ? 1 : -1
+                    : aValue ? -1 : 1
+            }
+
+            return sortDirection === 'asc' ? aValue - bValue : bValue - aValue
+        })
+    }, [data, sortColumn, sortDirection])
+
+    const displayColumns = useMemo(() => {
+        if (!showRowNumbers) return columns
+
+        return [
+            {
+                key: '__rowNumber',
+                title: rowNumberTitle,
+                sortable: false,
+                render: (_, __, rowIndex) => {
+                    const offset = (currentPage - 1) * itemsPerPage
+                    return (startRowNumberFrom ?? startRowNumber) + offset + rowIndex
+                },
+            },
+            ...columns,
+        ]
+    }, [columns, currentPage, itemsPerPage, rowNumberTitle, showRowNumbers, startRowNumber, startRowNumberFrom])
+
+    const renderSortIcon = (column) => {
+        if (sortColumn !== column.key) return <ChevronDown className="w-4 h-4 ml-1 opacity-30" />
+        return sortDirection === 'asc'
+            ? <ChevronDown className="w-4 h-4 ml-1" />
+            : <ChevronUp className="w-4 h-4 ml-1" />
     }
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-12">
+            <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200 p-8 flex justify-center items-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
             </div>
         )
     }
 
+    if (!loading && (!data || data.length === 0)) {
+        return (
+            <div className="bg-gray-50 rounded-md p-8 text-center">
+                <p className="text-gray-500">{emptyMessage || emptyText}</p>
+            </div>
+        )
+    }
+
     return (
-        <div className="w-full overflow-x-auto">
-            <table className="w-full text-sm text-left">
-                <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                        {showRowNumbers && (
-                            <th className="px-4 py-3 font-medium text-gray-600 whitespace-nowrap w-14">STT</th>
-                        )}
-                        {columns.map((col, i) => (
-                            <th
-                                key={i}
-                                className={`px-4 py-3 font-medium text-gray-600 whitespace-nowrap ${col.sortable ? 'cursor-pointer select-none hover:bg-gray-100' : ''}`}
-                                style={{ width: col.width }}
-                                onClick={() => col.sortable && handleSort(col)}
-                            >
-                                {col.sortable ? (
-                                    <div className="flex items-center gap-1">
-                                        {col.title}
-                                        {sortColumn === col.key ? (
-                                            sortDirection === 'asc'
-                                                ? <ChevronUp className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                                                : <ChevronDown className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                                        ) : (
-                                            <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                                        )}
+        <div>
+            <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
+                <table className="min-w-full">
+                    <thead>
+                        <tr className="bg-gray-50 border-b">
+                            {displayColumns.map((column) => (
+                                <th
+                                    key={column.key}
+                                    className={`py-3 px-4 text-left text-sm font-medium text-gray-500 ${column.className || ''} ${classNameColumn} ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                                    onClick={() => column.sortable && handleSort(column)}
+                                >
+                                    <div className="flex items-center">
+                                        {column.title}
+                                        {column.sortable && renderSortIcon(column)}
                                     </div>
-                                ) : (
-                                    col.title
-                                )}
-                            </th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {data.length === 0 ? (
-                        <tr>
-                            <td colSpan={columns.length + (showRowNumbers ? 1 : 0)} className="px-4 py-12 text-center text-gray-400">
-                                {emptyText}
-                            </td>
+                                </th>
+                            ))}
                         </tr>
-                    ) : (
-                        data.map((row, rowIdx) => (
-                            <tr key={row.id || rowIdx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                {showRowNumbers && (
-                                    <td className="px-4 py-3 text-gray-500">{startRowNumber + rowIdx}</td>
-                                )}
-                                {columns.map((col, colIdx) => (
-                                    <td key={colIdx} className="px-4 py-3 text-gray-700">
-                                        {col.render ? col.render(row[col.key], row) : row[col.key]}
+                    </thead>
+                    <tbody>
+                        {sortedData.map((row, rowIndex) => (
+                            <tr key={row.id || rowIndex} className={`border-b hover:bg-gray-50 text-sm ${row?.isDisabled ? 'bg-gray-100' : ''}`}>
+                                {displayColumns.map((column) => (
+                                    <td key={`${rowIndex}-${column.key}`} className={`py-3 px-4 ${column.className || ''}`}>
+                                        {column.render
+                                            ? column.render(row[column.key], row, rowIndex)
+                                            : row[column.key]}
                                     </td>
                                 ))}
                             </tr>
-                        ))
-                    )}
-                </tbody>
-            </table>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {onPageChange && Math.ceil(totalItems / itemsPerPage) > 1 && (
+                <TablePagination
+                    total={totalItems}
+                    page={currentPage}
+                    pageSize={itemsPerPage}
+                    onChange={onPageChange}
+                />
+            )}
         </div>
     )
 }
@@ -97,30 +150,52 @@ export function TablePagination({ total = 0, page = 1, pageSize = 20, onChange }
     const totalPages = Math.ceil(total / pageSize)
     if (totalPages <= 1) return null
 
+    const maxVisiblePages = 8
+    let pages = []
+    if (totalPages <= maxVisiblePages) {
+        pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+    } else if (page <= 4) {
+        pages = Array.from({ length: maxVisiblePages }, (_, i) => i + 1)
+    } else if (page > totalPages - 4) {
+        pages = Array.from({ length: maxVisiblePages }, (_, i) => totalPages - maxVisiblePages + i + 1)
+    } else {
+        pages = Array.from({ length: maxVisiblePages }, (_, i) => page - 3 + i)
+    }
+
     return (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-            <span className="text-sm text-gray-500">
-                Tổng: <strong>{total}</strong> bản ghi
-            </span>
-            <div className="flex items-center gap-1">
+        <div className="flex justify-end mt-6">
+            <nav className="flex items-center space-x-1" aria-label="Pagination">
                 <button
-                    onClick={() => onChange(page - 1)}
-                    disabled={page <= 1}
-                    className="px-3 py-1 rounded text-sm border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+                    className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => onChange(Math.max(1, page - 1))}
+                    disabled={page === 1}
+                    aria-label="Trang trước"
+                    type="button"
                 >
-                    ‹
+                    <ChevronLeft className="w-5 h-5" />
                 </button>
-                <span className="px-3 py-1 text-sm text-gray-600">
-                    {page} / {totalPages}
-                </span>
+                {pages.map((pageNum) => (
+                    <button
+                        key={pageNum}
+                        className={`w-10 h-10 flex items-center justify-center rounded-md ${page === pageNum ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                        onClick={() => onChange(pageNum)}
+                        aria-label={`Trang ${pageNum}`}
+                        aria-current={page === pageNum ? 'page' : undefined}
+                        type="button"
+                    >
+                        {pageNum}
+                    </button>
+                ))}
                 <button
-                    onClick={() => onChange(page + 1)}
-                    disabled={page >= totalPages}
-                    className="px-3 py-1 rounded text-sm border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
+                    className="p-2 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => onChange(Math.min(totalPages, page + 1))}
+                    disabled={page === totalPages}
+                    aria-label="Trang sau"
+                    type="button"
                 >
-                    ›
+                    <ChevronRight className="w-5 h-5" />
                 </button>
-            </div>
+            </nav>
         </div>
     )
 }

@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Staff CRUD — matching 185 path conventions
+    # Staff CRUD - matching 185 path conventions
     path('staff/getlist/', views.StaffListView.as_view(), name='staff-getlist'),
     path('staff/getdetail/', views.StaffDetailView.as_view(), name='staff-getdetail'),
     path('staff/create/', views.StaffCreateView.as_view(), name='staff-create'),
@@ -16,4 +16,5 @@ urlpatterns = [
     path('dropdown/organizations/', views.DropdownOrganizationsView.as_view(), name='dropdown-organizations'),
     path('dropdown/provinces/', views.DropdownProvincesView.as_view(), name='dropdown-provinces'),
     path('dropdown/districts/', views.DropdownDistrictsView.as_view(), name='dropdown-districts'),
+    path('dropdown/wards/', views.DropdownWardsView.as_view(), name='dropdown-wards'),
 ]

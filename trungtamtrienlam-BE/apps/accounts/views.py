@@ -1,44 +1,32 @@
 import json
-import os
-import uuid
+from django.conf import settings
+from django.core.mail import send_mail
+from django.db import transaction
+from django.db.models import Q
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.core.mail import send_mail
-from django.conf import settings
-from django.db import transaction
+from rest_framework.parsers import MultiPartParser, FormParser
 from core.response import ResponseServer
-from apps.authentication.models import User, Role
-from apps.departments.models import Department
-from .models import Province, District, Organization, StaffFile, UserConcurrently
+from apps.authentication.models import Role, User
+from apps.departments.models import Department, Staff
+from .models import District, Organization, Province, StaffFile, UserConcurrently, Ward
 from .serializers import StaffListSerializer, StaffDetailSerializer, UserConcurrentlySerializer
-
-TYPE_FILE_AVATAR = 1
-TYPE_FILE_SIGN = 2
-TYPE_FILE_STAMP = 3
-
-ALLOWED_IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
-
-
-def _save_staff_file(uploaded_file, user_id, type_file, subfolder):
-    """Lưu file vào media, trả về StaffFile instance chưa save."""
-    ext = os.path.splitext(uploaded_file.name)[1].lower()
-    filename = f'{uuid.uuid4()}{ext}'
-    rel_path = f'staff/{subfolder}/{user_id}/{filename}'
-    full_path = os.path.join(settings.MEDIA_ROOT, 'staff', subfolder, user_id, filename)
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-    with open(full_path, 'wb+') as dest:
-        for chunk in uploaded_file.chunks():
-            dest.write(chunk)
-    return StaffFile(
-        id=uuid.uuid4(),
-        user_id=user_id,
-        file=rel_path,
-        file_name=uploaded_file.name,
-        size=round(uploaded_file.size / (1024 * 1024), 4),
-        extension=ext.lstrip('.'),
-        type_file=type_file,
-    )
+from .services import (
+    TYPE_FILE_AVATAR,
+    TYPE_FILE_SIGN,
+    TYPE_FILE_STAMP,
+    active_location_or_failure,
+    clean_staff_files_for_type,
+    ensure_staff_for_user,
+    ensure_staff_profiles_for_users,
+    get_staff_by_identifier,
+    is_truthy_status,
+    role_flags_for_user,
+    save_staff_file,
+    sync_user_assignments,
+    validate_image,
+    validate_positions,
+)
 
 
 class StaffListView(APIView):
@@ -50,25 +38,27 @@ class StaffListView(APIView):
         page_size = max(int(request.query_params.get('pageSize', 15)), 1)
         keyword = request.query_params.get('keyword', '').strip()
 
-        qs = User.objects.filter(is_deleted=False)
+        missing_users = User.objects.filter(is_deleted=False).exclude(
+            id__in=Staff.objects.filter(user__isnull=False, is_deleted=False).values_list('user_id', flat=True)
+        )[:100]
+        ensure_staff_profiles_for_users(missing_users)
+
+        qs = Staff.objects.select_related('user', 'province', 'district', 'ward').filter(
+            is_deleted=False,
+            user__is_deleted=False,
+        )
         if keyword:
             qs = qs.filter(
-                username__icontains=keyword
-            ) | User.objects.filter(
-                is_deleted=False,
-                first_name__icontains=keyword
-            ) | User.objects.filter(
-                is_deleted=False,
-                last_name__icontains=keyword
-            ) | User.objects.filter(
-                is_deleted=False,
-                email__icontains=keyword
-            )
-            qs = qs.distinct()
+                Q(user__username__icontains=keyword)
+                | Q(first_name__icontains=keyword)
+                | Q(last_name__icontains=keyword)
+                | Q(email__icontains=keyword)
+                | Q(phone_number__icontains=keyword)
+            ).distinct()
 
         total = qs.count()
         start = (page - 1) * page_size
-        staffs = qs.order_by('-date_joined')[start: start + page_size]
+        staffs = qs.order_by('-created_at', '-user__date_joined')[start: start + page_size]
         data = StaffListSerializer(staffs, many=True).data
 
         return ResponseServer.success(data={'staffs': data, 'total': total})
@@ -82,40 +72,21 @@ class StaffDetailView(APIView):
         staff_id = request.query_params.get('id', '').strip()
         is_info = request.query_params.get('isInfo', 'false').lower() == 'true'
 
-        if is_info:
-            staff_id = str(request.user.id)
-
-        if not staff_id:
-            return ResponseServer.failure(message='Thiếu ID tài khoản')
-
-        try:
-            user = User.objects.get(id=staff_id, is_deleted=False)
-        except User.DoesNotExist:
+        staff = get_staff_by_identifier(staff_id, user=request.user if is_info else None)
+        if not staff or not staff.user or staff.user.is_deleted:
             return ResponseServer.not_found(message='Không tìm thấy tài khoản')
 
-        staff_data = StaffDetailSerializer(user).data
-
-        uc_qs = UserConcurrently.objects.filter(user_id=str(user.id), is_deleted=False)
+        staff_data = StaffDetailSerializer(staff).data
+        uc_qs = UserConcurrently.objects.select_related('role', 'department', 'organization').filter(
+            user=staff.user,
+            is_deleted=False,
+        )
         user_concurrentlies = UserConcurrentlySerializer(uc_qs, many=True).data
-
-        # roleInfo: check if any role is director/admin
-        is_director = False
-        is_admin = False
-        for uc in uc_qs:
-            if uc.role_id:
-                role = Role.objects.filter(id=uc.role_id).first()
-                if role:
-                    if role.is_director:
-                        is_director = True
-                    if role.is_admin:
-                        is_admin = True
-
-        role_info = {'IsDirector': is_director, 'IsAdmin': is_admin}
 
         return ResponseServer.success(data={
             'staff': staff_data,
             'userConcurrentlies': user_concurrentlies,
-            'roleInfo': role_info,
+            'roleInfo': role_flags_for_user(staff.user),
         })
 
 
@@ -136,60 +107,36 @@ class StaffCreateView(APIView):
         phone = data.get('PhoneNumber', '').strip()
         province_id = data.get('ProvinceID', '').strip()
         district_id = data.get('DistrictID', '').strip()
+        ward_id = data.get('WardID', '').strip()
         address = data.get('Address', '').strip()
         status = data.get('Status', '1')
         positions_str = data.get('Positions', '')
 
-        # Validate
-        if not username:
-            return ResponseServer.failure(message='Vui lòng nhập tài khoản')
-        if len(username) < 6:
-            return ResponseServer.failure(message='Tài khoản phải có ít nhất 6 ký tự')
+        error = self._validate_required(username, password, first_name, last_name, email, phone, address)
+        if error:
+            return ResponseServer.failure(message=error)
         if User.objects.filter(username=username, is_deleted=False).exists():
             return ResponseServer.failure(message='Tài khoản đã tồn tại')
-        if not password:
-            return ResponseServer.failure(message='Vui lòng nhập mật khẩu')
-        if len(password) < 6:
-            return ResponseServer.failure(message='Mật khẩu phải có ít nhất 6 ký tự')
-        if not first_name:
-            return ResponseServer.failure(message='Vui lòng nhập họ')
-        if not last_name:
-            return ResponseServer.failure(message='Vui lòng nhập tên')
-        if not email:
-            return ResponseServer.failure(message='Vui lòng nhập email')
-        if not phone:
-            return ResponseServer.failure(message='Vui lòng nhập số điện thoại')
-        if not address:
-            return ResponseServer.failure(message='Vui lòng nhập địa chỉ')
-        if not positions_str:
-            return ResponseServer.failure(message='Vui lòng chọn chức vụ')
 
         try:
             positions = json.loads(positions_str)
         except Exception:
             return ResponseServer.failure(message='Dữ liệu chức vụ không hợp lệ')
-
         if not positions:
             return ResponseServer.failure(message='Vui lòng chọn chức vụ')
 
-        # Check director role
-        check_is_director = False
-        for pos in positions:
-            role_id = pos.get('roleID', '')
-            if role_id:
-                role = Role.objects.filter(id=role_id).first()
-                if role and role.is_director:
-                    check_is_director = True
+        ok, message, check_is_director, _ = validate_positions(positions)
+        if not ok:
+            return ResponseServer.failure(message=message)
 
-        # Validate avatar
+        province, district, ward, location_error = active_location_or_failure(province_id, district_id, ward_id)
+        if location_error:
+            return ResponseServer.failure(message=location_error)
+
         avatar_file = files.get('avatar')
-        if not avatar_file:
-            return ResponseServer.failure(message='Vui lòng chọn hình đại diện')
-        ext = os.path.splitext(avatar_file.name)[1].lower()
-        if ext not in ALLOWED_IMAGE_EXTS:
-            return ResponseServer.failure(message='Định dạng ảnh không hợp lệ')
-
-        # Director needs sign and stamp
+        ok, message = validate_image(avatar_file)
+        if not ok:
+            return ResponseServer.failure(message=message)
         if check_is_director:
             if not files.get('sign'):
                 return ResponseServer.failure(message='Vui lòng upload chữ ký')
@@ -203,51 +150,57 @@ class StaffCreateView(APIView):
                 last_name=last_name,
                 email=email,
                 phone=phone,
-                province_id=uuid.UUID(province_id) if province_id else None,
-                district_id=uuid.UUID(district_id) if district_id else None,
+                province_id=province.id if province else None,
+                district_id=district.id if district else None,
                 address=address,
-                is_active=str(status) == '1',
+                is_active=is_truthy_status(status),
             )
             user.set_password(password)
             user.save()
 
-            user_id = str(user.id)
-            staff_files = []
+            staff = Staff.objects.create(
+                user=user,
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                phone_number=phone,
+                province=province,
+                district=district,
+                ward=ward,
+                address=address,
+                created_by=str(request.user.id),
+            )
 
-            # Avatar
-            sf_avatar = _save_staff_file(avatar_file, user_id, TYPE_FILE_AVATAR, 'avatar')
-            sf_avatar.created_by = str(request.user.id)
-            staff_files.append(sf_avatar)
-
-            # Sign and Stamp for director
+            save_staff_file(avatar_file, staff, TYPE_FILE_AVATAR, 'avatar', created_by=str(request.user.id))
             if check_is_director:
-                sign_file = files.get('sign')
-                if sign_file:
-                    sf_sign = _save_staff_file(sign_file, user_id, TYPE_FILE_SIGN, 'sign')
-                    sf_sign.created_by = str(request.user.id)
-                    staff_files.append(sf_sign)
+                save_staff_file(files.get('sign'), staff, TYPE_FILE_SIGN, 'sign', created_by=str(request.user.id))
+                save_staff_file(files.get('stamp'), staff, TYPE_FILE_STAMP, 'stamp', created_by=str(request.user.id))
 
-                stamp_file = files.get('stamp')
-                if stamp_file:
-                    sf_stamp = _save_staff_file(stamp_file, user_id, TYPE_FILE_STAMP, 'stamp')
-                    sf_stamp.created_by = str(request.user.id)
-                    staff_files.append(sf_stamp)
-
-            StaffFile.objects.bulk_create(staff_files)
-
-            # UserConcurrentlies
-            uc_list = []
-            for pos in positions:
-                uc_list.append(UserConcurrently(
-                    id=uuid.uuid4(),
-                    user_id=user_id,
-                    role_id=pos.get('roleID', '') or None,
-                    department_id=pos.get('departmentID', '') or None,
-                    organization_id=pos.get('organizationID', '') or None,
-                ))
-            UserConcurrently.objects.bulk_create(uc_list)
+            sync_user_assignments(user, positions, created_by=str(request.user.id))
 
         return ResponseServer.success(message='Tạo tài khoản thành công')
+
+    @staticmethod
+    def _validate_required(username, password, first_name, last_name, email, phone, address):
+        if not username:
+            return 'Vui lòng nhập tài khoản'
+        if len(username) < 6:
+            return 'Tài khoản phải có ít nhất 6 ký tự'
+        if not password:
+            return 'Vui lòng nhập mật khẩu'
+        if len(password) < 6:
+            return 'Mật khẩu phải có ít nhất 6 ký tự'
+        if not first_name:
+            return 'Vui lòng nhập họ'
+        if not last_name:
+            return 'Vui lòng nhập tên'
+        if not email:
+            return 'Vui lòng nhập email'
+        if not phone:
+            return 'Vui lòng nhập số điện thoại'
+        if not address:
+            return 'Vui lòng nhập địa chỉ'
+        return ''
 
 
 class StaffUpdateView(APIView):
@@ -260,12 +213,8 @@ class StaffUpdateView(APIView):
         files = request.FILES
         staff_id = data.get('id', '').strip()
 
-        if not staff_id:
-            return ResponseServer.failure(message='Thiếu ID tài khoản')
-
-        try:
-            user = User.objects.get(id=staff_id, is_deleted=False)
-        except User.DoesNotExist:
+        staff = get_staff_by_identifier(staff_id)
+        if not staff or not staff.user:
             return ResponseServer.not_found(message='Không tìm thấy tài khoản')
 
         first_name = data.get('FirstName', '').strip()
@@ -274,102 +223,96 @@ class StaffUpdateView(APIView):
         phone = data.get('PhoneNumber', '').strip()
         province_id = data.get('ProvinceID', '').strip()
         district_id = data.get('DistrictID', '').strip()
+        ward_id = data.get('WardID', '').strip()
         address = data.get('Address', '').strip()
         status = data.get('Status', '1')
         password = data.get('Password', '').strip()
         positions_str = data.get('Positions', '')
 
-        if not first_name:
-            return ResponseServer.failure(message='Vui lòng nhập họ')
-        if not last_name:
-            return ResponseServer.failure(message='Vui lòng nhập tên')
-        if not email:
-            return ResponseServer.failure(message='Vui lòng nhập email')
-        if not phone:
-            return ResponseServer.failure(message='Vui lòng nhập số điện thoại')
-        if not address:
-            return ResponseServer.failure(message='Vui lòng nhập địa chỉ')
-        if not positions_str:
-            return ResponseServer.failure(message='Vui lòng chọn chức vụ')
+        for value, message in [
+            (first_name, 'Vui lòng nhập họ'),
+            (last_name, 'Vui lòng nhập tên'),
+            (email, 'Vui lòng nhập email'),
+            (phone, 'Vui lòng nhập số điện thoại'),
+            (address, 'Vui lòng nhập địa chỉ'),
+        ]:
+            if not value:
+                return ResponseServer.failure(message=message)
 
         try:
             positions = json.loads(positions_str)
         except Exception:
             return ResponseServer.failure(message='Dữ liệu chức vụ không hợp lệ')
-
         if not positions:
             return ResponseServer.failure(message='Vui lòng chọn chức vụ')
 
-        check_is_director = False
-        for pos in positions:
-            role_id = pos.get('roleID', '')
-            if role_id:
-                role = Role.objects.filter(id=role_id).first()
-                if role and role.is_director:
-                    check_is_director = True
+        ok, message, check_is_director, _ = validate_positions(positions)
+        if not ok:
+            return ResponseServer.failure(message=message)
+
+        province, district, ward, location_error = active_location_or_failure(province_id, district_id, ward_id)
+        if location_error:
+            return ResponseServer.failure(message=location_error)
+
+        avatar_file = files.get('avatar')
+        if avatar_file:
+            ok, message = validate_image(avatar_file)
+            if not ok:
+                return ResponseServer.failure(message=message)
+        elif not StaffFile.objects.filter(staff=staff, type_file=TYPE_FILE_AVATAR, is_deleted=False).exists():
+            return ResponseServer.failure(message='Vui lòng chọn hình đại diện')
+
+        if check_is_director:
+            if not files.get('sign') and not StaffFile.objects.filter(staff=staff, type_file=TYPE_FILE_SIGN, is_deleted=False).exists():
+                return ResponseServer.failure(message='Vui lòng upload chữ ký')
+            if not files.get('stamp') and not StaffFile.objects.filter(staff=staff, type_file=TYPE_FILE_STAMP, is_deleted=False).exists():
+                return ResponseServer.failure(message='Vui lòng upload chữ ký có con dấu')
 
         with transaction.atomic():
+            user = staff.user
             user.first_name = first_name
             user.last_name = last_name
             user.email = email
             user.phone = phone
-            user.province_id = uuid.UUID(province_id) if province_id else None
-            user.district_id = uuid.UUID(district_id) if district_id else None
+            user.province_id = province.id if province else None
+            user.district_id = district.id if district else None
             user.address = address
-            user.is_active = str(status) == '1'
-            if password and len(password) >= 6:
+            user.is_active = is_truthy_status(status)
+            if password:
+                if len(password) < 6:
+                    return ResponseServer.failure(message='Mật khẩu phải có ít nhất 6 ký tự')
                 user.set_password(password)
             user.save()
 
-            user_id = str(user.id)
-            staff_files_to_create = []
+            staff.first_name = first_name
+            staff.last_name = last_name
+            staff.email = email
+            staff.phone_number = phone
+            staff.province = province
+            staff.district = district
+            staff.ward = ward
+            staff.address = address
+            staff.updated_by = str(request.user.id)
+            staff.save()
+
             type_files_to_delete = []
-
-            # Avatar
-            avatar_file = files.get('avatar')
             if avatar_file:
-                ext = os.path.splitext(avatar_file.name)[1].lower()
-                if ext not in ALLOWED_IMAGE_EXTS:
-                    return ResponseServer.failure(message='Định dạng ảnh không hợp lệ')
                 type_files_to_delete.append(TYPE_FILE_AVATAR)
-                sf = _save_staff_file(avatar_file, user_id, TYPE_FILE_AVATAR, 'avatar')
-                sf.created_by = str(request.user.id)
-                staff_files_to_create.append(sf)
-
-            # Sign / Stamp for director
-            if check_is_director:
-                sign_file = files.get('sign')
-                if sign_file:
-                    type_files_to_delete.append(TYPE_FILE_SIGN)
-                    sf = _save_staff_file(sign_file, user_id, TYPE_FILE_SIGN, 'sign')
-                    sf.created_by = str(request.user.id)
-                    staff_files_to_create.append(sf)
-
-                stamp_file = files.get('stamp')
-                if stamp_file:
-                    type_files_to_delete.append(TYPE_FILE_STAMP)
-                    sf = _save_staff_file(stamp_file, user_id, TYPE_FILE_STAMP, 'stamp')
-                    sf.created_by = str(request.user.id)
-                    staff_files_to_create.append(sf)
-
+            if check_is_director and files.get('sign'):
+                type_files_to_delete.append(TYPE_FILE_SIGN)
+            if check_is_director and files.get('stamp'):
+                type_files_to_delete.append(TYPE_FILE_STAMP)
             if type_files_to_delete:
-                StaffFile.objects.filter(user_id=user_id, type_file__in=type_files_to_delete).update(is_deleted=True)
+                clean_staff_files_for_type(staff, type_files_to_delete)
 
-            if staff_files_to_create:
-                StaffFile.objects.bulk_create(staff_files_to_create)
+            if avatar_file:
+                save_staff_file(avatar_file, staff, TYPE_FILE_AVATAR, 'avatar', created_by=str(request.user.id))
+            if check_is_director and files.get('sign'):
+                save_staff_file(files.get('sign'), staff, TYPE_FILE_SIGN, 'sign', created_by=str(request.user.id))
+            if check_is_director and files.get('stamp'):
+                save_staff_file(files.get('stamp'), staff, TYPE_FILE_STAMP, 'stamp', created_by=str(request.user.id))
 
-            # Update UserConcurrentlies
-            UserConcurrently.objects.filter(user_id=user_id).update(is_deleted=True)
-            uc_list = []
-            for pos in positions:
-                uc_list.append(UserConcurrently(
-                    id=uuid.uuid4(),
-                    user_id=user_id,
-                    role_id=pos.get('roleID', '') or None,
-                    department_id=pos.get('departmentID', '') or None,
-                    organization_id=pos.get('organizationID', '') or None,
-                ))
-            UserConcurrently.objects.bulk_create(uc_list)
+            sync_user_assignments(user, positions, created_by=str(request.user.id))
 
         return ResponseServer.success(message='Cập nhật tài khoản thành công')
 
@@ -380,17 +323,14 @@ class StaffDeleteView(APIView):
 
     def delete(self, request):
         staff_id = request.query_params.get('id', '').strip()
-        if not staff_id:
-            return ResponseServer.failure(message='Thiếu ID tài khoản')
-
-        try:
-            user = User.objects.get(id=staff_id, is_deleted=False)
-        except User.DoesNotExist:
+        staff = get_staff_by_identifier(staff_id)
+        if not staff or not staff.user:
             return ResponseServer.not_found(message='Không tìm thấy tài khoản')
 
-        user.is_deleted = True
-        user.is_active = False
-        user.save(update_fields=['is_deleted', 'is_active'])
+        staff.soft_delete(deleted_by=request.user.id)
+        staff.user.soft_delete(deleted_by=request.user.id)
+        UserConcurrently.objects.filter(user=staff.user, is_deleted=False).update(is_deleted=True, updated_by=str(request.user.id))
+        StaffFile.objects.filter(staff=staff, is_deleted=False).update(is_deleted=True, updated_by=str(request.user.id))
         return ResponseServer.success(message='Xóa tài khoản thành công')
 
 
@@ -400,32 +340,28 @@ class StaffForgotPasswordView(APIView):
 
     def get(self, request):
         staff_id = request.query_params.get('id', '').strip()
-        if not staff_id:
-            return ResponseServer.failure(message='Thiếu ID tài khoản')
-
-        try:
-            user = User.objects.get(id=staff_id, is_deleted=False)
-        except User.DoesNotExist:
+        staff = get_staff_by_identifier(staff_id)
+        if not staff or not staff.user:
             return ResponseServer.not_found(message='Không tìm thấy tài khoản')
 
         import secrets
         from apps.authentication.models import PasswordResetToken
         token = secrets.token_urlsafe(32)
-        PasswordResetToken.objects.create(user=user, token=token)
+        PasswordResetToken.objects.create(user=staff.user, token=token)
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        reset_url = f'{frontend_url}/reset-password?token={token}&email={user.email}'
+        reset_url = f'{frontend_url}/reset-password?token={token}&email={staff.email or staff.user.email}'
 
         try:
             send_mail(
                 subject='Đặt lại mật khẩu - Trung Tâm Triển Lãm',
                 message=(
-                    f'Xin chào {user.get_full_name()},\n\n'
+                    f'Xin chào {staff.full_name or staff.user.get_full_name()},\n\n'
                     f'Admin đã gửi cho bạn đường dẫn đặt lại mật khẩu (có hiệu lực trong 1 giờ):\n\n'
                     f'{reset_url}\n\n'
                     f'Nếu bạn không yêu cầu, vui lòng bỏ qua email này.'
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
+                recipient_list=[staff.email or staff.user.email],
                 fail_silently=True,
             )
         except Exception:
@@ -434,22 +370,25 @@ class StaffForgotPasswordView(APIView):
         return ResponseServer.success(message='Đã gửi đường dẫn đặt lại mật khẩu đến email người dùng')
 
 
-# ─── Dropdown Views ───────────────────────────────────────────────────────────
-
 class DropdownRolesView(APIView):
     """GET /api/accounts/dropdown/roles/"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        roles = Role.objects.filter(is_deleted=False).values('id', 'name', 'is_director', 'is_admin')
+        roles = Role.objects.filter(is_deleted=False, is_disabled=False).order_by('level', 'name')
         data = [
             {
-                'id': str(r['id']),
-                'name': r['name'],
-                'isDirector': r['is_director'],
-                'isAdmin': r['is_admin'],
+                'id': str(role.id),
+                'name': role.name,
+                'isDirector': role.is_director,
+                'isAdmin': role.is_admin,
+                'isViceDirector': role.is_vice_director,
+                'level': role.level,
+                'canReceiveTask': role.can_receive_task,
+                'canAssignTask': role.can_assign_task,
+                'canSeeDepartmentTasks': role.can_see_department_tasks,
             }
-            for r in roles
+            for role in roles
         ]
         return ResponseServer.success(data={'roles': data})
 
@@ -459,8 +398,8 @@ class DropdownDepartmentsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        depts = Department.objects.filter(is_deleted=False).values('id', 'name', 'code')
-        data = [{'id': str(d['id']), 'name': d['name'], 'code': d['code']} for d in depts]
+        depts = Department.objects.filter(is_deleted=False).order_by('sort_order', 'name')
+        data = [{'id': str(d.id), 'name': d.name, 'code': d.code, 'isPOAD': d.is_poad} for d in depts]
         return ResponseServer.success(data={'departments': data})
 
 
@@ -469,8 +408,8 @@ class DropdownOrganizationsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        orgs = Organization.objects.filter(is_deleted=False).values('id', 'name')
-        data = [{'id': str(o['id']), 'name': o['name']} for o in orgs]
+        orgs = Organization.objects.filter(is_deleted=False).order_by('name')
+        data = [{'id': str(o.id), 'name': o.name} for o in orgs]
         return ResponseServer.success(data={'organizations': data})
 
 
@@ -479,8 +418,8 @@ class DropdownProvincesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        provinces = Province.objects.filter(is_deleted=False).values('id', 'name')
-        data = [{'id': str(p['id']), 'name': p['name']} for p in provinces]
+        provinces = Province.objects.filter(is_deleted=False, is_disabled=False).order_by('name')
+        data = [{'id': str(p.id), 'name': p.name} for p in provinces]
         return ResponseServer.success(data={'provinces': data})
 
 
@@ -490,8 +429,21 @@ class DropdownDistrictsView(APIView):
 
     def get(self, request):
         province_id = request.query_params.get('provinceId', '').strip()
-        qs = District.objects.filter(is_deleted=False)
+        qs = District.objects.filter(is_deleted=False, is_disabled=False)
         if province_id:
             qs = qs.filter(province_id=province_id)
-        data = [{'id': str(d['id']), 'name': d['name']} for d in qs.values('id', 'name')]
+        data = [{'id': str(d.id), 'name': d.name} for d in qs.order_by('name')]
         return ResponseServer.success(data={'districts': data})
+
+
+class DropdownWardsView(APIView):
+    """GET /api/accounts/dropdown/wards/"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        district_id = request.query_params.get('districtId', '').strip()
+        qs = Ward.objects.filter(is_deleted=False, is_disabled=False)
+        if district_id:
+            qs = qs.filter(district_id=district_id)
+        data = [{'id': str(w.id), 'name': w.name} for w in qs.order_by('name')]
+        return ResponseServer.success(data={'wards': data})

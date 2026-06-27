@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronRight, Copy, RefreshCw } from 'lucide-react'
@@ -348,63 +348,59 @@ export default function PermissionsPage() {
         <div className="p-6">
             <Breadcrumb items={[{ label: 'Phân quyền chức năng', isHome: true }]} />
 
-            <div className="rounded-lg border border-gray-200 bg-white">
-                <div className="flex flex-col gap-4 border-b border-gray-200 p-5 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:max-w-3xl">
-                        <FormGroup label="Chọn chức vụ" required htmlFor="roleID">
+            <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:max-w-3xl">
+                    <FormGroup label="Chọn chức vụ" required htmlFor="roleID">
+                        <Select
+                            id="roleID"
+                            name="roleID"
+                            value={roleID}
+                            options={roleOptions}
+                            onChange={handleRoleChange}
+                            placeholder="-- Chọn chức vụ --"
+                            disabled={loading && !roleOptions.length}
+                        />
+                    </FormGroup>
+
+                    {needsDepartment && (
+                        <FormGroup label="Chọn phòng ban" required htmlFor="departmentID">
                             <Select
-                                id="roleID"
-                                name="roleID"
-                                value={roleID}
-                                options={roleOptions}
-                                onChange={handleRoleChange}
-                                placeholder="-- Chọn chức vụ --"
-                                disabled={loading && !roleOptions.length}
+                                id="departmentID"
+                                name="departmentID"
+                                value={departmentID}
+                                options={departmentOptions}
+                                onChange={(event) => setDepartmentID(event.target.value)}
+                                placeholder="-- Chọn phòng ban --"
+                                disabled={loading && !departmentOptions.length}
                             />
                         </FormGroup>
-
-                        {needsDepartment && (
-                            <FormGroup label="Chọn phòng ban" required htmlFor="departmentID">
-                                <Select
-                                    id="departmentID"
-                                    name="departmentID"
-                                    value={departmentID}
-                                    options={departmentOptions}
-                                    onChange={(event) => setDepartmentID(event.target.value)}
-                                    placeholder="-- Chọn phòng ban --"
-                                    disabled={loading && !departmentOptions.length}
-                                />
-                            </FormGroup>
-                        )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={loadPermissions} disabled={!roleID || loading}>
-                            <RefreshCw className="h-4 w-4" />
-                            Tải lại
-                        </Button>
-                        <Button onClick={() => setCloneOpen(true)} disabled={!roleOptions.length}>
-                            <Copy className="h-4 w-4" />
-                            Sao chép quyền
-                        </Button>
-                    </div>
+                    )}
                 </div>
 
-                {error && (
-                    <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600">
-                        {error}
-                    </div>
-                )}
-
-                <div className="p-5">
-                    <Table
-                        columns={columns}
-                        data={tableData}
-                        loading={loading}
-                        emptyText="Không có dữ liệu phân quyền"
-                    />
+                <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={loadPermissions} disabled={!roleID || loading}>
+                        <RefreshCw className="h-4 w-4" />
+                        Tải lại
+                    </Button>
+                    <Button onClick={() => setCloneOpen(true)} disabled={!roleOptions.length}>
+                        <Copy className="h-4 w-4" />
+                        Sao chép quyền
+                    </Button>
                 </div>
             </div>
+
+            {error && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4 text-sm">
+                    {error}
+                </div>
+            )}
+
+            <Table
+                columns={columns}
+                data={tableData}
+                loading={loading}
+                emptyText="Không có dữ liệu phân quyền"
+            />
 
             <Modal
                 open={cloneOpen}

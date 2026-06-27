@@ -33,12 +33,12 @@ export default function DashboardPage() {
     const date = '20, Thg12 2024'
 
     return (
-        <div className="p-6 bg-gray-50">
+        <div className="p-6">
             <Breadcrumb items={[{ label: 'Tổng quan', isHome: true }]} />
 
             {/* Row 1: Calendar + Medal */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
+                <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-lg font-medium">
                             Lịch <span className="text-blue-500">{date}</span>
@@ -81,7 +81,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-sm p-6 flex flex-col items-center justify-center">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col items-center justify-center">
                     <h2 className="text-lg font-medium mb-4">Danh hiệu hiện tại</h2>
                     <div className="w-32 h-32 mb-4 flex items-center justify-center">
                         <span className="text-7xl">🏅</span>
@@ -94,7 +94,7 @@ export default function DashboardPage() {
             {/* Row 2: Financial cards */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
                 {financialData.map((item, index) => (
-                    <div key={index} className="bg-white rounded-lg shadow-sm p-6">
+                    <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <h2 className="text-lg font-medium mb-2">{item.title}</h2>
                         <p className="text-2xl font-bold mb-1">{item.value}</p>
                         <p className={`text-sm ${item.color}`}>
@@ -105,7 +105,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Row 3: Bar chart */}
-            <div className="bg-white rounded-lg shadow-sm p-6 mt-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
                 <h2 className="text-lg font-medium mb-6">Biểu đồ thống kê hợp đồng năm 2024</h2>
                 <div className="flex items-center justify-end mb-4 space-x-6">
                     {chartData.series.map((series, i) => (
