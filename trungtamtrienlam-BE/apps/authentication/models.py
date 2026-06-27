@@ -11,6 +11,7 @@ class User(AbstractUser):
     position = models.CharField(max_length=255, blank=True, null=True)
     province_id = models.UUIDField(blank=True, null=True)
     district_id = models.UUIDField(blank=True, null=True)
+    ward_id = models.UUIDField(blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

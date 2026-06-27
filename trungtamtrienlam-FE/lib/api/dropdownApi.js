@@ -39,7 +39,7 @@ export const fetchDistrictDropdown = async (params = { provinceId: '' }) => {
         throw error
     }
 }
-export const fetchWardDropdown = async (params = { districtId: '' }) => {
+export const fetchWardDropdown = async (params = { provinceId: '' }) => {
     try {
         return (await apiClient.get('/accounts/dropdown/wards/', { params })).data
     } catch (error) {

@@ -105,9 +105,9 @@ class StaffCreateView(APIView):
         last_name = data.get('LastName', '').strip()
         email = data.get('Email', '').strip()
         phone = data.get('PhoneNumber', '').strip()
-        province_id = data.get('ProvinceID', '').strip()
+        province_id = (data.get('ProvinceID') or data.get('ProvinceCode') or data.get('province_code') or '').strip()
         district_id = data.get('DistrictID', '').strip()
-        ward_id = data.get('WardID', '').strip()
+        ward_id = (data.get('WardID') or data.get('WardCode') or data.get('ward_code') or '').strip()
         address = data.get('Address', '').strip()
         status = data.get('Status', '1')
         positions_str = data.get('Positions', '')
@@ -129,7 +129,7 @@ class StaffCreateView(APIView):
         if not ok:
             return ResponseServer.failure(message=message)
 
-        province, district, ward, location_error = active_location_or_failure(province_id, district_id, ward_id)
+        province, district, ward, location_error = active_location_or_failure(province_id, ward_id, district_id=district_id)
         if location_error:
             return ResponseServer.failure(message=location_error)
 
@@ -151,7 +151,8 @@ class StaffCreateView(APIView):
                 email=email,
                 phone=phone,
                 province_id=province.id if province else None,
-                district_id=district.id if district else None,
+                district_id=None,
+                ward_id=ward.id if ward else None,
                 address=address,
                 is_active=is_truthy_status(status),
             )
@@ -221,9 +222,9 @@ class StaffUpdateView(APIView):
         last_name = data.get('LastName', '').strip()
         email = data.get('Email', '').strip()
         phone = data.get('PhoneNumber', '').strip()
-        province_id = data.get('ProvinceID', '').strip()
+        province_id = (data.get('ProvinceID') or data.get('ProvinceCode') or data.get('province_code') or '').strip()
         district_id = data.get('DistrictID', '').strip()
-        ward_id = data.get('WardID', '').strip()
+        ward_id = (data.get('WardID') or data.get('WardCode') or data.get('ward_code') or '').strip()
         address = data.get('Address', '').strip()
         status = data.get('Status', '1')
         password = data.get('Password', '').strip()
@@ -250,7 +251,7 @@ class StaffUpdateView(APIView):
         if not ok:
             return ResponseServer.failure(message=message)
 
-        province, district, ward, location_error = active_location_or_failure(province_id, district_id, ward_id)
+        province, district, ward, location_error = active_location_or_failure(province_id, ward_id, district_id=district_id)
         if location_error:
             return ResponseServer.failure(message=location_error)
 
@@ -275,7 +276,8 @@ class StaffUpdateView(APIView):
             user.email = email
             user.phone = phone
             user.province_id = province.id if province else None
-            user.district_id = district.id if district else None
+            user.district_id = None
+            user.ward_id = ward.id if ward else None
             user.address = address
             user.is_active = is_truthy_status(status)
             if password:
@@ -419,31 +421,65 @@ class DropdownProvincesView(APIView):
 
     def get(self, request):
         provinces = Province.objects.filter(is_deleted=False, is_disabled=False).order_by('name')
-        data = [{'id': str(p.id), 'name': p.name} for p in provinces]
+        data = [
+            {
+                'id': str(p.id),
+                'code': p.code,
+                'name': p.name,
+                'unitType': p.unit_type,
+            }
+            for p in provinces
+        ]
         return ResponseServer.success(data={'provinces': data})
 
 
 class DropdownDistrictsView(APIView):
-    """GET /api/accounts/dropdown/districts/"""
+    """GET /api/accounts/dropdown/districts/?includeLegacy=true"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        include_legacy = request.query_params.get('includeLegacy', '').lower() == 'true'
+        if not include_legacy:
+            return ResponseServer.success(data={'districts': []})
+
         province_id = request.query_params.get('provinceId', '').strip()
-        qs = District.objects.filter(is_deleted=False, is_disabled=False)
+        qs = District.objects.filter(is_deleted=False, is_legacy=True)
         if province_id:
             qs = qs.filter(province_id=province_id)
-        data = [{'id': str(d.id), 'name': d.name} for d in qs.order_by('name')]
+        data = [
+            {
+                'id': str(d.id),
+                'name': d.name,
+                'code': d.code,
+                'provinceId': str(d.province_id) if d.province_id else '',
+                'isLegacy': d.is_legacy,
+            }
+            for d in qs.order_by('name')
+        ]
         return ResponseServer.success(data={'districts': data})
 
 
 class DropdownWardsView(APIView):
-    """GET /api/accounts/dropdown/wards/"""
+    """GET /api/accounts/dropdown/wards/?provinceId=<uuid>"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        district_id = request.query_params.get('districtId', '').strip()
-        qs = Ward.objects.filter(is_deleted=False, is_disabled=False)
-        if district_id:
-            qs = qs.filter(district_id=district_id)
-        data = [{'id': str(w.id), 'name': w.name} for w in qs.order_by('name')]
+        province_id = request.query_params.get('provinceId', '').strip()
+        province_code = request.query_params.get('provinceCode', '').strip()
+        qs = Ward.objects.select_related('province').filter(is_deleted=False, is_disabled=False)
+        if province_id:
+            qs = qs.filter(province_id=province_id)
+        elif province_code:
+            qs = qs.filter(province__code=province_code)
+        data = [
+            {
+                'id': str(w.id),
+                'code': w.code,
+                'name': w.name,
+                'provinceId': str(w.province_id),
+                'unitType': w.unit_type,
+                'oldDistrictName': w.old_district_name or '',
+            }
+            for w in qs.order_by('name')
+        ]
         return ResponseServer.success(data={'wards': data})

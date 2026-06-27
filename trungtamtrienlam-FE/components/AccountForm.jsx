@@ -16,7 +16,7 @@ import {
 } from '@/lib/api/usersApi'
 import {
     fetchRoleDropdown_Account, fetchDepartmentDropdown,
-    fetchOrganizationDropdown, fetchProvinceDropdown, fetchDistrictDropdown,
+    fetchOrganizationDropdown, fetchProvinceDropdown, fetchWardDropdown,
 } from '@/lib/api/dropdownApi'
 import { ConfigConstants } from '@/constants/configConstants'
 import { UserFileConstants } from '@/constants/userConstants'
@@ -34,7 +34,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
     const [formData, setFormData] = useState({
         id: '', userName: '', firstName: '', lastName: '',
         email: '', phoneNumber: '', password: '',
-        provinceID: '', districtID: '', address: '',
+        provinceID: '', wardID: '', address: '',
         status: true, avatar: null, sign: null, stamp: null,
     })
     const [additionalRoles, setAdditionalRoles] = useState([])
@@ -44,7 +44,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
     const [departmentOptions, setDepartmentOptions] = useState([])
     const [organizationOptions, setOrganizationOptions] = useState([])
     const [provinceOptions, setProvinceOptions] = useState([])
-    const [districtOptions, setDistrictOptions] = useState([])
+    const [wardOptions, setWardOptions] = useState([])
 
     const [toast, setToast] = useState(null)
     const showToast = (msg, type = 'success') => {
@@ -88,17 +88,24 @@ export default function AccountForm({ mode = 'create', id = null }) {
         load()
     }, [isCreate])
 
-    // Load districts when province changes
+    // Load wards when province changes
     useEffect(() => {
-        if (!formData.provinceID) return
+        if (!formData.provinceID) {
+            setWardOptions([])
+            setFormData(prev => ({ ...prev, wardID: '' }))
+            return
+        }
         const load = async () => {
             try {
-                const res = await fetchDistrictDropdown({ provinceId: formData.provinceID })
+                const res = await fetchWardDropdown({ provinceId: formData.provinceID })
                 if (res?.status === 200) {
-                    const dists = (res.data?.districts || []).map(d => ({ ...d, value: d.id, label: d.name }))
-                    setDistrictOptions(dists)
-                    if (dists.length > 0 && (!formData.districtID || !dists.some(d => d.value === formData.districtID))) {
-                        setFormData(prev => ({ ...prev, districtID: dists[0].value }))
+                    const wards = (res.data?.wards || []).map(w => ({ ...w, value: w.id, label: w.name }))
+                    setWardOptions(wards)
+                    if (wards.length > 0 && (!formData.wardID || !wards.some(w => w.value === formData.wardID))) {
+                        setFormData(prev => ({ ...prev, wardID: wards[0].value }))
+                    }
+                    if (wards.length === 0) {
+                        setFormData(prev => ({ ...prev, wardID: '' }))
                     }
                 }
             } catch (e) {
@@ -142,7 +149,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                         phoneNumber: d.phoneNumber || '',
                         password: '',
                         provinceID: d.provinceID || '',
-                        districtID: d.districtID || '',
+                        wardID: d.wardID || '',
                         address: d.address || '',
                         status: d.status !== false,
                         avatar: files.find(f => f.TypeFile === UserFileConstants.typeFile.Avatar) || null,
@@ -230,6 +237,8 @@ export default function AccountForm({ mode = 'create', id = null }) {
         else if (!VN_PHONE_RE.test(formData.phoneNumber)) errs.phoneNumber = 'Số điện thoại không hợp lệ'
         if (isCreate && !formData.password) errs.password = 'Vui lòng nhập mật khẩu'
         if (!formData.address) errs.address = 'Vui lòng nhập địa chỉ'
+        if (!formData.provinceID) errs.provinceID = 'Vui lòng chọn Tỉnh/Thành phố trực thuộc TW'
+        if (!formData.wardID) errs.wardID = 'Vui lòng chọn Phường/Xã/Đặc khu'
         if (!formData.avatar) errs.avatar = 'Vui lòng chọn hình đại diện'
         if (isDireactor && !formData.sign) errs.sign = 'Vui lòng chọn chữ ký'
         if (isDireactor && !formData.stamp) errs.stamp = 'Vui lòng chọn chữ ký có con dấu'
@@ -249,7 +258,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
         fd.append('PhoneNumber', formData.phoneNumber)
         if (isCreate || formData.password) fd.append('Password', formData.password)
         fd.append('ProvinceID', formData.provinceID)
-        fd.append('DistrictID', formData.districtID)
+        fd.append('WardID', formData.wardID)
         fd.append('Address', formData.address)
         fd.append('Status', formData.status ? '1' : '0')
         fd.append('Positions', JSON.stringify(additionalRoles))
@@ -389,17 +398,19 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                         </FormGroup>
                                     ) : <FormGroup />}
 
-                                    <FormGroup label="Tỉnh/Thành phố" required htmlFor="provinceID">
+                                    <FormGroup label='Tỉnh/Thành phố trực thuộc TW' required htmlFor="provinceID">
                                         <Select id="provinceID" name="provinceID"
                                             options={provinceOptions} value={formData.provinceID}
-                                            onChange={handleChange} placeholder="-- Chọn tỉnh/thành phố --" />
+                                            onChange={handleChange} placeholder='-- Chọn tỉnh/thành phố trực thuộc TW --'
+                                            error={!!errors.provinceID} errorMessage={errors.provinceID} />
                                     </FormGroup>
 
-                                    <FormGroup label="Quận/Huyện" required htmlFor="districtID">
-                                        <Select id="districtID" name="districtID"
-                                            options={districtOptions} value={formData.districtID}
+                                    <FormGroup label='Phường/Xã/Đặc khu' required htmlFor="wardID">
+                                        <Select id="wardID" name="wardID"
+                                            options={wardOptions} value={formData.wardID}
                                             onChange={handleChange} disabled={!formData.provinceID}
-                                            placeholder="-- Chọn quận/huyện --" />
+                                            placeholder='-- Chọn phường/xã/đặc khu --'
+                                            error={!!errors.wardID} errorMessage={errors.wardID} />
                                     </FormGroup>
 
                                     <FormGroup />

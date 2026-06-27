@@ -1,6 +1,6 @@
-﻿"""
+"""
 python manage.py seed_menu
-Seed menu, permissions, roles, departments, organizations, provinces and districts.
+Seed menu, permissions, roles, departments, organizations and current provinces.
 Safe to re-run.
 """
 
@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from apps.authentication.models import Function, Action, Role, Permission, UserRole, User
 from apps.accounts.models import Province, District, Organization
+from apps.accounts.vn_admin_units import CURRENT_PROVINCES
 from apps.departments.models import Department
 
 FUNCTIONS = [
@@ -98,7 +99,7 @@ DISTRICT_SEEDS = [
 
 
 class Command(BaseCommand):
-    help = 'Seed menu, permissions, roles, departments, organizations, provinces and districts'
+    help = 'Seed menu, permissions, roles, departments, organizations and current provinces'
 
     def handle(self, *args, **options):
         actions = {}
@@ -164,16 +165,32 @@ class Command(BaseCommand):
                 },
             )
 
-        province, _ = Province.objects.update_or_create(
-            code='HCM',
-            defaults={'name': 'Th\u00e0nh ph\u1ed1 H\u1ed3 Ch\u00ed Minh', 'is_deleted': False},
-        )
-        for item in DISTRICT_SEEDS:
-            District.objects.update_or_create(
+        province_by_code = {}
+        for item in CURRENT_PROVINCES:
+            province, _ = Province.objects.update_or_create(
                 code=item['code'],
-                province=province,
-                defaults={'name': item['name'], 'is_deleted': False},
+                defaults={
+                    'name': item['name'],
+                    'unit_type': item['unit_type'],
+                    'is_disabled': False,
+                    'is_deleted': False,
+                },
             )
+            province_by_code[item['code']] = province
+
+        hcm = province_by_code.get('79')
+        if hcm:
+            for item in DISTRICT_SEEDS:
+                District.objects.update_or_create(
+                    code=item['code'],
+                    province=hcm,
+                    defaults={
+                        'name': item['name'],
+                        'is_legacy': True,
+                        'is_disabled': True,
+                        'is_deleted': False,
+                    },
+                )
 
         roles = {}
         for item in ROLE_SEEDS:

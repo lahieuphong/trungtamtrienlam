@@ -1,20 +1,30 @@
 import uuid
 from django.conf import settings
 from django.db import models
+from django.db.models import PROTECT
 from core.models import BaseModel
 
 
 class Province(models.Model):
+    UNIT_TYPE_PROVINCE = 'province'
+    UNIT_TYPE_CENTRAL_CITY = 'central_city'
+    UNIT_TYPE_CHOICES = [
+        (UNIT_TYPE_PROVINCE, 'Tỉnh'),
+        (UNIT_TYPE_CENTRAL_CITY, 'Thành phố trực thuộc TW'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=2, unique=True)
+    legacy_code = models.CharField(max_length=20, blank=True, null=True, db_index=True)
     name = models.CharField(max_length=255)
-    code = models.CharField(max_length=20, blank=True, null=True)
+    unit_type = models.CharField(max_length=20, choices=UNIT_TYPE_CHOICES, default=UNIT_TYPE_PROVINCE)
     is_disabled = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'provinces'
-        verbose_name = 'Tỉnh/Thành phố'
-        verbose_name_plural = 'Tỉnh/Thành phố'
+        verbose_name = 'Tỉnh/Thành phố trực thuộc TW'
+        verbose_name_plural = 'Tỉnh/Thành phố trực thuộc TW'
         ordering = ['name']
 
     def __str__(self):
@@ -25,14 +35,15 @@ class District(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=20, blank=True, null=True)
-    province = models.ForeignKey(Province, on_delete=models.CASCADE, related_name='districts', null=True)
-    is_disabled = models.BooleanField(default=False)
+    province = models.ForeignKey(Province, on_delete=PROTECT, related_name='districts', null=True)
+    is_legacy = models.BooleanField(default=True)
+    is_disabled = models.BooleanField(default=True)
     is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'districts'
-        verbose_name = 'Quận/Huyện'
-        verbose_name_plural = 'Quận/Huyện'
+        verbose_name = 'Cấp huyện cũ (lưu trữ)'
+        verbose_name_plural = 'Cấp huyện cũ (lưu trữ)'
         ordering = ['name']
 
     def __str__(self):
@@ -40,17 +51,29 @@ class District(models.Model):
 
 
 class Ward(models.Model):
+    UNIT_TYPE_WARD = 'ward'
+    UNIT_TYPE_COMMUNE = 'commune'
+    UNIT_TYPE_SPECIAL_ZONE = 'special_zone'
+    UNIT_TYPE_CHOICES = [
+        (UNIT_TYPE_WARD, 'Phường'),
+        (UNIT_TYPE_COMMUNE, 'Xã'),
+        (UNIT_TYPE_SPECIAL_ZONE, 'Đặc khu'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=5, unique=True)
     name = models.CharField(max_length=255)
-    code = models.CharField(max_length=20, blank=True, null=True)
-    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name='wards', null=True)
+    province = models.ForeignKey(Province, on_delete=PROTECT, related_name='wards')
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, related_name='legacy_wards', blank=True, null=True)
+    unit_type = models.CharField(max_length=20, choices=UNIT_TYPE_CHOICES, default=UNIT_TYPE_WARD)
+    old_district_name = models.CharField(max_length=255, blank=True, null=True)
     is_disabled = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'wards'
-        verbose_name = 'Phường/Xã'
-        verbose_name_plural = 'Phường/Xã'
+        verbose_name = 'Phường/Xã/Đặc khu'
+        verbose_name_plural = 'Phường/Xã/Đặc khu'
         ordering = ['name']
 
     def __str__(self):

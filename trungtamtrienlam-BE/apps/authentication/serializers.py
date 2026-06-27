@@ -22,13 +22,14 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     provinceID = serializers.SerializerMethodField()
     districtID = serializers.SerializerMethodField()
+    wardID = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name', 'full_name',
             'phone', 'avatar', 'department_id', 'position', 'is_active',
-            'provinceID', 'districtID', 'address',
+            'provinceID', 'districtID', 'wardID', 'address',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -42,6 +43,9 @@ class UserSerializer(serializers.ModelSerializer):
     def get_districtID(self, obj):
         return str(obj.district_id) if obj.district_id else ''
 
+    def get_wardID(self, obj):
+        return str(obj.ward_id) if obj.ward_id else ''
+
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
@@ -50,7 +54,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'username', 'email', 'password', 'first_name', 'last_name',
-            'phone', 'department_id', 'position', 'province_id', 'district_id',
+            'phone', 'department_id', 'position', 'province_id', 'district_id', 'ward_id',
             'address',
         ]
 
@@ -63,7 +67,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'email', 'first_name', 'last_name', 'phone', 'avatar',
-            'department_id', 'position', 'province_id', 'district_id',
+            'department_id', 'position', 'province_id', 'district_id', 'ward_id',
             'address',
         ]
 

@@ -160,8 +160,8 @@ export default function AccountDetailPage() {
                                     <label className="block text-sm text-gray-500 mb-1">Mật khẩu</label>
                                     <span className="font-medium text-gray-800 mr-2">••••••••</span>
                                 </div>
-                                <InfoField label="Tỉnh/Thành phố" value={accountData?.provinceName} />
-                                <InfoField label="Quận/Huyện" value={accountData?.districtName} />
+                                <InfoField label='Tỉnh/Thành phố trực thuộc TW' value={accountData?.provinceName} />
+                                <InfoField label='Phường/Xã/Đặc khu' value={accountData?.wardName} />
                                 <div />
                                 <div className="md:col-span-3">
                                     <InfoField label="Địa chỉ" value={accountData?.address} />

@@ -7,7 +7,7 @@ from .models import User, Role, RoleDepartment, UserRole, Function, Action, Perm
 class CustomUserAdmin(UserAdmin):
     list_display = [
         'username', 'email', 'phone', 'get_full_name', 'department_id',
-        'province_id', 'district_id', 'is_staff', 'is_active', 'is_deleted',
+        'province_id', 'district_id', 'ward_id', 'is_staff', 'is_active', 'is_deleted',
         'created_at',
     ]
     list_filter = ['is_active', 'is_staff', 'is_superuser', 'is_deleted']
@@ -17,7 +17,7 @@ class CustomUserAdmin(UserAdmin):
         ('Thông tin tài khoản mở rộng', {
             'fields': (
                 'phone', 'avatar', 'department_id', 'position',
-                'province_id', 'district_id', 'address', 'is_deleted',
+                'province_id', 'district_id', 'ward_id', 'address', 'is_deleted',
                 'created_at', 'updated_at',
             )
         }),

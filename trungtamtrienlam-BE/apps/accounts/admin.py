@@ -1,26 +1,40 @@
 from django.contrib import admin
+from django.db.models import Count, Q
 from .models import District, Organization, Province, StaffFile, UserConcurrently, Ward
 
 
 @admin.register(Province)
 class ProvinceAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code', 'is_disabled', 'is_deleted']
-    list_filter = ['is_disabled', 'is_deleted']
-    search_fields = ['name', 'code']
+    list_display = ['name', 'code', 'unit_type', 'active_ward_count', 'is_disabled', 'is_deleted']
+    list_filter = ['unit_type', 'is_disabled', 'is_deleted']
+    search_fields = ['name', 'code', 'legacy_code']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            active_wards=Count('wards', filter=Q(wards__is_deleted=False, wards__is_disabled=False))
+        )
+
+    @admin.display(description='Số đơn vị cấp xã')
+    def active_ward_count(self, obj):
+        return obj.active_wards
 
 
 @admin.register(District)
 class DistrictAdmin(admin.ModelAdmin):
-    list_display = ['name', 'province', 'code', 'is_disabled', 'is_deleted']
-    list_filter = ['province', 'is_disabled', 'is_deleted']
+    list_display = ['name', 'province', 'code', 'is_legacy', 'is_disabled', 'is_deleted']
+    list_filter = ['province', 'is_legacy', 'is_disabled', 'is_deleted']
     search_fields = ['name', 'code']
+    readonly_fields = ['name', 'code', 'province', 'is_legacy']
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(Ward)
 class WardAdmin(admin.ModelAdmin):
-    list_display = ['name', 'district', 'code', 'is_disabled', 'is_deleted']
-    list_filter = ['district', 'is_disabled', 'is_deleted']
-    search_fields = ['name', 'code']
+    list_display = ['name', 'province', 'code', 'unit_type', 'old_district_name', 'is_disabled', 'is_deleted']
+    list_filter = ['province', 'unit_type', 'is_disabled', 'is_deleted']
+    search_fields = ['name', 'code', 'old_district_name']
 
 
 @admin.register(Organization)

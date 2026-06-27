@@ -1,6 +1,7 @@
 import os
 import uuid
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from apps.authentication.models import Role, UserRole, RoleDepartment
 from apps.departments.models import Department, Staff
 from .models import District, Organization, Province, StaffFile, UserConcurrently, Ward
@@ -21,8 +22,17 @@ def get_optional(model, value):
         return None
     try:
         return model.objects.filter(id=value).first()
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, ValidationError):
         return None
+
+
+def get_optional_location(model, value):
+    obj = get_optional(model, value)
+    if obj:
+        return obj
+    if value and hasattr(model, 'code'):
+        return model.objects.filter(code=str(value).strip()).first()
+    return None
 
 
 def ensure_staff_for_user(user):
@@ -215,23 +225,19 @@ def validate_image(uploaded_file):
     return True, ''
 
 
-def active_location_or_failure(province_id, district_id, ward_id=None):
-    province = get_optional(Province, province_id)
+def active_location_or_failure(province_id, ward_id=None, district_id=None):
+    province = get_optional_location(Province, province_id)
     if not province or province.is_deleted or province.is_disabled:
-        return None, None, None, 'Tỉnh/Thành phố không tồn tại'
+        return None, None, None, 'Tỉnh/Thành phố trực thuộc TW không tồn tại'
 
-    district = get_optional(District, district_id)
-    if not district or district.is_deleted or district.is_disabled:
-        return None, None, None, 'Quận/Huyện không tồn tại'
-    if district.province_id and district.province_id != province.id:
-        return None, None, None, 'Quận/Huyện không thuộc tỉnh/thành đã chọn'
+    if not ward_id:
+        return None, None, None, 'Vui lòng chọn Phường/Xã/Đặc khu'
 
-    ward = None
-    if ward_id:
-        ward = get_optional(Ward, ward_id)
-        if not ward or ward.is_deleted or ward.is_disabled:
-            return None, None, None, 'Phường/Xã không tồn tại'
-        if ward.district_id and ward.district_id != district.id:
-            return None, None, None, 'Phường/Xã không thuộc quận/huyện đã chọn'
+    ward = get_optional_location(Ward, ward_id)
+    if not ward or ward.is_deleted or ward.is_disabled:
+        return None, None, None, 'Phường/Xã/Đặc khu không tồn tại'
+    if ward.province_id != province.id:
+        return None, None, None, 'Phường/Xã/Đặc khu không thuộc tỉnh/thành phố đã chọn'
 
-    return province, district, ward, ''
+    # District is kept only for legacy reads. Active address flows do not use it.
+    return province, None, ward, ''
