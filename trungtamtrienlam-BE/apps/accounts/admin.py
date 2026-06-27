@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.db.models import Count, Q
-from .models import District, Organization, Province, StaffFile, UserConcurrently, Ward
+from .models import Organization, Province, StaffFile, UserConcurrently, Ward
 
 
 @admin.register(Province)
@@ -17,17 +17,6 @@ class ProvinceAdmin(admin.ModelAdmin):
     @admin.display(description='Số đơn vị cấp xã')
     def active_ward_count(self, obj):
         return obj.active_wards
-
-
-@admin.register(District)
-class DistrictAdmin(admin.ModelAdmin):
-    list_display = ['name', 'province', 'code', 'is_legacy', 'is_disabled', 'is_deleted']
-    list_filter = ['province', 'is_legacy', 'is_disabled', 'is_deleted']
-    search_fields = ['name', 'code']
-    readonly_fields = ['name', 'code', 'province', 'is_legacy']
-
-    def has_add_permission(self, request):
-        return False
 
 
 @admin.register(Ward)
@@ -56,3 +45,4 @@ class UserConcurrentlyAdmin(admin.ModelAdmin):
     list_display = ['user', 'role', 'department', 'organization', 'is_deleted', 'created_at']
     list_filter = ['role', 'department', 'organization', 'is_deleted']
     search_fields = ['user__username', 'user__email', 'role__name', 'department__name']
+
