@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2, Plus, X, Check } from 'lucide-react'
+import { Trash2, Plus, X, Check, Eye, EyeOff } from 'lucide-react'
 import { Breadcrumb } from '@/components/common/Breadcrumb'
 import { Input } from '@/components/common/Input'
 import { Select } from '@/components/common/Select'
@@ -30,6 +30,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
     const [loading, setLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
 
     const [formData, setFormData] = useState({
         id: '', userName: '', firstName: '', lastName: '',
@@ -440,9 +441,27 @@ export default function AccountForm({ mode = 'create', id = null }) {
 
                                     {isCreate ? (
                                         <FormGroup label="Mật khẩu" required htmlFor="password">
-                                            <Input id="password" name="password" type="password" value={formData.password}
-                                                onChange={handleChange} placeholder="Nhập mật khẩu"
-                                                error={!!errors.password} errorMessage={errors.password} />
+                                            <Input
+                                                id="password"
+                                                name="password"
+                                                type={showPassword ? 'text' : 'password'}
+                                                value={formData.password}
+                                                onChange={handleChange}
+                                                placeholder="Nhập mật khẩu"
+                                                error={!!errors.password}
+                                                errorMessage={errors.password}
+                                                rightElement={(
+                                                    <button
+                                                        type="button"
+                                                        aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                                                        className="text-gray-400 transition-colors hover:text-gray-600 focus:outline-none"
+                                                        onClick={() => setShowPassword(prev => !prev)}
+                                                        onMouseDown={event => event.preventDefault()}
+                                                    >
+                                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </button>
+                                                )}
+                                            />
                                         </FormGroup>
                                     ) : <FormGroup />}
 
