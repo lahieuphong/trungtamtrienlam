@@ -248,6 +248,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
         }))
     }
 
+    /* Chức vụ kiêm nhiệm đang được tắt theo source 185.
     const handleAddRole = () => {
         const defaultRole = positionOptions.find(role => !role.isAdmin) || positionOptions[0]
         const skipsDefaultDepartment = defaultRole?.isDirector || defaultRole?.isAdmin || defaultRole?.isViceDirector
@@ -259,7 +260,9 @@ export default function AccountForm({ mode = 'create', id = null }) {
             isDefault: false,
         }])
     }
+    */
 
+    /* Chức vụ kiêm nhiệm đang được tắt theo source 185.
     const handleRemoveRole = (roleId) => {
         setAdditionalRoles(prev => {
             if (prev.length <= 1) return prev
@@ -267,6 +270,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
             return next.map((r, i) => ({ ...r, isDefault: i === 0 }))
         })
     }
+    */
 
     const validate = () => {
         const errs = {}
@@ -484,6 +488,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                             <h3 className="text-sm font-medium">
                                                 {role.isDefault ? 'Chức vụ chính' : 'Chức vụ kiêm nhiệm'}
                                             </h3>
+                                            {/* Chức vụ kiêm nhiệm đang được tắt theo source 185.
                                             {!role.isDefault && additionalRoles.length > 1 && (
                                                 <button type="button" onClick={() => handleRemoveRole(role.id)}
                                                     className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700">
@@ -491,6 +496,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                                     Xoá chức vụ kiêm nhiệm
                                                 </button>
                                             )}
+                                            */}
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                                             <FormGroup label="Chức vụ" required>
@@ -519,10 +525,12 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                         )}
                                     </div>
                                 ))}
+                                {/* Chức vụ kiêm nhiệm đang được tắt theo source 185.
                                 <Button variant="outline" type="button" onClick={handleAddRole} disabled={!positionOptions.length}>
                                     <Plus className="w-4 h-4" />
                                     Thêm chức vụ kiêm nhiệm
                                 </Button>
+                                */}
                             </div>
 
                             {/* Chữ ký (chỉ hiện khi là giám đốc) */}
