@@ -8,6 +8,7 @@ import { FormGroup } from '@/components/common/FormGroup'
 import { Select } from '@/components/common/Select'
 import { Modal } from '@/components/common/Modal'
 import { Table } from '@/components/common/Table'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/contexts/ToastContext'
 import {
     fetchDepartmentDropdown,
@@ -43,6 +44,8 @@ function isPrivilegedRole(role) {
 
 function flattenPermissionRows(rows, expandedRowIds) {
     const byParent = new Map()
+    const rowIds = new Set(rows.map((row) => row.functionID).filter(Boolean))
+
     rows.forEach((row) => {
         const parentKey = row.functionParrentID || ''
         const list = byParent.get(parentKey) || []
@@ -72,26 +75,37 @@ function flattenPermissionRows(rows, expandedRowIds) {
 
     walk('', 0)
     rows.forEach((row) => {
-        if (!visited.has(row.functionID)) {
-            const rootCount = result.filter((item) => item.depth === 0).length
-            result.push({ ...row, id: row.functionID, depth: 0, treeIndex: `${rootCount + 1}` })
+        if (visited.has(row.functionID)) return
+
+        const parentKey = row.functionParrentID || ''
+        if (parentKey && rowIds.has(parentKey)) return
+
+        const rootCount = result.filter((item) => item.depth === 0).length
+        const treeIndex = `${rootCount + 1}`
+        const hasChildren = byParent.has(row.functionID)
+        const isExpanded = expandedRowIds.has(row.functionID)
+
+        visited.add(row.functionID)
+        result.push({ ...row, id: row.functionID, depth: 0, treeIndex, hasChildren, isExpanded })
+
+        if (hasChildren && isExpanded) {
+            walk(row.functionID, 1, treeIndex)
         }
     })
 
     return result
 }
 
-function PermissionCheckbox({ checked, disabled, loading, onChange }) {
+function PermissionCheckbox({ checked, disabled, loading, onCheckedChange }) {
     return (
-        <label className="inline-flex h-5 w-5 items-center justify-center">
-            <input
-                type="checkbox"
+        <div className="flex h-8 w-full items-center justify-center">
+            <Checkbox
                 checked={Boolean(checked)}
                 disabled={disabled || loading}
-                onChange={onChange}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                onCheckedChange={(value) => onCheckedChange(Boolean(value))}
+                className="h-5 w-5 rounded-[5px] border-[#CBD5E1] bg-white shadow-sm transition-colors data-[state=checked]:border-[#597EF7] data-[state=checked]:bg-[#597EF7] data-[state=checked]:text-white focus-visible:ring-[#597EF7]/30 focus-visible:ring-offset-0 disabled:opacity-50"
             />
-        </label>
+        </div>
     )
 }
 
@@ -148,14 +162,15 @@ export default function PermissionsPage() {
         }
     }, [toast])
 
-    const loadPermissions = useCallback(async () => {
+    const loadPermissions = useCallback(async ({ silent = false, preserveExpandedRows = false } = {}) => {
         if (!roleID || (needsDepartment && !departmentID)) {
             setPermissions([])
             setExpandedRowIds(new Set())
+            if (!silent) setLoading(false)
             return
         }
 
-        setLoading(true)
+        if (!silent) setLoading(true)
         setError('')
         try {
             const response = await fetchPermission({
@@ -171,7 +186,9 @@ export default function PermissionsPage() {
                         .filter(Boolean)
                 )
                 setPermissions(nextPermissions)
-                setExpandedRowIds(parentIds)
+                if (!preserveExpandedRows) {
+                    setExpandedRowIds(parentIds)
+                }
             } else {
                 setError(response?.message || 'Không tải được danh sách phân quyền')
             }
@@ -179,7 +196,7 @@ export default function PermissionsPage() {
             console.error('Error loading permissions:', err)
             setError('Không tải được danh sách phân quyền')
         } finally {
-            setLoading(false)
+            if (!silent) setLoading(false)
         }
     }, [departmentID, needsDepartment, roleID])
 
@@ -210,9 +227,17 @@ export default function PermissionsPage() {
         setTimeout(() => localStorage.removeItem('permissionUpdateTrigger'), 1000)
     }
 
-    const handleTogglePermission = useCallback(async (row, action) => {
+    const handleTogglePermission = useCallback(async (row, action, nextChecked) => {
+        if (row[action] == null) return
         const key = `${row.functionID}-${action}`
+        const previousChecked = Boolean(row[action])
         setSavingKey(key)
+        setPermissions((current) => current.map((permission) => (
+            permission.functionID === row.functionID
+                ? { ...permission, [action]: nextChecked }
+                : permission
+        )))
+
         try {
             const response = await updatePermission({
                 roleID,
@@ -222,15 +247,25 @@ export default function PermissionsPage() {
             })
 
             if (response?.status === 200) {
-                toast.success(response.message || 'Cập nhật quyền thành công')
+                toast.success(response.message || 'Cập nhật quyền thành công!')
                 broadcastPermissionChange()
-                await loadPermissions()
+                await loadPermissions({ silent: true, preserveExpandedRows: true })
             } else {
-                toast.error(response?.message || 'Cập nhật quyền thất bại')
+                setPermissions((current) => current.map((permission) => (
+                    permission.functionID === row.functionID
+                        ? { ...permission, [action]: previousChecked }
+                        : permission
+                )))
+                toast.error(response?.message || 'Cập nhật quyền thất bại!')
             }
         } catch (err) {
+            setPermissions((current) => current.map((permission) => (
+                permission.functionID === row.functionID
+                    ? { ...permission, [action]: previousChecked }
+                    : permission
+            )))
             console.error('Error updating permission:', err)
-            toast.error('Cập nhật quyền thất bại')
+            toast.error('Có lỗi xảy ra khi cập nhật quyền!')
         } finally {
             setSavingKey('')
         }
@@ -253,12 +288,14 @@ export default function PermissionsPage() {
             title: 'STT',
             sortable: false,
             width: 76,
+            className: 'w-20',
             render: (value) => <span className="text-gray-600">{value}</span>,
         },
         {
             key: 'functionName',
             title: 'Tên chức năng',
             sortable: false,
+            className: 'min-w-[320px]',
             render: (_, row) => {
                 const textClass = row.depth === 0 ? 'font-medium text-gray-900' : 'text-gray-700'
                 const content = (
@@ -300,14 +337,20 @@ export default function PermissionsPage() {
             key: action.key,
             title: action.label,
             sortable: false,
+            headerClassName: 'w-28 min-w-[112px] text-center whitespace-nowrap',
+            headerContentClassName: 'justify-center text-center whitespace-nowrap',
+            cellClassName: 'w-28 min-w-[112px] align-middle text-center',
             render: (value, row) => {
+                if (value == null) {
+                    return <span className="mx-auto block h-5 w-5" aria-hidden="true" />
+                }
                 const key = `${row.functionID}-${action.key}`
                 return (
                     <PermissionCheckbox
                         checked={value}
                         disabled={!roleID || (needsDepartment && !departmentID)}
                         loading={savingKey === key}
-                        onChange={() => handleTogglePermission(row, action.key)}
+                        onCheckedChange={(checked) => handleTogglePermission(row, action.key, checked)}
                     />
                 )
             },
@@ -328,17 +371,17 @@ export default function PermissionsPage() {
         try {
             const response = await clonePermission(cloneForm)
             if (response?.status === 200) {
-                toast.success(response.message || 'Sao chép quyền thành công')
+                toast.success(response.message || 'Sao chép quyền thành công!')
                 setCloneOpen(false)
                 setCloneForm(EMPTY_CLONE_FORM)
                 await loadPermissions()
                 broadcastPermissionChange()
             } else {
-                toast.error(response?.message || 'Sao chép quyền thất bại')
+                toast.error(response?.message || 'Sao chép quyền thất bại!')
             }
         } catch (err) {
             console.error('Error cloning permissions:', err)
-            toast.error('Sao chép quyền thất bại')
+            toast.error('Đã xảy ra lỗi khi sao chép quyền.')
         } finally {
             setCloneLoading(false)
         }

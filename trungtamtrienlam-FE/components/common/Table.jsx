@@ -104,30 +104,39 @@ export function Table({
                 <table className="min-w-full">
                     <thead>
                         <tr className="bg-gray-50 border-b">
-                            {displayColumns.map((column) => (
-                                <th
-                                    key={column.key}
-                                    className={`py-3 px-4 text-left text-sm font-medium text-gray-500 ${column.className || ''} ${classNameColumn} ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''}`}
-                                    onClick={() => column.sortable && handleSort(column)}
-                                >
-                                    <div className="flex items-center">
-                                        {column.title}
-                                        {column.sortable && renderSortIcon(column)}
-                                    </div>
-                                </th>
-                            ))}
+                            {displayColumns.map((column) => {
+                                const headerClassName = column.headerClassName ?? column.className ?? ''
+                                const headerContentClassName = column.headerContentClassName || ''
+
+                                return (
+                                    <th
+                                        key={column.key}
+                                        className={`py-3 px-4 text-left text-sm font-medium text-gray-500 ${headerClassName} ${classNameColumn} ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                                        onClick={() => column.sortable && handleSort(column)}
+                                    >
+                                        <div className={`flex items-center ${headerContentClassName}`}>
+                                            {column.title}
+                                            {column.sortable && renderSortIcon(column)}
+                                        </div>
+                                    </th>
+                                )
+                            })}
                         </tr>
                     </thead>
                     <tbody>
                         {sortedData.map((row, rowIndex) => (
                             <tr key={row.id || rowIndex} className={`border-b hover:bg-gray-50 text-sm ${row?.isDisabled ? 'bg-gray-100' : ''}`}>
-                                {displayColumns.map((column) => (
-                                    <td key={`${rowIndex}-${column.key}`} className={`py-3 px-4 ${column.className || ''}`}>
-                                        {column.render
-                                            ? column.render(row[column.key], row, rowIndex)
-                                            : row[column.key]}
-                                    </td>
-                                ))}
+                                {displayColumns.map((column) => {
+                                    const cellClassName = column.cellClassName ?? column.className ?? ''
+
+                                    return (
+                                        <td key={`${rowIndex}-${column.key}`} className={`py-3 px-4 ${cellClassName}`}>
+                                            {column.render
+                                                ? column.render(row[column.key], row, rowIndex)
+                                                : row[column.key]}
+                                        </td>
+                                    )
+                                })}
                             </tr>
                         ))}
                     </tbody>

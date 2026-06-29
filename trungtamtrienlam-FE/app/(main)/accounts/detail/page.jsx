@@ -10,6 +10,7 @@ import { fetchUserById, deleteUser } from '@/lib/api/usersApi'
 import { UserFileConstants } from '@/constants/userConstants'
 import { getStaffFileUrl } from '@/lib/mediaUrl'
 import { ConfigConstants } from '@/constants/configConstants'
+import { useToast } from '@/contexts/ToastContext'
 
 function getFileUrl(staffFilesJson, typeFile) {
     return getStaffFileUrl(staffFilesJson, typeFile)
@@ -28,6 +29,7 @@ export default function AccountDetailPage() {
     const searchParams = useSearchParams()
     const id = searchParams.get('id')
     const router = useRouter()
+    const toast = useToast()
 
     const [accountData, setAccountData] = useState(null)
     const [userConcurrentlies, setUserConcurrentlies] = useState([])
@@ -36,12 +38,6 @@ export default function AccountDetailPage() {
     const [error, setError] = useState(null)
     const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [deleteLoading, setDeleteLoading] = useState(false)
-    const [toast, setToast] = useState(null)
-
-    const showToast = (msg, type = 'success') => {
-        setToast({ msg, type })
-        setTimeout(() => setToast(null), 3500)
-    }
 
     useEffect(() => {
         if (!id) { setError('Không tìm thấy ID tài khoản'); return }
@@ -70,6 +66,7 @@ export default function AccountDetailPage() {
             setDeleteLoading(true)
             const res = await deleteUser(id)
             if (res?.status === 200) {
+                toast.success('Xóa tài khoản thành công!')
                 const userInfo = JSON.parse(localStorage.getItem(ConfigConstants.localstorageUserInfoKey) || '{}')
                 if (id === userInfo?.id) {
                     localStorage.clear()
@@ -78,10 +75,10 @@ export default function AccountDetailPage() {
                     router.push('/accounts')
                 }
             } else {
-                showToast('Xóa tài khoản thất bại!', 'error')
+                toast.error('Xóa tài khoản thất bại!')
             }
         } catch {
-            showToast('Xóa tài khoản thất bại!', 'error')
+            toast.error('Xóa tài khoản thất bại!')
         } finally {
             setDeleteLoading(false)
             setShowDeleteModal(false)
@@ -114,12 +111,6 @@ export default function AccountDetailPage() {
                 ]} />
 
                 <h1 className="text-xl font-semibold mb-8">Thông tin tài khoản</h1>
-
-                {toast && (
-                    <div className={`mb-4 px-4 py-3 rounded-md text-sm ${toast.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                        {toast.msg}
-                    </div>
-                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {/* Avatar */}

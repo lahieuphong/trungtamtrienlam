@@ -1,54 +1,95 @@
-'use client'
+"use client"
 
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from "react"
+import { v4 as uuidv4 } from "uuid"
+import ToastContainer from "@/components/Toast/ToastContainer"
+import { TOAST_TYPES } from "@/components/Toast/constants"
 
-const ToastContext = createContext(null)
-
-export function ToastProvider({ children }) {
-    const [toasts, setToasts] = useState([])
-
-    const addToast = useCallback(({ type = 'info', message, duration = 3000 }) => {
-        const id = Date.now()
-        setToasts(prev => [...prev, { id, type, message }])
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id))
-        }, duration)
-    }, [])
-
-    const success = useCallback((message) => addToast({ type: 'success', message }), [addToast])
-    const error = useCallback((message) => addToast({ type: 'error', message }), [addToast])
-    const warning = useCallback((message) => addToast({ type: 'warning', message }), [addToast])
-    const info = useCallback((message) => addToast({ type: 'info', message }), [addToast])
-
-    return (
-        <ToastContext.Provider value={{ toasts, success, error, warning, info }}>
-            {children}
-            <ToastContainer toasts={toasts} />
-        </ToastContext.Provider>
-    )
-}
-
-function ToastContainer({ toasts }) {
-    if (!toasts.length) return null
-    const colorMap = {
-        success: 'bg-green-500',
-        error: 'bg-red-500',
-        warning: 'bg-yellow-500',
-        info: 'bg-blue-500',
-    }
-    return (
-        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
-            {toasts.map(t => (
-                <div key={t.id} className={`${colorMap[t.type]} text-white px-4 py-3 rounded-lg shadow-lg text-sm max-w-sm`}>
-                    {t.message}
-                </div>
-            ))}
-        </div>
-    )
-}
+const ToastActionsContext = createContext(null)
+const ToastStateContext = createContext(null)
 
 export const useToast = () => {
-    const ctx = useContext(ToastContext)
-    if (!ctx) throw new Error('useToast must be used within ToastProvider')
-    return ctx
+  const context = useContext(ToastActionsContext)
+  if (!context) {
+    throw new Error("useToast must be used within a ToastProvider")
+  }
+  return context
+}
+
+export const useToastState = () => {
+  const context = useContext(ToastStateContext)
+  if (!context) {
+    throw new Error("useToastState must be used within a ToastProvider")
+  }
+  return context
+}
+
+export function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([])
+
+  const addToast = useCallback(({ type = TOAST_TYPES.INFO, message, duration = 5000, position = "top-right" }) => {
+    const id = uuidv4()
+    const newToast = {
+      id,
+      type,
+      message,
+      duration,
+      position,
+    }
+
+    setToasts((prevToasts) => [...prevToasts, newToast])
+    return id
+  }, [])
+
+  const removeToast = useCallback((id) => {
+    setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id))
+  }, [])
+
+  const updateToast = useCallback((id, newProps) => {
+    setToasts((prevToasts) => prevToasts.map((toast) => (toast.id === id ? { ...toast, ...newProps } : toast)))
+  }, [])
+
+  const success = useCallback(
+    (message, options = {}) => addToast({ type: TOAST_TYPES.SUCCESS, message, ...options }),
+    [addToast],
+  )
+
+  const error = useCallback(
+    (message, options = {}) => addToast({ type: TOAST_TYPES.ERROR, message, ...options }),
+    [addToast],
+  )
+
+  const warning = useCallback(
+    (message, options = {}) => addToast({ type: TOAST_TYPES.WARNING, message, ...options }),
+    [addToast],
+  )
+
+  const info = useCallback(
+    (message, options = {}) => addToast({ type: TOAST_TYPES.INFO, message, ...options }),
+    [addToast],
+  )
+
+  const actions = useMemo(() => ({
+    addToast,
+    removeToast,
+    updateToast,
+    success,
+    error,
+    warning,
+    info,
+  }), [addToast, error, info, removeToast, success, updateToast, warning])
+
+  const state = useMemo(() => ({
+    toasts,
+    removeToast,
+  }), [removeToast, toasts])
+
+  return (
+    <ToastActionsContext.Provider value={actions}>
+      {children}
+      <ToastStateContext.Provider value={state}>
+        <ToastContainer />
+      </ToastStateContext.Provider>
+    </ToastActionsContext.Provider>
+  )
 }

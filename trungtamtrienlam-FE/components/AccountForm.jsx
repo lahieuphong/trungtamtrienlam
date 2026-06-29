@@ -11,6 +11,7 @@ import { FormGroup } from '@/components/common/FormGroup'
 import { FileUploader } from '@/components/common/FileUploader'
 import { Button } from '@/components/common/Button'
 import { ConfirmModal } from '@/components/common/Modal'
+import { useToast } from '@/contexts/ToastContext'
 import {
     fetchUserById, createUser, updateUser, deleteUser,
 } from '@/lib/api/usersApi'
@@ -25,6 +26,7 @@ const VN_PHONE_RE = /^(\+84|84|0)(3[2-9]|5[25689]|7[06-9]|8[1-689]|9[0-9])[0-9]{
 
 export default function AccountForm({ mode = 'create', id = null }) {
     const router = useRouter()
+    const toast = useToast()
     const isCreate = mode === 'create'
 
     const [loading, setLoading] = useState(false)
@@ -47,11 +49,6 @@ export default function AccountForm({ mode = 'create', id = null }) {
     const [provinceOptions, setProvinceOptions] = useState([])
     const [wardOptions, setWardOptions] = useState([])
 
-    const [toast, setToast] = useState(null)
-    const showToast = (msg, type = 'success') => {
-        setToast({ msg, type })
-        setTimeout(() => setToast(null), 3500)
-    }
 
     // Load dropdowns
     useEffect(() => {
@@ -337,13 +334,13 @@ export default function AccountForm({ mode = 'create', id = null }) {
             const fd = await buildFormData()
             const res = isCreate ? await createUser(fd) : await updateUser(formData.id, fd)
             if (res?.status === 200) {
-                showToast(isCreate ? 'Tạo tài khoản thành công!' : 'Cập nhật tài khoản thành công!')
+                toast.success(isCreate ? 'Tạo tài khoản thành công!' : 'Cập nhật tài khoản thành công!')
                 setTimeout(() => router.push('/accounts'), 1000)
             } else {
-                showToast(res?.message || 'Có lỗi xảy ra', 'error')
+                toast.error(res?.message || 'Có lỗi xảy ra, vui lòng thử lại')
             }
         } catch (err) {
-            showToast(err?.response?.data?.message || 'Có lỗi xảy ra', 'error')
+            toast.error(err?.response?.data?.message || 'Có lỗi xảy ra')
         } finally {
             setSubmitting(false)
         }
@@ -354,6 +351,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
             setLoading(true)
             const res = await deleteUser(id)
             if (res?.status === 200) {
+                toast.success('Xóa tài khoản thành công!')
                 const userInfo = JSON.parse(localStorage.getItem(ConfigConstants.localstorageUserInfoKey) || '{}')
                 if (id === userInfo?.id) {
                     localStorage.clear()
@@ -362,10 +360,10 @@ export default function AccountForm({ mode = 'create', id = null }) {
                     router.push('/accounts')
                 }
             } else {
-                showToast('Xóa tài khoản thất bại', 'error')
+                toast.error('Xóa tài khoản thất bại!')
             }
         } catch {
-            showToast('Xóa tài khoản thất bại', 'error')
+            toast.error('Xóa tài khoản thất bại!')
         } finally {
             setLoading(false)
             setShowDeleteModal(false)
@@ -379,13 +377,6 @@ export default function AccountForm({ mode = 'create', id = null }) {
                     { label: 'Quản lý tài khoản', href: '/accounts', isHome: true },
                     { label: isCreate ? 'Tạo tài khoản mới' : 'Chỉnh sửa thông tin tài khoản' },
                 ]} />
-
-                {/* Toast */}
-                {toast && (
-                    <div className={`mb-4 px-4 py-3 rounded-md text-sm ${toast.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                        {toast.msg}
-                    </div>
-                )}
 
                 <form onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">

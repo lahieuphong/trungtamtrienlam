@@ -7,6 +7,7 @@ Safe to re-run.
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from apps.authentication.models import Function, Action, Role, Permission, UserRole, User
+from apps.authentication.permission_matrix import get_allowed_actions_for_function
 from apps.accounts.models import Province, District, Organization
 from apps.accounts.vn_admin_units import CURRENT_PROVINCES
 from apps.departments.models import Department
@@ -215,10 +216,20 @@ class Command(BaseCommand):
 
         Role.objects.filter(name='Chuyên viên').update(is_disabled=True)
 
+        pruned = 0
+        for func in Function.objects.filter(is_deleted=False):
+            deleted_count, _ = Permission.objects.filter(function=func).exclude(
+                action__code__in=get_allowed_actions_for_function(func)
+            ).delete()
+            pruned += deleted_count
+
         admin_role = roles['Admin']
         created = 0
         for func in func_map.values():
-            for action in actions.values():
+            for action_code in get_allowed_actions_for_function(func):
+                action = actions.get(action_code)
+                if not action:
+                    continue
                 _, was_created = Permission.objects.get_or_create(
                     role=admin_role,
                     department_id='',
@@ -239,5 +250,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f'Done. Functions: {len(func_map)}, actions: {len(actions)}, '
-            f'new permissions: {created}, users assigned Admin role: {assigned}'
+            f'new permissions: {created}, pruned permissions: {pruned}, '
+            f'users assigned Admin role: {assigned}'
         ))

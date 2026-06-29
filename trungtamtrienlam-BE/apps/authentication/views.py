@@ -11,6 +11,7 @@ from django.conf import settings
 from core.response import ResponseServer
 from core.permissions import HasModulePermission
 from .models import User, Role, Function, Action, Permission, PasswordResetToken
+from .permission_matrix import ACTION_CODES, get_allowed_actions_for_function, is_action_allowed_for_function
 from .serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
@@ -188,7 +189,6 @@ class PermissionMatrixView(APIView):
         if not role_id:
             return ResponseServer.failure(message='Thiếu roleID')
 
-        ACTION_CODES = ['view', 'add', 'edit', 'delete', 'verify', 'refuse', 'download', 'isPublic']
 
         granted = set(
             Permission.objects.filter(role_id=role_id, department_id=department_id)
@@ -204,8 +204,9 @@ class PermissionMatrixView(APIView):
                 'functionParrentID': str(func.parent_id) if func.parent_id else None,
                 'functionName': func.name,
             }
+            allowed_actions = set(get_allowed_actions_for_function(func))
             for code in ACTION_CODES:
-                row[code] = (func.id, code) in granted
+                row[code] = (func.id, code) in granted if code in allowed_actions else None
             result.append(row)
 
         return ResponseServer.success(data={'permissions': result})
@@ -236,6 +237,9 @@ class PermissionToggleView(APIView):
             action = Action.objects.get(code=action_code)
         except (Role.DoesNotExist, Function.DoesNotExist, Action.DoesNotExist):
             return ResponseServer.not_found(message='Không tìm thấy dữ liệu phân quyền')
+
+        if not is_action_allowed_for_function(function, action_code):
+            return ResponseServer.failure(message='Quyền này không áp dụng cho chức năng đã chọn')
 
         perm, created = Permission.objects.get_or_create(
             role=role,
@@ -273,7 +277,10 @@ class PermissionCloneView(APIView):
         if not Role.objects.filter(id=new_role_id, is_deleted=False).exists():
             return ResponseServer.not_found(message='Không tìm thấy vai trò đích')
 
-        old_perms = list(Permission.objects.filter(role_id=old_role_id, department_id=old_dept_id))
+        old_perms = list(
+            Permission.objects.select_related('function', 'action')
+            .filter(role_id=old_role_id, department_id=old_dept_id)
+        )
         Permission.objects.filter(role_id=new_role_id, department_id=new_dept_id).delete()
 
         new_perms = [
@@ -284,6 +291,7 @@ class PermissionCloneView(APIView):
                 action=p.action,
             )
             for p in old_perms
+            if is_action_allowed_for_function(p.function, p.action.code)
         ]
         Permission.objects.bulk_create(new_perms, ignore_conflicts=True)
 

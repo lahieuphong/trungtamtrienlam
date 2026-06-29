@@ -10,6 +10,7 @@ import { ConfirmModal } from '@/components/common/Modal'
 import { fetchUsers, deleteUser, resetUser } from '@/lib/api/usersApi'
 import { getStaffFileUrl } from '@/lib/mediaUrl'
 import { UserFileConstants } from '@/constants/userConstants'
+import { useToast } from '@/contexts/ToastContext'
 
 function getAvatarUrl(staffFilesJson) {
     return getStaffFileUrl(staffFilesJson, UserFileConstants.typeFile.Avatar)
@@ -17,6 +18,7 @@ function getAvatarUrl(staffFilesJson) {
 
 export default function AccountsPage() {
     const router = useRouter()
+    const toast = useToast()
     const [searchQuery, setSearchQuery] = useState('')
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize] = useState(15)
@@ -24,15 +26,10 @@ export default function AccountsPage() {
     const [totalItems, setTotalItems] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
-    const [toast, setToast] = useState(null)
     const [accountToDelete, setAccountToDelete] = useState(null)
     const [accountToResetPassword, setAccountToResetPassword] = useState(null)
     const [actionLoading, setActionLoading] = useState(false)
 
-    const showToast = (message, type = 'success') => {
-        setToast({ message, type })
-        setTimeout(() => setToast(null), 3500)
-    }
 
     const loadAccounts = async () => {
         try {
@@ -74,14 +71,14 @@ export default function AccountsPage() {
             setActionLoading(true)
             const response = await deleteUser(accountToDelete.id)
             if (response?.status === 200) {
-                showToast('Xóa tài khoản thành công!')
+                toast.success('Xóa tài khoản thành công!')
                 await loadAccounts()
             } else {
-                showToast('Xóa tài khoản thất bại!', 'error')
+                toast.error('Xóa tài khoản thất bại!')
             }
         } catch (err) {
             console.error('Error deleting account:', err)
-            showToast('Xóa tài khoản thất bại!', 'error')
+            toast.error('Xóa tài khoản thất bại!')
         } finally {
             setActionLoading(false)
             setAccountToDelete(null)
@@ -94,14 +91,14 @@ export default function AccountsPage() {
             setActionLoading(true)
             const response = await resetUser(accountToResetPassword.id)
             if (response?.status === 200) {
-                showToast('Đặt lại mật khẩu thành công. Hệ thống đã gửi đường dẫn đặt lại mật khẩu đến email của người dùng!')
+                toast.success('Đặt lại mật khẩu thành công. Hệ thống đã gửi đường dẫn đặt lại mật khẩu đến email của người dùng!')
                 await loadAccounts()
             } else {
-                showToast('Đặt lại mật khẩu thất bại!', 'error')
+                toast.error('Đặt lại mật khẩu thất bại!')
             }
         } catch (err) {
             console.error('Error resetting password:', err)
-            showToast('Đặt lại mật khẩu thất bại!', 'error')
+            toast.error('Đặt lại mật khẩu thất bại!')
         } finally {
             setActionLoading(false)
             setAccountToResetPassword(null)
@@ -199,12 +196,6 @@ export default function AccountsPage() {
     return (
         <div className="p-6">
             <Breadcrumb items={[{ label: 'Quản lý tài khoản', isHome: true }]} />
-
-            {toast && (
-                <div className={`mb-4 px-4 py-3 rounded-md text-sm ${toast.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                    {toast.message}
-                </div>
-            )}
 
             <div className="flex justify-between items-center mb-6">
                 <form onSubmit={handleSearch} className="relative w-full max-w-md">
