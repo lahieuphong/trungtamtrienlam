@@ -1,4 +1,5 @@
 import secrets
+import uuid
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -8,15 +9,46 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db.models import Q
 from core.response import ResponseServer
 from core.permissions import HasModulePermission
-from .models import User, Role, Function, Action, Permission, PasswordResetToken
+from apps.departments.models import Department
+from .models import User, Role, Function, Action, FunctionAction, Permission, PasswordResetToken
 from .permission_matrix import ACTION_CODES, get_allowed_actions_for_function, is_action_allowed_for_function
 from .serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
-    RoleSerializer, FunctionSerializer, ActionSerializer, PermissionSerializer,
+    RoleSerializer, FunctionSerializer, ActionSerializer, FunctionActionSerializer, PermissionSerializer,
 )
+
+
+
+def is_uuid(value):
+    if not value:
+        return False
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def role_uses_global_permission_scope(role):
+    return bool(role.is_admin or role.is_director or role.is_vice_director)
+
+
+def get_permission_department_scope(role, raw_department_id):
+    if role_uses_global_permission_scope(role):
+        return None, ''
+
+    department_id = str(raw_department_id or '').strip()
+    if not department_id:
+        return None, 'Vui lòng chọn phòng ban'
+    if not is_uuid(department_id):
+        return None, 'Phòng ban không hợp lệ'
+    if not Department.objects.filter(id=department_id, is_deleted=False).exists():
+        return None, 'Phòng ban không tồn tại'
+    return department_id, ''
 
 
 class LoginView(TokenObtainPairView):
@@ -171,11 +203,17 @@ class ActionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+class FunctionActionViewSet(viewsets.ModelViewSet):
+    queryset = FunctionAction.objects.select_related('function', 'action')
+    serializer_class = FunctionActionSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['function', 'action']
+
 class PermissionViewSet(viewsets.ModelViewSet):
-    queryset = Permission.objects.select_related('role', 'function', 'action')
+    queryset = Permission.objects.select_related('role', 'department', 'function', 'action')
     serializer_class = PermissionSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ['role', 'department_id']
+    filterset_fields = ['role', 'department']
 
 
 class PermissionMatrixView(APIView):
@@ -184,18 +222,30 @@ class PermissionMatrixView(APIView):
 
     def get(self, request):
         role_id = request.query_params.get('roleID', '').strip()
-        department_id = request.query_params.get('departmentID', '').strip()
+        raw_department_id = request.query_params.get('departmentID', '').strip()
 
         if not role_id:
             return ResponseServer.failure(message='Thiếu roleID')
 
+        try:
+            role = Role.objects.get(id=role_id, is_deleted=False)
+        except Role.DoesNotExist:
+            return ResponseServer.not_found(message='Không tìm thấy vai trò')
+
+        department_id, scope_error = get_permission_department_scope(role, raw_department_id)
+        if scope_error:
+            return ResponseServer.failure(message=scope_error)
 
         granted = set(
-            Permission.objects.filter(role_id=role_id, department_id=department_id)
+            Permission.objects.filter(role=role, department_id=department_id)
             .values_list('function_id', 'action__code')
         )
 
-        functions = Function.objects.filter(is_deleted=False).order_by('sort_order')
+        functions = (
+            Function.objects.filter(is_deleted=False)
+            .prefetch_related('function_actions__action')
+            .order_by('sort_order')
+        )
         result = []
         for func in functions:
             fid = str(func.id)
@@ -211,7 +261,6 @@ class PermissionMatrixView(APIView):
 
         return ResponseServer.success(data={'permissions': result})
 
-
 class PermissionToggleView(APIView):
     """POST /api/auth/permissions/toggle/ or GET /api/Permissions/update"""
     permission_classes = [IsAuthenticated]
@@ -224,7 +273,7 @@ class PermissionToggleView(APIView):
 
     def _toggle(self, data):
         role_id = str(data.get('roleID', '')).strip()
-        department_id = str(data.get('departmentID', '') or '').strip()
+        raw_department_id = str(data.get('departmentID', '') or '').strip()
         function_id = str(data.get('functionID', '')).strip()
         action_code = str(data.get('action', '')).strip()
 
@@ -237,6 +286,10 @@ class PermissionToggleView(APIView):
             action = Action.objects.get(code=action_code)
         except (Role.DoesNotExist, Function.DoesNotExist, Action.DoesNotExist):
             return ResponseServer.not_found(message='Không tìm thấy dữ liệu phân quyền')
+
+        department_id, scope_error = get_permission_department_scope(role, raw_department_id)
+        if scope_error:
+            return ResponseServer.failure(message=scope_error)
 
         if not is_action_allowed_for_function(function, action_code):
             return ResponseServer.failure(message='Quyền này không áp dụng cho chức năng đã chọn')
@@ -252,7 +305,6 @@ class PermissionToggleView(APIView):
             return ResponseServer.success(message='Đã thu hồi quyền')
         return ResponseServer.success(message='Đã cấp quyền')
 
-
 class PermissionCloneView(APIView):
     """POST /api/auth/permissions/clone/ or GET /api/Permissions/Clone"""
     permission_classes = [IsAuthenticated]
@@ -265,27 +317,38 @@ class PermissionCloneView(APIView):
 
     def _clone(self, data):
         old_role_id = str(data.get('oldRoleID', '')).strip()
-        old_dept_id = str(data.get('oldDepartmentID', '') or '').strip()
+        old_raw_dept_id = str(data.get('oldDepartmentID', '') or '').strip()
         new_role_id = str(data.get('newRoleID', '')).strip()
-        new_dept_id = str(data.get('newDepartmentID', '') or '').strip()
+        new_raw_dept_id = str(data.get('newDepartmentID', '') or '').strip()
 
         if not old_role_id or not new_role_id:
             return ResponseServer.failure(message='Thiếu roleID')
 
-        if not Role.objects.filter(id=old_role_id, is_deleted=False).exists():
+        try:
+            old_role = Role.objects.get(id=old_role_id, is_deleted=False)
+        except Role.DoesNotExist:
             return ResponseServer.not_found(message='Không tìm thấy vai trò nguồn')
-        if not Role.objects.filter(id=new_role_id, is_deleted=False).exists():
+        try:
+            new_role = Role.objects.get(id=new_role_id, is_deleted=False)
+        except Role.DoesNotExist:
             return ResponseServer.not_found(message='Không tìm thấy vai trò đích')
+
+        old_dept_id, old_scope_error = get_permission_department_scope(old_role, old_raw_dept_id)
+        if old_scope_error:
+            return ResponseServer.failure(message=f'Nguồn: {old_scope_error}')
+        new_dept_id, new_scope_error = get_permission_department_scope(new_role, new_raw_dept_id)
+        if new_scope_error:
+            return ResponseServer.failure(message=f'Đích: {new_scope_error}')
 
         old_perms = list(
             Permission.objects.select_related('function', 'action')
-            .filter(role_id=old_role_id, department_id=old_dept_id)
+            .filter(role=old_role, department_id=old_dept_id)
         )
-        Permission.objects.filter(role_id=new_role_id, department_id=new_dept_id).delete()
+        Permission.objects.filter(role=new_role, department_id=new_dept_id).delete()
 
         new_perms = [
             Permission(
-                role_id=new_role_id,
+                role=new_role,
                 department_id=new_dept_id,
                 function=p.function,
                 action=p.action,
@@ -296,7 +359,6 @@ class PermissionCloneView(APIView):
         Permission.objects.bulk_create(new_perms, ignore_conflicts=True)
 
         return ResponseServer.success(message='Sao chép quyền thành công')
-
 
 class UserMenuPermissionsView(APIView):
     """Returns the menu function tree for the authenticated user."""
@@ -309,24 +371,40 @@ class UserMenuPermissionsView(APIView):
             functions = Function.objects.filter(is_deleted=False).order_by('sort_order')
         else:
             role_ids = set(user.user_roles.values_list('role_id', flat=True))
+            scoped_permission_q = Q(pk__isnull=True)
+            has_scoped_permissions = False
+
             try:
                 from apps.accounts.models import UserConcurrently
-                role_ids.update(
-                    UserConcurrently.objects.filter(user=user, is_deleted=False)
-                    .values_list('role_id', flat=True)
-                )
+                assignments = UserConcurrently.objects.filter(
+                    user=user,
+                    is_deleted=False,
+                    role_id__isnull=False,
+                ).values_list('role_id', 'department_id')
+                for role_id, department_id in assignments:
+                    role_ids.add(role_id)
+                    if department_id:
+                        scoped_permission_q |= Q(role_id=role_id, department_id=department_id)
+                        has_scoped_permissions = True
             except Exception:
                 pass
-            role_ids.discard(None)
 
-            func_ids = list(
-                Permission.objects.filter(role_id__in=list(role_ids))
-                .values_list('function_id', flat=True)
-                .distinct()
-            )
-            functions = Function.objects.filter(
-                id__in=func_ids, is_deleted=False
-            ).order_by('sort_order')
+            role_ids.discard(None)
+            if not role_ids:
+                functions = Function.objects.none()
+            else:
+                permission_q = Q(role_id__in=list(role_ids), department__isnull=True)
+                if has_scoped_permissions:
+                    permission_q |= scoped_permission_q
+
+                func_ids = list(
+                    Permission.objects.filter(permission_q)
+                    .values_list('function_id', flat=True)
+                    .distinct()
+                )
+                functions = Function.objects.filter(
+                    id__in=func_ids, is_deleted=False
+                ).order_by('sort_order')
 
         result = [
             {

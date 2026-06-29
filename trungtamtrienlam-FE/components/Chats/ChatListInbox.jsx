@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react'
 import { Search, Users, Check, ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { sortBySearchScore } from '@/lib/search'
 
 // ── Mock data (replace with real API calls when BE is ready) ──────────────────
 
@@ -125,27 +126,28 @@ const ChatListInbox = ({ onClose, onOpen }) => {
 
     const filteredUserChats = useMemo(() => {
         if (!searchQuery.trim()) return userChatList
-        const q = searchQuery.toLowerCase()
-        return userChatList.filter(c =>
-            c.name?.toLowerCase().includes(q) ||
-            c.lastMessage?.toLowerCase().includes(q)
-        )
+        return sortBySearchScore(userChatList, searchQuery, chat => [
+            chat.name,
+            chat.lastMessage,
+        ].filter(Boolean).join(' '))
     }, [searchQuery, userChatList])
 
     const filteredGroupChats = useMemo(() => {
         if (!searchQuery.trim()) return groupChatList
-        const q = searchQuery.toLowerCase()
-        return groupChatList.filter(c =>
-            c.name?.toLowerCase().includes(q) ||
-            c.lastMessage?.toLowerCase().includes(q)
-        )
+        return sortBySearchScore(groupChatList, searchQuery, chat => [
+            chat.name,
+            chat.lastMessage,
+            chat.lastSenderName,
+        ].filter(Boolean).join(' '))
     }, [searchQuery, groupChatList])
 
     const filteredNewUsers = useMemo(() => {
         const newUsers = MOCK_NEW_USERS.filter(u => !existingIds.has(u.id))
         if (!searchQuery.trim()) return newUsers
-        const q = searchQuery.toLowerCase()
-        return newUsers.filter(u => u.fullName?.toLowerCase().includes(q))
+        return sortBySearchScore(newUsers, searchQuery, user => [
+            user.fullName,
+            user.roleName,
+        ].filter(Boolean).join(' '))
     }, [searchQuery, existingIds])
 
     const clearUnreadCount = (chatId, chatType) => {

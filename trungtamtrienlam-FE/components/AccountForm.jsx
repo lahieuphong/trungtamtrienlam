@@ -74,9 +74,6 @@ export default function AccountForm({ mode = 'create', id = null }) {
                 if (provsRes?.status === 200) {
                     const provs = (provsRes.data?.provinces || []).map(p => ({ ...p, value: p.id, label: p.name }))
                     setProvinceOptions(provs)
-                    if (isCreate && provs.length > 0) {
-                        setFormData(prev => ({ ...prev, provinceID: provs[0].value }))
-                    }
                 }
             } catch (e) {
                 console.error(e)
@@ -100,7 +97,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                 if (res?.status === 200) {
                     const wards = (res.data?.wards || []).map(w => ({ ...w, value: w.id, label: w.name }))
                     setWardOptions(wards)
-                    if (wards.length > 0 && (!formData.wardID || !wards.some(w => w.value === formData.wardID))) {
+                    if (!isCreate && wards.length > 0 && (!formData.wardID || !wards.some(w => w.value === formData.wardID))) {
                         setFormData(prev => ({ ...prev, wardID: wards[0].value }))
                     }
                     if (wards.length === 0) {
@@ -112,22 +109,20 @@ export default function AccountForm({ mode = 'create', id = null }) {
             }
         }
         load()
-    }, [formData.provinceID])
+    }, [formData.provinceID, isCreate])
 
-    // Set default role row when options are ready (create mode)
+    // Set an empty default role row when options are ready (create mode)
     useEffect(() => {
         if (isCreate && positionOptions.length > 0 && additionalRoles.length === 0) {
-            const defaultRole = positionOptions.find(role => !role.isAdmin) || positionOptions[0]
-            const skipsDefaultDepartment = defaultRole?.isDirector || defaultRole?.isAdmin || defaultRole?.isViceDirector
             setAdditionalRoles([{
                 id: Date.now(),
                 organizationID: organizationOptions[0]?.value || '',
-                departmentID: skipsDefaultDepartment ? '' : departmentOptions[0]?.value || '',
-                roleID: defaultRole?.value || '',
+                departmentID: '',
+                roleID: '',
                 isDefault: true,
             }])
         }
-    }, [isCreate, positionOptions, departmentOptions, organizationOptions, additionalRoles.length])
+    }, [isCreate, positionOptions, organizationOptions, additionalRoles.length])
 
     useEffect(() => {
         if (additionalRoles.length === 0) return
@@ -135,7 +130,8 @@ export default function AccountForm({ mode = 'create', id = null }) {
         setAdditionalRoles(prev => prev.map((role) => {
             const selectedRole = positionOptions.find(position => position.value === role.roleID)
             const skipsRowDepartment = selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector
-            const nextDepartmentID = role.departmentID || (!skipsRowDepartment ? departmentOptions[0]?.value || '' : '')
+            const shouldDefaultDepartment = Boolean(role.roleID && !skipsRowDepartment)
+            const nextDepartmentID = role.departmentID || (shouldDefaultDepartment ? departmentOptions[0]?.value || '' : '')
 
             return {
                 ...role,
@@ -248,13 +244,11 @@ export default function AccountForm({ mode = 'create', id = null }) {
 
     /* Chức vụ kiêm nhiệm đang được tắt theo source 185.
     const handleAddRole = () => {
-        const defaultRole = positionOptions.find(role => !role.isAdmin) || positionOptions[0]
-        const skipsDefaultDepartment = defaultRole?.isDirector || defaultRole?.isAdmin || defaultRole?.isViceDirector
         setAdditionalRoles(prev => [...prev, {
             id: Date.now(),
             organizationID: organizationOptions[0]?.value || '',
-            departmentID: skipsDefaultDepartment ? '' : departmentOptions[0]?.value || '',
-            roleID: defaultRole?.value || '',
+            departmentID: '',
+            roleID: '',
             isDefault: false,
         }])
     }

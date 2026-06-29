@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import User, Role, UserRole, Function, Action, Permission
+from .models import User, Role, UserRole, Function, Action, FunctionAction, Permission
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -105,8 +105,19 @@ class ActionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class FunctionActionSerializer(serializers.ModelSerializer):
+    functionName = serializers.CharField(source='function.name', read_only=True)
+    actionCode = serializers.CharField(source='action.code', read_only=True)
+
+    class Meta:
+        model = FunctionAction
+        fields = ['id', 'function', 'functionName', 'action', 'actionCode']
+        read_only_fields = ['id']
+
 class PermissionSerializer(serializers.ModelSerializer):
-    departmentID = serializers.CharField(source='department_id', required=False, allow_blank=True)
+    department_id = serializers.SerializerMethodField()
+    departmentID = serializers.SerializerMethodField()
+    departmentName = serializers.CharField(source='department.name', read_only=True, default='')
     roleName = serializers.CharField(source='role.name', read_only=True)
     functionName = serializers.CharField(source='function.name', read_only=True)
     actionCode = serializers.CharField(source='action.code', read_only=True)
@@ -114,6 +125,12 @@ class PermissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Permission
         fields = [
-            'id', 'role', 'roleName', 'department_id', 'departmentID',
+            'id', 'role', 'roleName', 'department', 'department_id', 'departmentID', 'departmentName',
             'function', 'functionName', 'action', 'actionCode',
         ]
+
+    def get_department_id(self, obj):
+        return str(obj.department_id) if obj.department_id else ''
+
+    def get_departmentID(self, obj):
+        return self.get_department_id(obj)

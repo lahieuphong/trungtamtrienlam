@@ -60,8 +60,31 @@ ALLOWED_ACTIONS_BY_ICON = {
 }
 
 
-def get_allowed_actions_for_function(function):
+def get_default_actions_for_function(function):
     return ALLOWED_ACTIONS_BY_ICON.get(function.icon or '', ACTION_CODES)
+
+
+def get_allowed_actions_for_function(function):
+    cached_actions = getattr(function, '_prefetched_objects_cache', {}).get('function_actions')
+    if cached_actions is not None:
+        configured_codes = [item.action.code for item in cached_actions if getattr(item, 'action', None)]
+    else:
+        configured_codes = []
+        if getattr(function, 'pk', None):
+            try:
+                from .models import FunctionAction
+                configured_codes = list(
+                    FunctionAction.objects.filter(function=function)
+                    .select_related('action')
+                    .values_list('action__code', flat=True)
+                )
+            except Exception:
+                configured_codes = []
+
+    if configured_codes:
+        configured = set(configured_codes)
+        return tuple(code for code in ACTION_CODES if code in configured)
+    return get_default_actions_for_function(function)
 
 
 def is_action_allowed_for_function(function, action_code):

@@ -39,7 +39,10 @@ const EMPTY_CLONE_FORM = {
 }
 
 function isPrivilegedRole(role) {
-    return Boolean(role?.isAdmin || role?.isDirector || role?.is_admin || role?.is_director)
+    return Boolean(
+        role?.isAdmin || role?.isDirector || role?.isViceDirector
+        || role?.is_admin || role?.is_director || role?.is_vice_director
+    )
 }
 
 function flattenPermissionRows(rows, expandedRowIds) {

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Role, RoleDepartment, UserRole, Function, Action, Permission
+from .models import User, Role, RoleDepartment, UserRole, Function, Action, FunctionAction, Permission
 
 
 @admin.register(User)
@@ -62,8 +62,15 @@ class ActionAdmin(admin.ModelAdmin):
     search_fields = ['name', 'code']
 
 
+@admin.register(FunctionAction)
+class FunctionActionAdmin(admin.ModelAdmin):
+    list_display = ['function', 'action']
+    list_filter = ['action']
+    search_fields = ['function__name', 'function__icon', 'action__code', 'action__name']
+
+
 @admin.register(Permission)
 class PermissionAdmin(admin.ModelAdmin):
-    list_display = ['role', 'department_id', 'function', 'action']
-    list_filter = ['role', 'action', 'department_id']
-    search_fields = ['role__name', 'function__name', 'action__code']
+    list_display = ['role', 'department', 'function', 'action']
+    list_filter = ['role', 'action', 'department']
+    search_fields = ['role__name', 'department__name', 'function__name', 'action__code']

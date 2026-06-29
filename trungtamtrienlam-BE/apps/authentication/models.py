@@ -119,15 +119,46 @@ class Action(models.Model):
         return self.code
 
 
+class FunctionAction(models.Model):
+    function = models.ForeignKey(Function, on_delete=models.CASCADE, related_name='function_actions')
+    action = models.ForeignKey(Action, on_delete=models.CASCADE, related_name='function_actions')
+
+    class Meta:
+        db_table = 'function_actions'
+        unique_together = ('function', 'action')
+        verbose_name = 'Hành động theo chức năng'
+        verbose_name_plural = 'Hành động theo chức năng'
+
+    def __str__(self):
+        return f'{self.function_id} - {self.action_id}'
+
+
 class Permission(models.Model):
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='permissions')
-    department_id = models.CharField(max_length=36, blank=True, default='')
+    department = models.ForeignKey(
+        'departments.Department',
+        on_delete=models.CASCADE,
+        related_name='permissions',
+        blank=True,
+        null=True,
+    )
     function = models.ForeignKey(Function, on_delete=models.CASCADE)
     action = models.ForeignKey(Action, on_delete=models.CASCADE)
 
     class Meta:
         db_table = 'permissions'
-        unique_together = ('role', 'department_id', 'function', 'action')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['role', 'function', 'action'],
+                condition=models.Q(department__isnull=True),
+                name='uniq_permission_global_scope',
+            ),
+            models.UniqueConstraint(
+                fields=['role', 'department', 'function', 'action'],
+                condition=models.Q(department__isnull=False),
+                name='uniq_permission_department_scope',
+            ),
+        ]
         verbose_name = 'Quyền hạn'
         verbose_name_plural = 'Quyền hạn'
 

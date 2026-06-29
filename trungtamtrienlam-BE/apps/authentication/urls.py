@@ -1,4 +1,4 @@
-﻿from django.urls import path, include
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
@@ -8,6 +8,7 @@ router.register(r'users', views.UserViewSet, basename='user')
 router.register(r'roles', views.RoleViewSet, basename='role')
 router.register(r'functions', views.FunctionViewSet, basename='function')
 router.register(r'actions', views.ActionViewSet, basename='action')
+router.register(r'function-actions', views.FunctionActionViewSet, basename='function-action')
 router.register(r'permissions', views.PermissionViewSet, basename='permission')
 
 urlpatterns = [
@@ -22,4 +23,3 @@ urlpatterns = [
     path('permissions/clone/', views.PermissionCloneView.as_view(), name='permission-clone'),
     path('', include(router.urls)),
 ]
-

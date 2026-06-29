@@ -2,6 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Search } from 'lucide-react'
+import { sortBySearchScore } from '@/lib/search'
+
+function getOptionSearchText(option) {
+    const searchableValues = [
+        option?.label,
+        option?.name,
+        option?.code,
+        option?.unitType,
+        option?.oldDistrictName,
+        option?.searchText,
+    ]
+    return searchableValues.filter(Boolean).join(' ')
+}
 
 export function Select({
     id,
@@ -27,11 +40,8 @@ export function Select({
     )
 
     const filteredOptions = useMemo(() => {
-        const keyword = query.trim().toLowerCase()
-        if (!keyword) return options
-        return options.filter((option) =>
-            String(option.label || '').toLowerCase().includes(keyword)
-        )
+        if (!query.trim()) return options
+        return sortBySearchScore(options, query, getOptionSearchText)
     }, [options, query])
 
     useEffect(() => {

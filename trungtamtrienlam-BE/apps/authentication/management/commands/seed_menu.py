@@ -6,8 +6,8 @@ Safe to re-run.
 
 from django.core.management.base import BaseCommand
 from django.db.models import Q
-from apps.authentication.models import Function, Action, Role, Permission, UserRole, User
-from apps.authentication.permission_matrix import get_allowed_actions_for_function
+from apps.authentication.models import Function, Action, FunctionAction, Role, Permission, UserRole, User
+from apps.authentication.permission_matrix import get_allowed_actions_for_function, get_default_actions_for_function
 from apps.accounts.models import Province, District, Organization
 from apps.accounts.vn_admin_units import CURRENT_PROVINCES
 from apps.departments.models import Department
@@ -80,9 +80,9 @@ ACTION_SEEDS = [
 
 ROLE_SEEDS = [
     {'name': 'Admin', 'description': 'Full access', 'level': 0, 'is_director': False, 'is_vice_director': False, 'is_admin': True, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
-    {'name': 'Trưởng phòng', 'description': 'Quản lý phòng ban', 'level': 1, 'is_director': False, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
-    {'name': 'Giám đốc', 'description': 'Vai trò lãnh đạo', 'level': 2, 'is_director': True, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
-    {'name': 'Phó giám đốc', 'description': 'Vai trò phó lãnh đạo', 'level': 3, 'is_director': False, 'is_vice_director': True, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
+    {'name': 'Trưởng phòng', 'description': 'Quản lý phòng ban', 'level': 3, 'is_director': False, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
+    {'name': 'Giám đốc', 'description': 'Vai trò lãnh đạo', 'level': 1, 'is_director': True, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
+    {'name': 'Phó giám đốc', 'description': 'Vai trò phó lãnh đạo', 'level': 2, 'is_director': False, 'is_vice_director': True, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': True, 'can_see_department_tasks': True},
     {'name': 'Nhân viên', 'description': 'Nhân sự nghiệp vụ', 'level': 4, 'is_director': False, 'is_vice_director': False, 'is_admin': False, 'can_receive_task': True, 'can_assign_task': False, 'can_see_department_tasks': False},
 ]
 DEPARTMENT_SEEDS = [
@@ -149,6 +149,14 @@ class Command(BaseCommand):
                 f'{len(remaining)} functions could not be resolved: '
                 + ', '.join(item['_key'] for item in remaining)
             ))
+
+        for func in func_map.values():
+            allowed_actions = set(get_default_actions_for_function(func))
+            FunctionAction.objects.filter(function=func).exclude(action__code__in=allowed_actions).delete()
+            for action_code in allowed_actions:
+                action = actions.get(action_code)
+                if action:
+                    FunctionAction.objects.get_or_create(function=func, action=action)
 
         Organization.objects.update_or_create(
             code='TTTTL',
@@ -232,7 +240,7 @@ class Command(BaseCommand):
                     continue
                 _, was_created = Permission.objects.get_or_create(
                     role=admin_role,
-                    department_id='',
+                    department=None,
                     function=func,
                     action=action,
                 )

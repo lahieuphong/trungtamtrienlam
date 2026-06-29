@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Eye, Pencil, Trash2, Plus, KeyRound } from 'lucide-react'
+import { useDebouncedValue } from '@/lib/search'
 import { Breadcrumb } from '@/components/common/Breadcrumb'
 import { Table } from '@/components/common/Table'
 import { Button } from '@/components/common/Button'
@@ -20,6 +21,7 @@ export default function AccountsPage() {
     const router = useRouter()
     const toast = useToast()
     const [searchQuery, setSearchQuery] = useState('')
+    const debouncedSearchQuery = useDebouncedValue(searchQuery, 250)
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize] = useState(15)
     const [accounts, setAccounts] = useState([])
@@ -38,7 +40,7 @@ export default function AccountsPage() {
             const response = await fetchUsers({
                 page: currentPage,
                 pageSize,
-                keyword: searchQuery,
+                keyword: debouncedSearchQuery,
             })
 
             if (response?.status === 200) {
@@ -57,12 +59,16 @@ export default function AccountsPage() {
 
     useEffect(() => {
         loadAccounts()
-    }, [currentPage, pageSize, searchQuery])
+    }, [currentPage, pageSize, debouncedSearchQuery])
 
     const handleSearch = (event) => {
         event.preventDefault()
         setCurrentPage(1)
-        loadAccounts()
+    }
+
+    const handleSearchChange = (event) => {
+        setSearchQuery(event.target.value)
+        setCurrentPage(1)
     }
 
     const handleDeleteConfirm = async () => {
@@ -209,7 +215,7 @@ export default function AccountsPage() {
                         className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Tìm kiếm tài khoản"
                         value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
+                        onChange={handleSearchChange}
                     />
                     <button type="submit" className="hidden">
                         Tìm kiếm

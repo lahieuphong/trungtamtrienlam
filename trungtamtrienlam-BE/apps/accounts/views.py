@@ -2,11 +2,12 @@ import json
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from core.response import ResponseServer
+from core.search import search_score
 from apps.authentication.models import Role, User
 from apps.departments.models import Department, Staff
 from .models import District, Organization, Province, StaffFile, UserConcurrently, Ward
@@ -43,25 +44,72 @@ class StaffListView(APIView):
         )[:100]
         ensure_staff_profiles_for_users(missing_users)
 
-        qs = Staff.objects.select_related('user', 'province', 'district', 'ward').filter(
-            is_deleted=False,
-            user__is_deleted=False,
+        qs = (
+            Staff.objects.select_related('user', 'province', 'district', 'ward', 'department')
+            .prefetch_related(Prefetch(
+                'user__concurrent_roles',
+                queryset=UserConcurrently.objects.filter(is_deleted=False).select_related('role', 'department'),
+                to_attr='active_concurrent_roles',
+            ))
+            .filter(
+                is_deleted=False,
+                user__is_deleted=False,
+            )
+            .order_by('-created_at', '-user__date_joined')
         )
-        if keyword:
-            qs = qs.filter(
-                Q(user__username__icontains=keyword)
-                | Q(first_name__icontains=keyword)
-                | Q(last_name__icontains=keyword)
-                | Q(email__icontains=keyword)
-                | Q(phone_number__icontains=keyword)
-            ).distinct()
 
-        total = qs.count()
         start = (page - 1) * page_size
-        staffs = qs.order_by('-created_at', '-user__date_joined')[start: start + page_size]
-        data = StaffListSerializer(staffs, many=True).data
+        if keyword:
+            ranked_staffs = []
+            for index, staff in enumerate(qs):
+                score = search_score(self._staff_search_text(staff), keyword)
+                if score is not None:
+                    ranked_staffs.append((score, index, staff))
+            ranked_staffs.sort(key=lambda item: (item[0], item[1]))
+            total = len(ranked_staffs)
+            staffs = [item[2] for item in ranked_staffs[start: start + page_size]]
+        else:
+            total = qs.count()
+            staffs = qs[start: start + page_size]
 
+        data = StaffListSerializer(staffs, many=True).data
         return ResponseServer.success(data={'staffs': data, 'total': total})
+
+    @staticmethod
+    def _staff_search_text(staff):
+        user = staff.user
+        assignments = getattr(user, 'active_concurrent_roles', []) if user else []
+        role_department_text = []
+        for assignment in assignments:
+            if assignment.role:
+                role_department_text.append(assignment.role.name)
+            if assignment.department:
+                role_department_text.append(assignment.department.name)
+
+        return ' '.join(str(value or '') for value in [
+            user.username if user else '',
+            user.email if user else '',
+            user.phone if user else '',
+            user.first_name if user else '',
+            user.last_name if user else '',
+            user.get_full_name() if user else '',
+            staff.first_name,
+            staff.last_name,
+            staff.full_name,
+            staff.staff_code,
+            staff.title,
+            staff.email,
+            staff.phone_number,
+            staff.department.name if staff.department else '',
+            staff.address,
+            staff.province.name if staff.province else '',
+            staff.province.code if staff.province else '',
+            staff.district.name if staff.district else '',
+            staff.ward.name if staff.ward else '',
+            staff.ward.code if staff.ward else '',
+            staff.ward.old_district_name if staff.ward else '',
+            *role_department_text,
+        ])
 
 
 class StaffDetailView(APIView):
