@@ -57,11 +57,11 @@ export function FileUploader({
                 onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragOver(true) }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
-                className={`relative border rounded-lg overflow-hidden cursor-pointer transition-colors
-                    ${isDashedBorder ? 'border-dashed' : 'border-solid'}
-                    ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
-                    ${disabled ? 'cursor-not-allowed opacity-60' : ''}
-                    ${errorMessage ? 'border-red-400' : ''}`}
+                className={`relative border overflow-hidden cursor-pointer
+                    ${previewUrl ? 'rounded-lg transition-colors' : 'rounded-md border-dashed transition-all duration-300 ease-in-out'}
+                    ${previewUrl ? (isDashedBorder ? 'border-dashed' : 'border-solid') : 'border-dashed'}
+                    ${dragOver ? 'border-blue-400 bg-blue-50' : errorMessage ? '!border-red-400 hover:!border-red-400' : previewUrl ? 'border-gray-300 hover:border-gray-400' : 'border-[#D9D9D9] hover:border-blue-400'}
+                    ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
                 style={{ minHeight: 120 }}
             >
                 {previewUrl ? (
@@ -83,10 +83,13 @@ export function FileUploader({
                         )}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center p-6 text-gray-400">
-                        <Upload className="w-8 h-8 mb-2" />
-                        <p className="text-xs text-center">
-                            {description || 'Kéo thả hoặc nhấn để tải lên'}
+                    <div className="flex min-h-[120px] flex-col items-center justify-center p-10 text-center">
+                        <p className="flex items-center text-sm text-[#597EF7]">
+                            <Upload className="mr-2 h-4 w-4" />
+                            Tải lên từ máy tính
+                        </p>
+                        <p className="mt-2 text-sm text-[#8C8C8C]">
+                            {description || 'Hoặc kéo và thả tập tin tại đây'}
                         </p>
                     </div>
                 )}

@@ -505,6 +505,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                                     value={role.roleID}
                                                     onChange={e => handleRoleChange(role.id, 'roleID', e.target.value)}
                                                     placeholder="-- Chọn chức vụ --"
+                                                    error={!!errors[`role_${index}`]}
                                                 />
                                             </FormGroup>
                                             {!roleSkipsDepartment(role.roleID) && (
@@ -514,6 +515,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
                                                         value={role.departmentID}
                                                         onChange={e => handleRoleChange(role.id, 'departmentID', e.target.value)}
                                                         placeholder="-- Chọn bộ phận --"
+                                                        error={!!errors[`department_${index}`]}
                                                     />
                                                 </FormGroup>
                                             )}

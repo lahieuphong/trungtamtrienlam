@@ -70,7 +70,7 @@ export function Select({
 
     const triggerClasses = [
         'flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 py-2 text-sm text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500',
-        error ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-blue-500',
+        error ? '!border-red-400 focus:!border-red-500' : 'border-gray-300 focus:border-blue-500',
         disabled ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer text-gray-900',
         className,
     ].join(' ')
