@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
     ChevronDown, ChevronRight, ChevronLeft,
-    Menu, X, MoreVertical, LogOut,
+    Menu, X, MoreVertical, LogOut, ShieldAlert,
 } from 'lucide-react'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissionContext } from '@/contexts/PermissionContext'
+import { buildMediaUrl } from '@/lib/mediaUrl'
 
 // Mirror of 185's getIcon() — maps uniqueKey → <img> element
 function getIcon(uniqueKey) {
@@ -61,6 +62,7 @@ export default function Sidebar() {
     const { permissions } = usePermissionContext()
     const [expandedMenus, setExpandedMenus] = useState({})
     const [menuItems, setMenuItems] = useState([])
+    const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
 
     // Build tree whenever permissions change
     useEffect(() => {
@@ -94,7 +96,9 @@ export default function Sidebar() {
             const foot = document.getElementById('footerSidebar')
             const body = document.getElementById('bodySidebar')
             if (full && head && foot && body) {
-                body.style.maxHeight = `${full.clientHeight - head.clientHeight - foot.clientHeight}px`
+                const bodyHeight = `${full.clientHeight - head.clientHeight - foot.clientHeight}px`
+                body.style.height = bodyHeight
+                body.style.maxHeight = bodyHeight
             }
         })
     }, [])
@@ -174,7 +178,28 @@ export default function Sidebar() {
         </ul>
     )
 
-    const avatarInitial = (user?.full_name || user?.username || 'U')[0].toUpperCase()
+    const displayName = user?.full_name || user?.username || 'Người dùng'
+    const avatarInitial = (displayName || 'U')[0].toUpperCase()
+    const avatarUrl = useMemo(() => buildMediaUrl(user?.avatar), [user?.avatar])
+
+    useEffect(() => {
+        setAvatarLoadFailed(false)
+    }, [avatarUrl])
+
+    const renderUserAvatar = (className = 'w-8 h-8') => (
+        <div className={`${className} rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm flex-shrink-0 overflow-hidden`}>
+            {avatarUrl && !avatarLoadFailed ? (
+                <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="h-full w-full object-cover"
+                    onError={() => setAvatarLoadFailed(true)}
+                />
+            ) : (
+                avatarInitial
+            )}
+        </div>
+    )
 
     const sidebarCls = [
         'h-screen fixed top-0 left-0 bg-white border-r border-gray-200 transition-all duration-300 z-[49]',
@@ -240,11 +265,17 @@ export default function Sidebar() {
                 </div>
 
                 {/* Nav body */}
-                <div id="bodySidebar" className="py-4 overflow-y-auto">
+                <div id="bodySidebar" className={`overflow-y-auto ${menuItems.length > 0 ? 'py-4' : 'flex items-center justify-center px-3 py-4'}`}>
                     {menuItems.length > 0
                         ? renderMenuItems(menuItems)
                         : (!collapsed || isMobile) && (
-                            <p className="text-xs text-gray-400 px-4 py-2">Chưa có quyền truy cập</p>
+                            <div className="w-full rounded-md border border-dashed border-amber-200 bg-amber-50/50 px-3 py-5 text-center">
+                                <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                                    <ShieldAlert className="h-4 w-4" />
+                                </div>
+                                <p className="text-sm font-semibold text-amber-900">Chưa có quyền truy cập</p>
+                                <p className="mt-1 text-xs leading-5 text-amber-700/70">Menu sẽ hiển thị khi tài khoản được cấp quyền.</p>
+                            </div>
                         )
                     }
                 </div>
@@ -257,11 +288,9 @@ export default function Sidebar() {
                     {(!collapsed || isMobile) ? (
                         <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm flex-shrink-0">
-                                    {avatarInitial}
-                                </div>
+                                {renderUserAvatar()}
                                 <div className="text-xs min-w-0">
-                                    <p className="font-semibold truncate">{user?.full_name || user?.username || 'Người dùng'}</p>
+                                    <p className="font-semibold truncate">{displayName}</p>
                                     <p className="text-gray-500 truncate">{user?.position || 'Admin'}</p>
                                 </div>
                             </div>
@@ -283,9 +312,7 @@ export default function Sidebar() {
                         </div>
                     ) : (
                         <div className="flex justify-center py-1">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold text-sm">
-                                {avatarInitial}
-                            </div>
+                            {renderUserAvatar()}
                         </div>
                     )}
                 </div>
