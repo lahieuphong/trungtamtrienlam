@@ -100,6 +100,14 @@ class Organization(models.Model):
 
 
 class StaffFile(BaseModel):
+    TYPE_FILE_AVATAR = 0
+    TYPE_FILE_SIGN = 1
+    TYPE_FILE_STAMP = 2
+    TYPE_FILE_CHOICES = [
+        (TYPE_FILE_AVATAR, 'Hình đại diện'),
+        (TYPE_FILE_SIGN, 'Chữ ký'),
+        (TYPE_FILE_STAMP, 'Chữ ký có con dấu'),
+    ]
     staff = models.ForeignKey(
         'departments.Staff',
         on_delete=models.CASCADE,
@@ -115,7 +123,11 @@ class StaffFile(BaseModel):
     size = models.FloatField(default=0)
     extension = models.CharField(max_length=20, blank=True, null=True)
     type = models.IntegerField(default=0)
-    type_file = models.IntegerField(default=0)  # 185: 0=Avatar, 1=Sign, 2=Stamp
+    type_file = models.IntegerField(
+        choices=TYPE_FILE_CHOICES,
+        default=TYPE_FILE_AVATAR,
+        verbose_name='Loại file',
+    )  # 185: 0=Avatar, 1=Sign, 2=Stamp
 
     class Meta:
         db_table = 'staff_files'
