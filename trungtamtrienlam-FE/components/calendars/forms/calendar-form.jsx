@@ -52,11 +52,16 @@ const inputClass = 'h-10 w-full rounded-md border border-slate-300 bg-white px-3
 const iconInputClass = 'h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white pl-3 pr-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
 const labelClass = 'flex items-center gap-2 text-sm font-semibold text-slate-600'
 
-const now = () => {
-  const start = new Date()
-  start.setMinutes(0, 0, 0)
+const now = (date) => {
+  const current = new Date()
+  current.setSeconds(0, 0)
+
+  const start = date ? new Date(date) : new Date(current)
+  start.setHours(current.getHours(), current.getMinutes(), 0, 0)
+
   const end = new Date(start)
-  end.setHours(start.getHours() + 1)
+  end.setHours(start.getHours() + 1, 0, 0, 0)
+
   return { start, end }
 }
 
@@ -142,7 +147,7 @@ export default function CalendarForm({
 }) {
   const toast = useToast()
   const { triggerReload } = useCalendarReload()
-  const initialTimes = useMemo(() => now(), [])
+  const initialTimes = useMemo(() => now(defaultDate), [defaultDate])
   const [saving, setSaving] = useState(false)
   const pickerLayerRef = useRef(null)
   const [activePicker, setActivePicker] = useState(null)
@@ -150,8 +155,8 @@ export default function CalendarForm({
     name: '',
     type: CalendarConstants.typeEvent.Meeting,
     description: '',
-    startDate: formatDateInput(defaultDate || initialTimes.start),
-    startTime: formatTimeInput(defaultDate || initialTimes.start),
+    startDate: formatDateInput(initialTimes.start),
+    startTime: formatTimeInput(initialTimes.start),
     endDate: formatDateInput(initialTimes.end),
     endTime: formatTimeInput(initialTimes.end),
     link: '',

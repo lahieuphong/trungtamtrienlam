@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, CalendarX, CircleOff, LockKeyhole, PencilLine, RotateCcw, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/contexts/ToastContext'
 import { CalendarConstants } from '@/constants/calendarConstants'
@@ -107,21 +108,21 @@ function CancelEventModal({ isOpen, reason, error, saving, onReasonChange, onClo
 
 function DeleteEventModal({ isOpen, saving, title, onClose, onSubmit }) {
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="w-[calc(100vw-32px)] max-w-md gap-0 overflow-hidden rounded-lg border-0 bg-white p-0 shadow-2xl sm:max-w-[520px]">
-        <DialogHeader className="border-b border-slate-200 px-4 py-4 text-left sm:px-6">
+    <AlertDialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
+      <AlertDialogContent className="w-[calc(100vw-32px)] max-w-md gap-0 overflow-hidden rounded-lg border-0 bg-white p-0 shadow-2xl sm:max-w-[520px]">
+        <AlertDialogHeader className="border-b border-slate-200 px-4 py-4 text-left sm:px-6">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div className="min-w-0 space-y-1">
-              <DialogTitle className="text-lg font-semibold text-slate-950">Xóa lịch</DialogTitle>
-              <DialogDescription className="text-sm leading-5 text-slate-500">
+              <AlertDialogTitle className="text-lg font-semibold text-slate-950">Xóa lịch</AlertDialogTitle>
+              <AlertDialogDescription className="text-sm leading-5 text-slate-500">
                 Hành động này không thể hoàn tác sau khi xác nhận.
-              </DialogDescription>
+              </AlertDialogDescription>
             </div>
           </div>
-        </DialogHeader>
+        </AlertDialogHeader>
 
         <div className="space-y-3 px-4 py-5 text-sm leading-6 text-slate-700 sm:px-6">
           <p className="font-semibold text-slate-900">Bạn muốn xóa lịch này?</p>
@@ -130,24 +131,25 @@ function DeleteEventModal({ isOpen, saving, title, onClose, onSubmit }) {
           </p>
         </div>
 
-        <DialogFooter className="border-t border-slate-200 px-4 py-4 sm:px-6">
-          <Button type="button" variant="outline" onClick={onClose} disabled={saving} className="gap-1.5">
+        <AlertDialogFooter className="border-t border-slate-200 px-4 py-4 sm:px-6">
+          <AlertDialogCancel disabled={saving} className="gap-1.5">
             <X className="h-4 w-4" />
             Hủy
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={onSubmit}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(event) => {
+              event.preventDefault()
+              onSubmit()
+            }}
             disabled={saving}
             className="gap-1.5 bg-red-500 text-white hover:bg-red-600"
           >
             <Trash2 className="h-4 w-4" />
             Xóa lịch
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
@@ -229,7 +231,9 @@ export default function EventDetail({ isOpen, onClose, event, view = 'month', ve
 
   const handleUndoCancel = () => runAction('undo', () => version === CalendarConstants.calendarVersion.v1 ? cancelUndoEvent({ id: event.id }) : cancelUndoEventV2({ id: event.id }), 'Đã khôi phục lịch')
   const handleLock = () => runAction('lock', () => version === CalendarConstants.calendarVersion.v1 ? lockEvent({ id: event.id }) : lockEventV2({ id: event.id }), 'Đã khóa lịch')
-  const handleDelete = () => {
+  const handleDelete = (event) => {
+    event?.preventDefault()
+    event?.stopPropagation()
     setIsDeleteModalOpen(true)
   }
 
@@ -239,6 +243,7 @@ export default function EventDetail({ isOpen, onClose, event, view = 'month', ve
   }
 
   const handleSubmitDelete = () => {
+    if (loadingAction === 'delete') return
     runAction('delete', () => version === CalendarConstants.calendarVersion.v1 ? deleteEvent({ id: event.id }) : deleteEventV2({ id: event.id }), 'Đã xóa lịch')
   }
 
@@ -319,7 +324,7 @@ export default function EventDetail({ isOpen, onClose, event, view = 'month', ve
                     <PencilLine className="h-4 w-4" />Sửa
                   </Button>
                 )}
-                <Button variant="destructive" size="sm" className="gap-1.5 bg-red-500 text-white hover:bg-red-600" onClick={handleDelete} disabled={loadingAction === 'delete'}>
+                <Button type="button" variant="destructive" size="sm" className="gap-1.5 bg-red-500 text-white hover:bg-red-600" onClick={handleDelete} disabled={loadingAction === 'delete'}>
                   <Trash2 className="h-4 w-4" />Xóa
                 </Button>
               </div>
