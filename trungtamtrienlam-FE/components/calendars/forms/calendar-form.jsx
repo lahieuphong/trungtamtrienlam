@@ -138,8 +138,6 @@ export default function CalendarForm({
   calendar,
   defaultDate,
   onSelectDated,
-  onSelectJoinType,
-  onSelectType,
   onSaved,
 }) {
   const toast = useToast()
@@ -260,8 +258,6 @@ export default function CalendarForm({
       }
       triggerReload(view)
       onSelectDated?.(new Date(fromTime))
-      onSelectJoinType?.(payload.joinType === CalendarConstants.participateType.Personal ? CalendarConstants.joinTypes.Personal : CalendarConstants.joinTypes.Office)
-      onSelectType?.(payload.type)
       onSaved?.()
       onClose?.()
     } catch (error) {

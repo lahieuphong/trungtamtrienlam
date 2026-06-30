@@ -204,8 +204,6 @@ export default function CalendarPage({ version = CalendarConstants.calendarVersi
             view={viewKey}
             defaultDate={view === CalendarConstants.views.Week ? selectDateWeek.from : selectDate}
             onSelectDated={setSelectDate}
-            onSelectJoinType={setJoinType}
-            onSelectType={setType}
             version={version}
             onSelectDatedWeek={setSelectDateWeek}
           />

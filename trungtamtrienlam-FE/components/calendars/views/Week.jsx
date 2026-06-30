@@ -10,17 +10,40 @@ import { useCalendar } from '@/hooks/useCalendar'
 
 const timeSlots = Array.from({ length: 12 }, (_, i) => `${String(i * 2).padStart(2, '0')}:00`)
 const dayHeight = 960
+const EVENT_BAR_HEIGHT = 24
 
 function minutesOfDay(date) {
   const d = new Date(date)
   return d.getHours() * 60 + d.getMinutes()
 }
 
-function eventStyle(event) {
-  const top = (minutesOfDay(event.fromTime) / 1440) * dayHeight
-  const duration = Math.max((event.toTime - event.fromTime) / 60000, 30)
-  const height = Math.max((duration / 1440) * dayHeight, 70)
-  return { top, height }
+function sortEvents(events) {
+  return [...events].sort((a, b) => {
+    const startDiff = new Date(a.fromTime).getTime() - new Date(b.fromTime).getTime()
+    if (startDiff !== 0) return startDiff
+    return String(a.title || '').localeCompare(String(b.title || ''), 'vi')
+  })
+}
+
+function getEventTop(event, stackIndex = 0) {
+  const baseTop = (minutesOfDay(event.fromTime) / 1440) * dayHeight
+  return Math.min(dayHeight - EVENT_BAR_HEIGHT - 2, baseTop + stackIndex * EVENT_BAR_HEIGHT)
+}
+
+function TimelineEventBar({ event, top, onOpen }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen?.(event)}
+      title={`${event.title} ${event.time}`}
+      className="absolute z-10 flex h-5 items-center gap-1 overflow-hidden rounded-[3px] border-l-2 px-1 text-left text-[12px] leading-none text-slate-900 transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      style={{ top, left: 4, width: 'calc(100% - 8px)', backgroundColor: event.color, borderLeftColor: event.colorMain }}
+    >
+      <span className="min-w-0 flex-1 truncate font-semibold">{event.title}</span>
+      <span className={`${event.icon.month?.color || ''} flex shrink-0 items-center`}>{event.icon.month?.content}</span>
+      <span className="shrink-0 whitespace-nowrap text-[11px] font-medium text-slate-600">{event.time?.split(' - ')[0]}</span>
+    </button>
+  )
 }
 
 export default function Week({ fromDate, toDate, joinType, type, version, onOpenEvent }) {
@@ -67,15 +90,15 @@ export default function Week({ fromDate, toDate, joinType, type, version, onOpen
   const nowColumn = weekDays.findIndex((day) => isSameDay(day, now))
 
   return (
-    <div className="bg-gray-50 select-none">
-      <div className="mx-auto bg-white rounded-xl shadow overflow-hidden relative border border-gray-100">
-        <div className="h-8 flex border-b border-gray-200">
-          <div className="w-16 flex-shrink-0" />
-          <div className="flex-1 grid" style={gridColumnsStyle}>
+    <div className="w-full select-none">
+      <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white text-xs shadow-sm">
+        <div className="flex border-b border-slate-200 bg-white">
+          <div className="w-16 flex-shrink-0 border-r border-slate-200" />
+          <div className="grid flex-1" style={gridColumnsStyle}>
             {weekDays.map((day) => {
               const today = isSameDay(day, new Date())
               return (
-                <div key={day.toISOString()} className={`border-l border-gray-200 text-center text-xs font-semibold py-2 ${today ? 'text-blue-600 bg-blue-50' : 'text-gray-600'}`}>
+                <div key={day.toISOString()} className={`border-r border-slate-200 py-2.5 text-center text-[13px] font-medium last:border-r-0 ${today ? 'bg-blue-50 text-blue-600' : 'text-slate-700'}`}>
                   <span className="block lg:hidden">{format(day, 'dd/MM')}</span>
                   <span className="hidden lg:block capitalize">{format(day, 'EEEE dd/MM', { locale: vi })}</span>
                 </div>
@@ -86,38 +109,32 @@ export default function Week({ fromDate, toDate, joinType, type, version, onOpen
 
         <div className="relative border-t border-blue-300" style={{ height: dayHeight }}>
           {timeSlots.map((time) => (
-            <div key={time} className="absolute left-0 right-0 flex border-t border-gray-200" style={{ top: `${(Number(time.slice(0, 2)) / 24) * dayHeight}px` }}>
-              <div className="w-16 flex-shrink-0 text-center pt-1 text-gray-500 text-xs font-medium">{time.slice(0, 2)}</div>
-              <div className="flex-1 grid" style={gridColumnsStyle}>
-                {weekDays.map((day) => <div key={`${time}-${day.toISOString()}`} className="border-l border-dotted border-gray-200" />)}
+            <div key={time} className="absolute left-0 right-0 flex border-t border-slate-200" style={{ top: `${(Number(time.slice(0, 2)) / 24) * dayHeight}px` }}>
+              <div className="w-16 flex-shrink-0 pt-1 text-center text-xs font-medium text-slate-500">{time.slice(0, 2)}</div>
+              <div className="grid flex-1" style={gridColumnsStyle}>
+                {weekDays.map((day) => <div key={`${time}-${day.toISOString()}`} className="border-l border-dotted border-slate-200" />)}
               </div>
             </div>
           ))}
 
-          <div className="absolute top-0 left-16 h-full z-10 w-[calc(100%-64px)]">
-            <div className="relative h-full grid" style={gridColumnsStyle}>
+          <div className="absolute left-16 top-0 z-10 h-full w-[calc(100%-64px)]">
+            <div className="grid h-full" style={gridColumnsStyle}>
               {weekDays.map((day) => {
-                const dayEvents = events.filter((event) => isSameDay(event.fromTime, day))
+                const dayEvents = sortEvents(events.filter((event) => isSameDay(event.fromTime, day)))
+                const stacks = new Map()
                 return (
-                  <div key={day.toISOString()} className="relative border-l border-dotted border-gray-200">
-                    {dayEvents.map((event, index) => {
-                      const style = eventStyle(event)
-                      const width = dayEvents.length > 1 ? `calc(${100 / Math.min(dayEvents.length, 3)}% - 4px)` : 'calc(100% - 8px)'
-                      const left = `${(index % 3) * (100 / Math.min(dayEvents.length, 3))}%`
+                  <div key={day.toISOString()} className="relative border-l border-dotted border-slate-200">
+                    {dayEvents.map((event) => {
+                      const minute = minutesOfDay(event.fromTime)
+                      const stackIndex = stacks.get(minute) || 0
+                      stacks.set(minute, stackIndex + 1)
                       return (
-                        <button
+                        <TimelineEventBar
                           key={event.id}
-                          type="button"
-                          onClick={() => onOpenEvent?.(event)}
-                          className="absolute rounded-lg shadow-sm border-l-2 px-2 py-1 text-left overflow-hidden hover:shadow-md transition-all"
-                          style={{ top: style.top, height: style.height, width, left, backgroundColor: event.color, borderLeftColor: event.colorMain }}
-                        >
-                          <div className="space-y-1 pr-4">
-                            <p className="font-semibold text-[11px] text-gray-800 line-clamp-2">{event.title}</p>
-                            <p className="text-[11px] text-gray-600 truncate">{event.time}</p>
-                          </div>
-                          {event.icon.other?.content}
-                        </button>
+                          event={event}
+                          top={getEventTop(event, stackIndex)}
+                          onOpen={onOpenEvent}
+                        />
                       )
                     })}
                   </div>
@@ -127,15 +144,15 @@ export default function Week({ fromDate, toDate, joinType, type, version, onOpen
           </div>
 
           {showNowLine && nowColumn >= 0 && (
-            <div className="absolute z-20 h-0.5 bg-red-500 pointer-events-none" style={{ top: nowTop, left: `calc(64px + ${nowColumn} * ((100% - 64px) / 7))`, width: 'calc((100% - 64px) / 7)' }}>
-              <div className="absolute -left-1.5 -top-1.5 w-3 h-3 rounded-full bg-red-500 shadow" />
-              <p className="text-xs text-white bg-red-600 px-1 rounded absolute left-[25px] -translate-x-1/2 -top-5">{format(now, 'HH:mm')}</p>
+            <div className="pointer-events-none absolute z-20 h-0.5 bg-red-500" style={{ top: nowTop, left: `calc(64px + ${nowColumn} * ((100% - 64px) / 7))`, width: 'calc((100% - 64px) / 7)' }}>
+              <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-full bg-red-500 shadow" />
+              <p className="absolute left-[25px] -top-5 -translate-x-1/2 rounded bg-red-600 px-1 text-xs text-white">{format(now, 'HH:mm')}</p>
             </div>
           )}
         </div>
 
-        {loading && <div className="absolute right-4 top-11 text-xs text-blue-500">Đang tải...</div>}
-        {!loading && events.length === 0 && <div className="py-6 text-center text-xs text-gray-400 border-t">Không có lịch trong tuần này</div>}
+        {loading && <div className="absolute right-3 top-10 z-30 rounded-full bg-white/90 px-2 py-1 text-[11px] font-medium text-blue-500 shadow-sm">Đang tải...</div>}
+        {!loading && events.length === 0 && <div className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">Không có lịch trong tuần này</div>}
       </div>
     </div>
   )

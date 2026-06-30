@@ -59,35 +59,112 @@ export function getEventTypeLabel(type) {
   }
 }
 
+const EVENT_TYPE_IDS = [
+  CalendarConstants.typeEvent.Meeting,
+  CalendarConstants.typeEvent.Collaborate,
+  CalendarConstants.typeEvent.Other,
+]
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function toBoolean(value) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value === 1
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    return normalized === 'true' || normalized === '1'
+  }
+  return false
+}
+
+function getCalendarType(item) {
+  const candidates = [
+    item.type,
+    item.calendar_type,
+    item.calendarType,
+    item.typeEvent,
+    item.event_type,
+    item.eventType,
+  ]
+
+  for (const candidate of candidates) {
+    const type = toNumberOrNull(candidate)
+    if (type !== null && EVENT_TYPE_IDS.includes(type)) return type
+  }
+
+  return CalendarConstants.typeEvent.Other
+}
+
+function getStatusFlags(item, rawType) {
+  const statusValues = [
+    item.status,
+    item.statusType,
+    item.status_type,
+    item.calendarStatus,
+    item.calendar_status,
+    rawType,
+  ]
+    .map(toNumberOrNull)
+    .filter((value) => value !== null)
+
+  return {
+    isCanceled: toBoolean(item.isCanceled) || toBoolean(item.is_canceled) || statusValues.includes(CalendarConstants.typeEvent.Cancel),
+    isLocked: toBoolean(item.isLocked) || toBoolean(item.is_locked) || statusValues.includes(CalendarConstants.typeEvent.Lock),
+    isNewToday: toBoolean(item.isNewToday) || toBoolean(item.is_new_today),
+  }
+}
+
+function getStatusIcon({ isCanceled, isLocked, isNewToday }) {
+  if (isCanceled) {
+    return {
+      month: { content: <CircleOff className="w-4 h-4 opacity-70 shrink-0" />, color: 'text-orange-500' },
+      other: { content: <CircleOff className="absolute bottom-1 right-1 w-4 h-4 text-orange-500 pointer-events-none" />, color: 'text-orange-500' },
+    }
+  }
+
+  if (isLocked) {
+    return {
+      month: { content: <LockKeyhole className="w-4 h-4 !text-gray-500 opacity-70 shrink-0" />, color: 'text-gray-500' },
+      other: { content: <LockKeyhole className="absolute bottom-1 right-1 w-4 h-4 text-gray-500 pointer-events-none" />, color: 'text-gray-500' },
+    }
+  }
+
+  if (isNewToday) {
+    return {
+      month: { content: <BadgeCheck className="w-4 h-4 !text-blue-600 opacity-70 shrink-0" />, color: 'text-blue-600' },
+      other: { content: <BadgeCheck className="absolute bottom-1 right-1 w-4 h-4 text-blue-600 pointer-events-none" />, color: 'text-blue-600' },
+    }
+  }
+
+  return {
+    month: { content: '', color: '' },
+    other: { content: '', color: '' },
+  }
+}
+
+function getStatusColors(type, { isCanceled, isLocked }) {
+  const baseColor = CalendarConstants.eventColorMain[type] || CalendarConstants.eventColorMain[CalendarConstants.typeEvent.Other]
+  const baseColorMain = CalendarConstants.eventColor[type] || CalendarConstants.eventColor[CalendarConstants.typeEvent.Other]
+
+  if (isCanceled) return { color: '#FFF7E6', colorMain: '#FA8C16' }
+  if (isLocked) return { color: '#F5F5F5', colorMain: '#8C8C8C' }
+  return { color: baseColor, colorMain: baseColorMain }
+}
+
 export function useCalendar() {
   function convertToEvent(calendars = []) {
     return calendars.map((item) => {
       const from = parseCalendarDate(item.fromTime || item.from_time || item.start_time)
       const to = parseCalendarDate(item.toTime || item.to_time || item.end_time)
-      const type = Number(item.type ?? item.calendar_type ?? CalendarConstants.typeEvent.Meeting)
-      let icon = {
-        month: { content: '', color: '' },
-        other: { content: '', color: '' },
-      }
-
-      if (item.isCanceled || item.is_canceled) {
-        icon = {
-          month: { content: <CircleOff className="w-4 h-4 opacity-70 shrink-0" />, color: 'text-orange-500' },
-          other: { content: <CircleOff className="absolute bottom-1 right-1 w-4 h-4 text-orange-500 pointer-events-none" />, color: 'text-orange-500' },
-        }
-      }
-      if (item.isLocked || item.is_locked) {
-        icon = {
-          month: { content: <LockKeyhole className="w-4 h-4 !text-gray-500 opacity-70 shrink-0" />, color: 'text-gray-500' },
-          other: { content: <LockKeyhole className="absolute bottom-1 right-1 w-4 h-4 text-gray-500 pointer-events-none" />, color: 'text-gray-500' },
-        }
-      }
-      if (item.isNewToday || item.is_new_today) {
-        icon = {
-          month: { content: <BadgeCheck className="w-4 h-4 !text-blue-600 opacity-70 shrink-0" />, color: 'text-blue-600' },
-          other: { content: <BadgeCheck className="absolute bottom-1 right-1 w-4 h-4 text-blue-600 pointer-events-none" />, color: 'text-blue-600' },
-        }
-      }
+      const rawType = toNumberOrNull(item.type)
+      const type = getCalendarType(item)
+      const { isCanceled, isLocked, isNewToday } = getStatusFlags(item, rawType)
+      const icon = getStatusIcon({ isCanceled, isLocked, isNewToday })
+      const { color, colorMain } = getStatusColors(type, { isCanceled, isLocked })
 
       return {
         id: item.id,
@@ -102,10 +179,12 @@ export function useCalendar() {
         time: formatEventTime(from, to),
         fromTime: from,
         toTime: to,
-        color: CalendarConstants.eventColorMain[type] || CalendarConstants.eventColorMain[CalendarConstants.typeEvent.Other],
-        colorMain: CalendarConstants.eventColor[type] || CalendarConstants.eventColor[CalendarConstants.typeEvent.Other],
-        isLocked: Boolean(item.isLocked || item.is_locked),
-        isCanceled: Boolean(item.isCanceled || item.is_canceled),
+        color,
+        colorMain,
+        isLocked,
+        isCanceled,
+        isNewToday,
+        typeUserJoin: item.typeUserJoin ?? item.type_user_join,
         cancelReason: item.cancelReason || item.cancel_reason || '',
         icon,
         raw: item,
