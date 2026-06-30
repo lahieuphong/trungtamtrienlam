@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -36,7 +36,7 @@ LOCAL_APPS = [
     'apps.tasks',
     'apps.documents',
     'apps.archives',
-    'apps.calendars',
+    'apps.calendars.apps.CalendarsConfig',
     'apps.chats',
     'apps.media_files',
     'apps.ratings',
@@ -176,3 +176,4 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
