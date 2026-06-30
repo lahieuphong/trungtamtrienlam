@@ -99,7 +99,7 @@ export default function CalendarPage({ version = CalendarConstants.calendarVersi
 
   return (
     <CalendarReloadProvider>
-      <div className="relative rounded-lg shadow-sm p-6">
+      <>
         <div className="flex items-center flex-wrap gap-2 justify-between">
           <h1 className="text-xl font-semibold mb-4">Quản lý lịch</h1>
           <CalendarButton onClick={() => setIsOpenForm(true)} variant="primary" leftIcon={<Plus className="w-6 h-6" />}>
@@ -218,8 +218,7 @@ export default function CalendarPage({ version = CalendarConstants.calendarVersi
           view={viewKey}
           version={version}
         />
-      </div>
+      </>
     </CalendarReloadProvider>
   )
 }
-
