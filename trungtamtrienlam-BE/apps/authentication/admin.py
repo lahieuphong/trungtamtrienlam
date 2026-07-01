@@ -5,7 +5,7 @@ from .models import User, Role, RoleDepartment, UserRole, Function, Action, Func
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = [
+    list_display = ['id', 
         'username', 'email', 'phone', 'get_full_name', 'department_id',
         'province_id', 'district_id', 'ward_id', 'is_staff', 'is_active', 'is_deleted',
         'created_at',
@@ -26,7 +26,7 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    list_display = [
+    list_display = ['id', 
         'name', 'level', 'is_director', 'is_vice_director', 'is_admin', 'is_disabled',
         'can_receive_task', 'can_assign_task', 'can_see_department_tasks', 'is_deleted', 'created_at',
     ]
@@ -36,7 +36,7 @@ class RoleAdmin(admin.ModelAdmin):
 
 @admin.register(RoleDepartment)
 class RoleDepartmentAdmin(admin.ModelAdmin):
-    list_display = ['role', 'department']
+    list_display = ['id', 'role', 'department']
     list_filter = ['role', 'department']
     search_fields = ['role__name', 'department__name']
 
@@ -45,12 +45,13 @@ class RoleDepartmentAdmin(admin.ModelAdmin):
 class UserRoleAdmin(admin.ModelAdmin):
     list_display = ['user', 'role', 'created_at']
     list_filter = ['role']
+    readonly_fields = ['id', 'created_at']
     search_fields = ['user__username', 'user__email', 'role__name']
 
 
 @admin.register(Function)
 class FunctionAdmin(admin.ModelAdmin):
-    list_display = ['name', 'url', 'icon', 'parent_id', 'sort_order', 'is_deleted']
+    list_display = ['id', 'name', 'url', 'icon', 'parent_id', 'sort_order', 'is_deleted']
     list_filter = ['is_deleted']
     search_fields = ['name', 'url', 'icon']
     ordering = ['sort_order']
@@ -58,7 +59,7 @@ class FunctionAdmin(admin.ModelAdmin):
 
 @admin.register(Action)
 class ActionAdmin(admin.ModelAdmin):
-    list_display = ['name', 'code']
+    list_display = ['id', 'name', 'code']
     search_fields = ['name', 'code']
 
 
@@ -66,6 +67,7 @@ class ActionAdmin(admin.ModelAdmin):
 class FunctionActionAdmin(admin.ModelAdmin):
     list_display = ['function', 'action']
     list_filter = ['action']
+    readonly_fields = ['id']
     search_fields = ['function__name', 'function__icon', 'action__code', 'action__name']
 
 
@@ -73,4 +75,5 @@ class FunctionActionAdmin(admin.ModelAdmin):
 class PermissionAdmin(admin.ModelAdmin):
     list_display = ['role', 'department', 'function', 'action']
     list_filter = ['role', 'action', 'department']
+    readonly_fields = ['id']
     search_fields = ['role__name', 'department__name', 'function__name', 'action__code']

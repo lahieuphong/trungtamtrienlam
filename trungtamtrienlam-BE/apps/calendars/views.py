@@ -25,7 +25,7 @@ class CalendarViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'name', 'description', 'place', 'location']
 
     def get_queryset(self):
-        queryset = Calendar.objects.filter(is_deleted=False)
+        queryset = self._apply_calendar_visibility(Calendar.objects.filter(is_deleted=False))
         params = self.request.query_params
 
         event_type = params.get('type') or params.get('calendar_type')
@@ -245,6 +245,19 @@ class CalendarViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return ResponseServer.success(data={'data': {'calendars': serializer.data}})
 
+    def _current_user_id(self):
+        user = getattr(self.request, 'user', None)
+        if user and getattr(user, 'is_authenticated', False):
+            return str(user.id)
+        return ''
+
+    def _apply_calendar_visibility(self, queryset):
+        user_id = self._current_user_id()
+        non_personal = Q(join_type__isnull=True) | ~Q(join_type=Calendar.JoinType.PERSONAL)
+        if not user_id:
+            return queryset.filter(non_personal)
+        return queryset.filter(non_personal | Q(join_type=Calendar.JoinType.PERSONAL, created_by=user_id))
+
     def _lock_past_events(self, queryset):
         now = current_minute()
         past_filter = Q(from_time__lt=now) | Q(start_time__lt=now)
@@ -268,6 +281,7 @@ class CalendarViewSet(viewsets.ModelViewSet):
         if not calendar_id:
             return None
         queryset = Calendar.objects.all() if include_deleted else Calendar.objects.filter(is_deleted=False)
+        queryset = self._apply_calendar_visibility(queryset)
         instance = queryset.filter(id=calendar_id).first()
         if instance and not include_deleted:
             self._lock_instance_if_past(instance)

@@ -4,5 +4,5 @@ from .models import Notification, PushSubscription
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ['title', 'notification_type', 'is_read', 'created_at']
+    list_display = ['id', 'title', 'notification_type', 'is_read', 'created_at']
     list_filter = ['notification_type', 'is_read']
