@@ -44,7 +44,7 @@ FUNCTIONS = [
     {'_key': 'mon_about', 'sort': 644, 'icon': 'Mon-about', 'name': 'Quản lý giới thiệu', 'url': '/websites/about-us', 'parent': 'mon_public'},
     {'_key': 'mon_config', 'sort': 645, 'icon': 'Mon-config', 'name': 'Cấu hình', 'url': '/websites/config', 'parent': 'mon_public'},
     {'_key': 'mon_contacts', 'sort': 646, 'icon': 'Mon-contacts', 'name': 'Danh sách liên hệ', 'url': '/websites/contact', 'parent': 'mon_public'},
-    {'_key': 'mon_3d', 'sort': 647, 'icon': 'Mon-3d', 'name': 'Di tích 3D', 'url': '/websites/monument-3d', 'parent': 'mon_public'},
+    {'_key': 'mon_3d', 'sort': 647, 'icon': 'Mon-3d', 'name': 'Di tích 3D', 'url': '/websites/monument-profile/create/public', 'parent': 'mon_public'},
 
     {'_key': 'ratings', 'sort': 7, 'icon': 'Ratings', 'name': 'Đánh giá xếp hạng', 'url': None, 'parent': None},
     {'_key': 'crit_set', 'sort': 71, 'icon': 'Setting-criterias', 'name': 'Thiết lập tiêu chí', 'url': '/ratings/setting-criterias', 'parent': 'ratings'},

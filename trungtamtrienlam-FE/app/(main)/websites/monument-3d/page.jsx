@@ -1,14 +1,5 @@
-'use client'
-
-import { Breadcrumb } from '@/components/common/Breadcrumb'
+import { redirect } from 'next/navigation'
 
 export default function WebsitesMonument3DPage() {
-    return (
-        <div className="p-6">
-            <Breadcrumb items={[{ label: 'Di tích 3D', isHome: true }]} />
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-                <p className="text-gray-400">Tính năng đang được phát triển.</p>
-            </div>
-        </div>
-    )
+    redirect('/websites/monument-profile/create/public')
 }

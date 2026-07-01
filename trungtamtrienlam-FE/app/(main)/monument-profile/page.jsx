@@ -1,14 +1,7 @@
 'use client'
 
-import { Breadcrumb } from '@/components/common/Breadcrumb'
+import MonumentProfileList from '@/components/monuments/MonumentProfileList'
 
 export default function MonumentProfilePage() {
-  return (
-    <div className="p-6">
-      <Breadcrumb items={[{ label: 'Hồ sơ di tích', isHome: true }]} />
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center text-gray-500">
-        Đang phát triển...
-      </div>
-    </div>
-  )
+    return <MonumentProfileList mode="review" />
 }

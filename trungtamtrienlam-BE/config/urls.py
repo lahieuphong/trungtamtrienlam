@@ -41,6 +41,9 @@ urlpatterns = [
     # Đánh giá thi đua
     path('api/ratings/', include('apps.ratings.urls')),
 
+
+    # Hồ sơ di tích (legacy 185-compatible endpoints)
+    path('api/Monument/', include('apps.monuments.urls')),
     # Mẫu biểu
     path('api/templates/', include('apps.templates_app.urls')),
 

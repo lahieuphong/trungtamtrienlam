@@ -1,4 +1,4 @@
-﻿import os
+import os
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -40,6 +40,7 @@ LOCAL_APPS = [
     'apps.chats',
     'apps.media_files',
     'apps.ratings',
+    'apps.monuments',
     'apps.templates_app',
     'apps.notifications',
     'apps.settings_app',
