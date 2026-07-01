@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { FileText, Plus, Save, Send, Trash2, Upload, X } from 'lucide-react'
+import { FileText, Plus, Save, Trash2, Upload, X } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { Button } from '@/components/common/Button'
@@ -233,7 +233,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
         return Object.keys(nextErrors).length === 0
     }
 
-    const buildFormData = (submitForApproval) => {
+    const buildFormData = () => {
         const body = new FormData()
         body.append('name', form.name.trim())
         body.append('recognitionDecision', form.recognitionDecision.trim())
@@ -244,7 +244,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
         body.append('typeOfMonument', String(form.typeOfMonument))
         body.append('priorityMode', String(form.priorityMode))
         body.append('type', String(profileType))
-        body.append('submitForApproval', submitForApproval ? 'true' : 'false')
+        body.append('submitForApproval', 'false')
         body.append('sections', JSON.stringify(form.sections.map((section, index) => ({
             id: section.id,
             type: Number(section.type),
@@ -273,16 +273,16 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
         return body
     }
 
-    const submit = async (submitForApproval) => {
+    const submit = async () => {
         if (!validate()) {
             toast.warning('Vui lòng kiểm tra lại thông tin hồ sơ')
             return
         }
 
-        setSubmitting(submitForApproval ? 'approval' : 'draft')
+        setSubmitting('draft')
         try {
-            const response = await monumentApi.createMonument(buildFormData(submitForApproval))
-            toast.success(response?.message || (submitForApproval ? 'Đã trình duyệt hồ sơ' : 'Đã lưu tạm hồ sơ'))
+            const response = await monumentApi.createMonument(buildFormData())
+            toast.success(response?.message || 'Đã lưu tạm hồ sơ')
             setForm(initialForm)
             setErrors({})
             onSaved?.()
@@ -469,15 +469,15 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                 </div>
 
                 <div className="flex items-center justify-end gap-3 border-t border-[#F0F0F0] px-6 py-4">
-                    <Button variant="outline" onClick={onClose} disabled={!!submitting}>Đóng</Button>
-                    <Button variant="outline" onClick={() => submit(false)} loading={submitting === 'draft'} disabled={!!submitting}>
+                    <Button variant="outline" onClick={onClose} disabled={!!submitting}>
+                        <X className="h-4 w-4" />
+                        Đóng
+                    </Button>
+                    <Button variant="outline" onClick={() => submit()} loading={submitting === 'draft'} disabled={!!submitting}>
                         <Save className="h-4 w-4" />
                         Lưu tạm
                     </Button>
-                    <Button variant="primary" onClick={() => submit(true)} loading={submitting === 'approval'} disabled={!!submitting} className="!bg-[#597EF7] hover:!bg-[#486BE0]">
-                        <Send className="h-4 w-4" />
-                        Trình duyệt
-                    </Button>
+
                 </div>
             </div>
         </div>
