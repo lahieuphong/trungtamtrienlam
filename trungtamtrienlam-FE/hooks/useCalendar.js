@@ -155,14 +155,29 @@ function getStatusColors(type, { isCanceled, isLocked }) {
   return { color: baseColor, colorMain: baseColorMain }
 }
 
+function getCurrentMinute() {
+  const current = new Date()
+  current.setSeconds(0, 0)
+  return current
+}
+
+function isPastEvent(fromTime, currentMinute = getCurrentMinute()) {
+  return Boolean(fromTime && fromTime.getTime() < currentMinute.getTime())
+}
+
 export function useCalendar() {
   function convertToEvent(calendars = []) {
+    const currentMinute = getCurrentMinute()
+
     return calendars.map((item) => {
       const from = parseCalendarDate(item.fromTime || item.from_time || item.start_time)
       const to = parseCalendarDate(item.toTime || item.to_time || item.end_time)
       const rawType = toNumberOrNull(item.type)
       const type = getCalendarType(item)
-      const { isCanceled, isLocked, isNewToday } = getStatusFlags(item, rawType)
+      const statusFlags = getStatusFlags(item, rawType)
+      const isCanceled = statusFlags.isCanceled
+      const isLocked = statusFlags.isLocked || isPastEvent(from, currentMinute)
+      const isNewToday = statusFlags.isNewToday
       const icon = getStatusIcon({ isCanceled, isLocked, isNewToday })
       const { color, colorMain } = getStatusColors(type, { isCanceled, isLocked })
 

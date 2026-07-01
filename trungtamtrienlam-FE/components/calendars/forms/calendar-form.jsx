@@ -35,7 +35,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { CalendarConstants } from '@/constants/calendarConstants'
 import { useCalendarReload } from '@/contexts/CalendarReloadContext'
 import { createEvent, createEventV2, updateEvent, updateEventV2 } from '@/lib/api/calendarApi'
-import { combineDateAndTime, formatDateInput, formatTimeInput } from '@/hooks/useCalendar'
+import { formatDateInput, formatTimeInput } from '@/hooks/useCalendar'
 
 const optionTypeEvents = [
   { label: 'Cuộc họp', value: CalendarConstants.typeEvent.Meeting },
@@ -52,11 +52,24 @@ const inputClass = 'h-10 w-full rounded-md border border-slate-300 bg-white px-3
 const iconInputClass = 'h-10 w-full cursor-pointer rounded-md border border-slate-300 bg-white pl-3 pr-10 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
 const labelClass = 'flex items-center gap-2 text-sm font-semibold text-slate-600'
 
-const now = (date) => {
+const startOfLocalDay = (date) => {
+  const nextDate = new Date(date)
+  nextDate.setHours(0, 0, 0, 0)
+  return nextDate
+}
+
+const getCurrentMinute = () => {
   const current = new Date()
   current.setSeconds(0, 0)
+  return current
+}
 
-  const start = date ? new Date(date) : new Date(current)
+const isBeforeToday = (date) => startOfLocalDay(date).getTime() < startOfLocalDay(new Date()).getTime()
+
+const now = (date) => {
+  const current = getCurrentMinute()
+  const selectedDate = date ? new Date(date) : current
+  const start = Number.isNaN(selectedDate.getTime()) || isBeforeToday(selectedDate) ? new Date(current) : selectedDate
   start.setHours(current.getHours(), current.getMinutes(), 0, 0)
 
   const end = new Date(start)
@@ -84,12 +97,28 @@ const parseDisplayDate = (value) => {
   return trimmed
 }
 
-const dateFromIso = (value) => {
-  if (!value) return null
-  const parts = String(value).split('-').map(Number)
-  if (parts.length !== 3 || parts.some(Number.isNaN)) return null
-  return new Date(parts[0], parts[1] - 1, parts[2])
+const parseDateParts = (value) => {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(year, month - 1, day)
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null
+  }
+
+  return { year, month, day, date }
 }
+
+const dateFromIso = (value) => parseDateParts(value)?.date || null
 
 const isoFromDate = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 
@@ -121,6 +150,37 @@ const normalizeTime = ({ hour, minute }) => {
   const nextHour = Math.min(Number(hour) || 0, 23)
   const nextMinute = Math.min(Number(minute) || 0, 59)
   return `${pad(nextHour)}:${pad(nextMinute)}`
+}
+
+const parseTimeParts = (value) => {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{1,2})$/)
+  if (!match) return null
+
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null
+  }
+
+  return { hour, minute }
+}
+
+const parseDateTimeValue = (dateValue, timeValue) => {
+  const dateParts = parseDateParts(dateValue)
+  const timeParts = parseTimeParts(timeValue)
+  if (!dateParts || !timeParts) return null
+
+  return new Date(dateParts.year, dateParts.month - 1, dateParts.day, timeParts.hour, timeParts.minute, 0, 0)
+}
+
+const formatDateTimePayload = (date) => `${formatDateInput(date)}T${formatTimeInput(date)}:00`
+
+const isBeforeCurrentMinute = (date) => date.getTime() < getCurrentMinute().getTime()
+
+const isTimeBeforeMinimum = (dateValue, timeValue, minDateTime) => {
+  if (!minDateTime) return false
+  const candidate = parseDateTimeValue(dateValue, timeValue)
+  return candidate ? candidate.getTime() < minDateTime.getTime() : false
 }
 
 const getFloatingPickerPosition = (target, container) => {
@@ -199,7 +259,12 @@ export default function CalendarForm({
 
   const setFieldValue = (name, value) => {
     setFormData((current) => ({ ...current, [name]: value }))
-    setErrors((current) => ({ ...current, [name]: undefined }))
+    setErrors((current) => {
+      const nextErrors = { ...current, [name]: undefined }
+      if (name === 'startDate' || name === 'startTime') nextErrors.startDate = undefined
+      if (name === 'endDate' || name === 'endTime') nextErrors.endDate = undefined
+      return nextErrors
+    })
   }
 
   const handleChange = (event) => {
@@ -217,15 +282,21 @@ export default function CalendarForm({
 
   const validate = () => {
     const nextErrors = {}
-    const fromTime = combineDateAndTime(formData.startDate, formData.startTime)
-    const toTime = combineDateAndTime(formData.endDate, formData.endTime)
+    const fromDateTime = parseDateTimeValue(formData.startDate, formData.startTime)
+    const toDateTime = parseDateTimeValue(formData.endDate, formData.endTime)
+
     if (!formData.name.trim()) nextErrors.name = 'Tên lịch không được để trống'
     if (!formData.description.trim()) nextErrors.description = 'Nội dung sự kiện không được để trống'
-    if (!fromTime) nextErrors.startDate = 'Thời gian bắt đầu không hợp lệ'
-    if (!toTime) nextErrors.endDate = 'Thời gian kết thúc không hợp lệ'
-    if (fromTime && toTime && new Date(toTime) < new Date(fromTime)) {
+    if (!fromDateTime) {
+      nextErrors.startDate = 'Thời gian bắt đầu không hợp lệ'
+    } else if (isBeforeCurrentMinute(fromDateTime)) {
+      nextErrors.startDate = 'Không thể đặt lịch ở thời gian trong quá khứ'
+    }
+    if (!toDateTime) nextErrors.endDate = 'Thời gian kết thúc không hợp lệ'
+    if (fromDateTime && toDateTime && toDateTime.getTime() <= fromDateTime.getTime()) {
       nextErrors.endDate = 'Thời gian kết thúc phải lớn hơn thời gian bắt đầu'
     }
+
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
@@ -233,8 +304,13 @@ export default function CalendarForm({
   const handleSubmit = async (event) => {
     event.preventDefault()
     if (!validate()) return
-    const fromTime = combineDateAndTime(formData.startDate, formData.startTime)
-    const toTime = combineDateAndTime(formData.endDate, formData.endTime)
+
+    const fromDateTime = parseDateTimeValue(formData.startDate, formData.startTime)
+    const toDateTime = parseDateTimeValue(formData.endDate, formData.endTime)
+    if (!fromDateTime || !toDateTime) return
+
+    const fromTime = formatDateTimePayload(fromDateTime)
+    const toTime = formatDateTimePayload(toDateTime)
     const payload = {
       id: calendar?.id,
       name: formData.name.trim(),
@@ -285,6 +361,14 @@ export default function CalendarForm({
   const closeDialog = (open) => {
     if (!open && !saving) onClose?.()
   }
+
+  const todayMinimumDate = startOfLocalDay(new Date())
+  const currentMinimumDateTime = getCurrentMinute()
+  const startDateTime = parseDateTimeValue(formData.startDate, formData.startTime)
+  const endMinimumDate = startDateTime && startOfLocalDay(startDateTime).getTime() > todayMinimumDate.getTime()
+    ? startOfLocalDay(startDateTime)
+    : todayMinimumDate
+  const endMinimumDateTime = startDateTime ? new Date(startDateTime.getTime() + 60 * 1000) : currentMinimumDateTime
 
   return (
     <Dialog open={isOpen} onOpenChange={closeDialog}>
@@ -339,6 +423,8 @@ export default function CalendarForm({
                 timeValue={formData.startTime}
                 dateName="startDate"
                 dateValue={formData.startDate}
+                minDate={todayMinimumDate}
+                minDateTime={currentMinimumDateTime}
                 activePicker={activePicker}
                 pickerRoot={pickerLayerRef.current}
                 onOpenPicker={openPicker}
@@ -353,6 +439,8 @@ export default function CalendarForm({
                 timeValue={formData.endTime}
                 dateName="endDate"
                 dateValue={formData.endDate}
+                minDate={endMinimumDate}
+                minDateTime={endMinimumDateTime}
                 activePicker={activePicker}
                 pickerRoot={pickerLayerRef.current}
                 onOpenPicker={openPicker}
@@ -365,6 +453,7 @@ export default function CalendarForm({
             {(errors.startDate || errors.endDate) && <p className="text-xs text-red-500">{errors.startDate || errors.endDate}</p>}
           </section>
 
+          {/* Link và Địa điểm tạm ẩn theo yêu cầu, giữ code để bật lại khi cần.
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Field label="Link" icon={<Link size={18} />}>
               <input name="link" value={formData.link} onChange={handleChange} className={inputClass} placeholder="Nhập link" />
@@ -373,6 +462,7 @@ export default function CalendarForm({
               <input name="place" value={formData.place} onChange={handleChange} className={inputClass} placeholder="Nhập địa điểm" />
             </Field>
           </div>
+          */}
 
           <section className="space-y-2">
             <div className="flex flex-wrap items-center gap-5">
@@ -506,6 +596,8 @@ function TimeRow({
   timeValue,
   dateName,
   dateValue,
+  minDate,
+  minDateTime,
   activePicker,
   pickerRoot,
   onOpenPicker,
@@ -534,6 +626,8 @@ function TimeRow({
           <div data-calendar-picker-popover className="pointer-events-auto absolute z-[9999]" style={{ top: activePicker.top, left: activePicker.left }}>
             <TimePopover
               value={timeValue}
+              dateValue={dateValue}
+              minDateTime={minDateTime}
               onChange={(value) => onSetField(timeName, value)}
               onClose={() => onOpenPicker(null)}
             />
@@ -569,6 +663,7 @@ function TimeRow({
           <div data-calendar-picker-popover className="pointer-events-auto absolute z-[9999]" style={{ top: activePicker.top, left: activePicker.left }}>
             <DatePopover
               value={dateValue}
+              minDate={minDate}
               onSelect={(value) => {
                 onSetField(dateName, value)
                 onOpenPicker(null)
@@ -582,7 +677,7 @@ function TimeRow({
   )
 }
 
-function TimePopover({ value, onChange, onClose }) {
+function TimePopover({ value, dateValue, minDateTime, onChange, onClose }) {
   const [draft, setDraft] = useState(() => splitTime(value))
 
   useEffect(() => {
@@ -602,7 +697,11 @@ function TimePopover({ value, onChange, onClose }) {
     })
   }
 
+  const draftTime = normalizeTime(draft)
+  const isDraftDisabled = isTimeBeforeMinimum(dateValue, draftTime, minDateTime)
+
   const commit = (nextValue) => {
+    if (isTimeBeforeMinimum(dateValue, nextValue, minDateTime)) return
     onChange(nextValue)
     onClose()
   }
@@ -627,14 +726,23 @@ function TimePopover({ value, onChange, onClose }) {
         />
       </div>
       <div className="mb-3 grid grid-cols-3 gap-2">
-        {['07:00', '12:00', '17:30'].map((time) => (
-          <button key={time} type="button" onClick={() => commit(time)} className="h-7 rounded bg-slate-100 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600">
-            {time}
-          </button>
-        ))}
+        {['07:00', '12:00', '17:30'].map((time) => {
+          const isDisabled = isTimeBeforeMinimum(dateValue, time, minDateTime)
+          return (
+            <button
+              key={time}
+              type="button"
+              disabled={isDisabled}
+              onClick={() => commit(time)}
+              className={`h-7 rounded text-xs font-medium transition-colors ${isDisabled ? 'cursor-not-allowed bg-slate-100 text-slate-300' : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-600'}`}
+            >
+              {time}
+            </button>
+          )
+        })}
       </div>
       <div className="flex justify-center">
-        <Button type="button" size="sm" className="bg-blue-500 text-white hover:bg-blue-600" onClick={() => commit(normalizeTime(draft))}>
+        <Button type="button" size="sm" disabled={isDraftDisabled} className="bg-blue-500 text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400" onClick={() => commit(draftTime)}>
           Xác nhận
         </Button>
       </div>
@@ -675,10 +783,11 @@ function TimeNumberInput({ label, value, onChange, onIncrement, onDecrement }) {
   )
 }
 
-function DatePopover({ value, onSelect }) {
+function DatePopover({ value, minDate, onSelect }) {
   const selectedDate = dateFromIso(value)
   const [viewDate, setViewDate] = useState(selectedDate || new Date())
   const today = new Date()
+  const minimumDate = minDate ? startOfLocalDay(minDate) : null
   const days = getCalendarDays(viewDate)
 
   useEffect(() => {
@@ -706,12 +815,16 @@ function DatePopover({ value, onSelect }) {
           const isMuted = date.getMonth() !== viewDate.getMonth()
           const isSelected = selectedDate && sameDay(date, selectedDate)
           const isToday = sameDay(date, today)
+          const isDisabled = minimumDate && startOfLocalDay(date).getTime() < minimumDate.getTime()
           return (
             <button
               key={iso}
               type="button"
-              onClick={() => onSelect(iso)}
-              className={`h-8 rounded-md text-sm transition-colors ${isSelected ? 'bg-blue-500 font-semibold text-white' : isToday ? 'bg-blue-50 font-semibold text-blue-600' : isMuted ? 'text-slate-300 hover:bg-slate-50' : 'text-slate-900 hover:bg-slate-100'}`}
+              disabled={isDisabled}
+              onClick={() => {
+                if (!isDisabled) onSelect(iso)
+              }}
+              className={`h-8 rounded-md text-sm transition-colors ${isDisabled ? 'cursor-not-allowed text-slate-300 opacity-60 hover:bg-transparent' : isSelected ? 'bg-blue-500 font-semibold text-white' : isToday ? 'bg-blue-50 font-semibold text-blue-600' : isMuted ? 'text-slate-300 hover:bg-slate-50' : 'text-slate-900 hover:bg-slate-100'}`}
             >
               {date.getDate()}
             </button>

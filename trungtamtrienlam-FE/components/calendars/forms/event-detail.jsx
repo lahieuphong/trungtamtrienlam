@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CalendarX, CircleOff, LockKeyhole, PencilLine, RotateCcw, Trash2, X } from 'lucide-react'
@@ -12,6 +12,7 @@ import { cancelEvent, cancelEventV2, cancelUndoEvent, cancelUndoEventV2, deleteE
 import { useCalendarReload } from '@/contexts/CalendarReloadContext'
 import CalendarForm from './calendar-form'
 import { formatDateLabel, formatTimeInput, getEventTypeLabel } from '@/hooks/useCalendar'
+import { buildMediaUrl } from '@/lib/mediaUrl'
 
 function stripHtml(value) {
   return String(value || '').replace(/<[^>]*>/g, '').trim()
@@ -30,7 +31,7 @@ function getCreator(event) {
   return {
     name: name && !looksLikeId(name) ? name : 'Chưa có dữ liệu',
     role,
-    avatar,
+    avatar: buildMediaUrl(avatar),
   }
 }
 

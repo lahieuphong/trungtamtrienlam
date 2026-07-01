@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from core.response import ResponseServer
 from .models import Calendar, CalendarJoin
-from .serializers import CalendarSerializer, CalendarJoinSerializer
+from .serializers import CalendarSerializer, CalendarJoinSerializer, current_minute, is_calendar_time_locked
 
 
 ALL_EVENT_TYPES = 10
@@ -46,6 +46,7 @@ class CalendarViewSet(viewsets.ModelViewSet):
             except (TypeError, ValueError):
                 pass
 
+        self._lock_past_events(queryset)
         return queryset.order_by('from_time', 'start_time')
 
     def create(self, request, *args, **kwargs):
@@ -57,6 +58,9 @@ class CalendarViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        locked_response = self._locked_response(instance)
+        if locked_response:
+            return locked_response
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
@@ -64,7 +68,7 @@ class CalendarViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        self._soft_delete(instance, request)
+        self._hard_delete(instance)
         return ResponseServer.success(message='Xóa lịch thành công')
 
     @action(detail=False, methods=['get'], url_path='GetCalendarDay')
@@ -139,6 +143,9 @@ class CalendarViewSet(viewsets.ModelViewSet):
         instance = self._get_instance_from_payload(request.data)
         if not instance:
             return ResponseServer.not_found('Không tìm thấy lịch')
+        locked_response = self._locked_response(instance)
+        if locked_response:
+            return locked_response
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
@@ -146,10 +153,10 @@ class CalendarViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='Delete')
     def delete_185(self, request):
-        instance = self._get_instance_from_payload(request.data)
+        instance = self._get_instance_from_payload(request.data, include_deleted=True)
         if not instance:
             return ResponseServer.not_found('Không tìm thấy lịch')
-        self._soft_delete(instance, request)
+        self._hard_delete(instance)
         return ResponseServer.success(message='Xóa lịch thành công')
 
     @action(detail=False, methods=['patch'], url_path='ChangeEventTime')
@@ -157,10 +164,17 @@ class CalendarViewSet(viewsets.ModelViewSet):
         instance = self._get_instance_from_payload(request.data)
         if not instance:
             return ResponseServer.not_found('Không tìm thấy lịch')
+        locked_response = self._locked_response(instance)
+        if locked_response:
+            return locked_response
         from_time = self._parse_datetime_param(request.data.get('fromTime') or request.data.get('from_time'))
         to_time = self._parse_datetime_param(request.data.get('toTime') or request.data.get('to_time'))
         if not from_time or not to_time:
             return ResponseServer.failure('Thời gian không hợp lệ')
+        if to_time <= from_time:
+            return ResponseServer.failure('Thời gian kết thúc phải lớn hơn thời gian bắt đầu')
+        if from_time < current_minute():
+            return ResponseServer.failure('Không thể đặt lịch ở thời gian trong quá khứ')
         instance.from_time = from_time
         instance.start_time = from_time
         instance.to_time = to_time
@@ -173,6 +187,9 @@ class CalendarViewSet(viewsets.ModelViewSet):
         instance = self._get_instance_from_payload(request.data)
         if not instance:
             return ResponseServer.not_found('Không tìm thấy lịch')
+        locked_response = self._locked_response(instance)
+        if locked_response:
+            return locked_response
         instance.is_canceled = True
         instance.status = Calendar.Status.CANCELLED
         instance.cancel_reason = request.data.get('cancelReason') or request.data.get('cancel_reason') or ''
@@ -184,6 +201,9 @@ class CalendarViewSet(viewsets.ModelViewSet):
         instance = self._get_instance_from_payload(request.data)
         if not instance:
             return ResponseServer.not_found('Không tìm thấy lịch')
+        locked_response = self._locked_response(instance)
+        if locked_response:
+            return locked_response
         instance.is_canceled = False
         instance.status = Calendar.Status.PENDING
         instance.cancel_reason = None
@@ -203,6 +223,9 @@ class CalendarViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='confirm')
     def confirm(self, request, pk=None):
         instance = self.get_object()
+        locked_response = self._locked_response(instance)
+        if locked_response:
+            return locked_response
         instance.status = Calendar.Status.CONFIRMED
         instance.save(update_fields=['status', 'updated_at'])
         return ResponseServer.success(message='Xác nhận lịch thành công')
@@ -222,17 +245,36 @@ class CalendarViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return ResponseServer.success(data={'data': {'calendars': serializer.data}})
 
-    def _get_instance_from_payload(self, payload):
+    def _lock_past_events(self, queryset):
+        now = current_minute()
+        past_filter = Q(from_time__lt=now) | Q(start_time__lt=now)
+        calendar_ids = queryset.filter(past_filter, is_locked=False).values('pk')
+        Calendar.objects.filter(pk__in=calendar_ids).update(is_locked=True, updated_at=timezone.now())
+
+    def _lock_instance_if_past(self, instance):
+        if instance and not instance.is_locked and is_calendar_time_locked(instance):
+            instance.is_locked = True
+            instance.save(update_fields=['is_locked', 'updated_at'])
+        return instance
+
+    def _locked_response(self, instance):
+        self._lock_instance_if_past(instance)
+        if instance.is_locked:
+            return ResponseServer.failure('Lịch đã khóa, không thể thay đổi')
+        return None
+
+    def _get_instance_from_payload(self, payload, include_deleted=False):
         calendar_id = payload.get('id') or payload.get('ID') or payload.get('calendarId')
         if not calendar_id:
             return None
-        return Calendar.objects.filter(id=calendar_id, is_deleted=False).first()
+        queryset = Calendar.objects.all() if include_deleted else Calendar.objects.filter(is_deleted=False)
+        instance = queryset.filter(id=calendar_id).first()
+        if instance and not include_deleted:
+            self._lock_instance_if_past(instance)
+        return instance
 
-    def _soft_delete(self, instance, request):
-        instance.is_deleted = True
-        instance.deleted_date = timezone.now()
-        instance.deleted_by = str(getattr(request.user, 'id', '') or '')
-        instance.save(update_fields=['is_deleted', 'deleted_date', 'deleted_by', 'updated_at'])
+    def _hard_delete(self, instance):
+        instance.delete()
 
     @staticmethod
     def _parse_day(value):

@@ -112,9 +112,12 @@ export default function Day({ date, joinType, type, version, onOpenEvent }) {
           ))}
 
           {showNowLine && (
-            <div className="absolute left-16 right-0 z-20 h-0.5 bg-red-500 pointer-events-none" style={{ top: nowTop }}>
-              <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-full bg-red-500 shadow" />
-              <p className="absolute left-[25px] -top-5 -translate-x-1/2 rounded bg-red-600 px-1 text-xs text-white">{format(now, 'HH:mm')}</p>
+            <div className="pointer-events-none absolute left-16 right-0 z-[8]" style={{ top: nowTop }}>
+              <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-rose-500 via-rose-400/80 to-rose-200/20" />
+              <div className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-full border-2 border-white bg-rose-500 shadow-[0_0_0_3px_rgba(244,63,94,0.16)]" />
+              <div className="absolute -left-16 -top-3 flex h-6 w-14 items-center justify-center rounded-full bg-rose-500 px-2 text-[11px] font-semibold leading-none text-white shadow-sm ring-2 ring-white">
+                {format(now, 'HH:mm')}
+              </div>
             </div>
           )}
 

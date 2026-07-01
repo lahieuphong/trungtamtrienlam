@@ -1,7 +1,58 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from django.utils import timezone
 from .models import Calendar, CalendarJoin, CalendarFile, CalendarJob
+from apps.accounts.models import StaffFile, UserConcurrently
+from apps.authentication.models import User
+from apps.departments.models import Staff
 
+def current_minute():
+    current = timezone.now()
+    return current.replace(second=0, microsecond=0)
+
+
+def ensure_aware(value):
+    if value and timezone.is_naive(value):
+        return timezone.make_aware(value, timezone.get_current_timezone())
+    return value
+
+
+def is_calendar_time_locked(obj):
+    start_time = ensure_aware(getattr(obj, 'from_time', None) or getattr(obj, 'start_time', None))
+    return bool(start_time and start_time < current_minute())
+
+
+def get_creator_user(created_by):
+    if not created_by:
+        return None
+    try:
+        return User.objects.filter(id=created_by, is_deleted=False).first()
+    except (TypeError, ValueError):
+        return None
+
+
+def get_creator_staff(user):
+    if not user:
+        return None
+    return Staff.objects.select_related('user').filter(user=user, is_deleted=False).first()
+
+
+def get_creator_role(user):
+    if not user:
+        return ''
+    assignment = UserConcurrently.objects.select_related('role').filter(user=user, is_deleted=False).first()
+    if assignment and assignment.role:
+        return assignment.role.name or ''
+    return user.position or ''
+
+
+def get_creator_avatar(user, staff):
+    if staff:
+        avatar_file = StaffFile.objects.filter(staff=staff, type_file=0, is_deleted=False).order_by('-created_at').first()
+        if avatar_file and avatar_file.file:
+            return avatar_file.file
+        if staff.avatar:
+            return staff.avatar
+    return getattr(user, 'avatar', None) or ''
 
 class CalendarJoinSerializer(serializers.ModelSerializer):
     userId = serializers.UUIDField(source='user_id', required=False, allow_null=True)
@@ -63,12 +114,15 @@ class CalendarSerializer(serializers.ModelSerializer):
     modifiedBy = serializers.CharField(source='updated_by', required=False, allow_blank=True, allow_null=True)
     deletedDate = serializers.DateTimeField(source='deleted_date', read_only=True)
     deletedBy = serializers.CharField(source='deleted_by', read_only=True)
-    isLocked = serializers.BooleanField(source='is_locked', required=False)
+    isLocked = serializers.SerializerMethodField()
     isCanceled = serializers.BooleanField(source='is_canceled', required=False)
     cancelReason = serializers.CharField(source='cancel_reason', required=False, allow_blank=True, allow_null=True)
     cancelUndoDate = serializers.DateTimeField(source='cancel_undo_date', read_only=True)
     isNewToday = serializers.SerializerMethodField()
     typeUserJoin = serializers.SerializerMethodField()
+    createdByName = serializers.SerializerMethodField()
+    createdByRole = serializers.SerializerMethodField()
+    createdByAvatar = serializers.SerializerMethodField()
 
     class Meta:
         model = Calendar
@@ -77,13 +131,13 @@ class CalendarSerializer(serializers.ModelSerializer):
             'name', 'type', 'description', 'fromTime', 'toTime', 'link', 'place', 'joinType',
             'isDeleted', 'createdDate', 'createdBy', 'modifiedDate', 'modifiedBy',
             'deletedDate', 'deletedBy', 'isLocked', 'isCanceled', 'cancelReason',
-            'cancelUndoDate', 'isNewToday', 'typeUserJoin',
+            'cancelUndoDate', 'isNewToday', 'typeUserJoin', 'createdByName', 'createdByRole', 'createdByAvatar',
             'title', 'location', 'start_time', 'end_time', 'calendar_type', 'status',
             'department_id', 'is_all_day', 'color', 'participants', 'files',
         ]
         read_only_fields = [
             'id', 'isDeleted', 'createdDate', 'modifiedDate', 'deletedDate',
-            'deletedBy', 'cancelUndoDate', 'isNewToday', 'typeUserJoin',
+            'deletedBy', 'cancelUndoDate', 'isNewToday', 'typeUserJoin', 'createdByName', 'createdByRole', 'createdByAvatar',
         ]
         extra_kwargs = {
             'name': {'required': False, 'allow_blank': True, 'allow_null': True},
@@ -96,6 +150,9 @@ class CalendarSerializer(serializers.ModelSerializer):
             'status': {'required': False},
             'location': {'required': False, 'allow_blank': True, 'allow_null': True},
         }
+
+    def get_isLocked(self, obj):
+        return bool(obj.is_locked or is_calendar_time_locked(obj))
 
     def get_isNewToday(self, obj):
         created_at = getattr(obj, 'created_at', None)
@@ -115,6 +172,34 @@ class CalendarSerializer(serializers.ModelSerializer):
             return 2
         return 1
 
+    def _creator_profile(self, obj):
+        cache = self.context.setdefault('_calendar_creator_cache', {})
+        creator_id = str(obj.created_by or '')
+        if not creator_id:
+            return {'name': '', 'role': '', 'avatar': ''}
+        if creator_id in cache:
+            return cache[creator_id]
+
+        user = get_creator_user(creator_id)
+        staff = get_creator_staff(user)
+        name = (staff.full_name if staff else '') or (user.get_full_name() if user else '')
+        profile = {
+            'name': name,
+            'role': (staff.title if staff and staff.title else '') or get_creator_role(user),
+            'avatar': get_creator_avatar(user, staff),
+        }
+        cache[creator_id] = profile
+        return profile
+
+    def get_createdByName(self, obj):
+        return self._creator_profile(obj)['name']
+
+    def get_createdByRole(self, obj):
+        return self._creator_profile(obj)['role']
+
+    def get_createdByAvatar(self, obj):
+        return self._creator_profile(obj)['avatar']
+
     def validate(self, attrs):
         attrs = self._mirror_185_fields(attrs, instance=self.instance)
         name = attrs.get('name') or attrs.get('title')
@@ -126,8 +211,12 @@ class CalendarSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'fromTime': 'Thời gian bắt đầu không được để trống'})
         if not to_time:
             raise serializers.ValidationError({'toTime': 'Thời gian kết thúc không được để trống'})
-        if to_time < from_time:
+        from_time = ensure_aware(from_time)
+        to_time = ensure_aware(to_time)
+        if to_time <= from_time:
             raise serializers.ValidationError({'toTime': 'Thời gian kết thúc phải lớn hơn thời gian bắt đầu'})
+        if from_time < current_minute():
+            raise serializers.ValidationError({'fromTime': 'Không thể đặt lịch ở thời gian trong quá khứ'})
         return attrs
 
     def create(self, validated_data):
