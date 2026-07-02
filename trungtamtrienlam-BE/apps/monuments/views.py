@@ -1,5 +1,6 @@
 import json
 import os
+import unicodedata
 
 from django.db import transaction
 from django.db.models import Q
@@ -104,6 +105,29 @@ def _validate_file(file_obj, bucket_name=None):
     return None
 
 
+def _normalize_role_text(value):
+    text = unicodedata.normalize('NFD', str(value or ''))
+    text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+    return text.replace('đ', 'd').replace('Đ', 'D').lower()
+
+
+def _role_level_aliases(user, roles):
+    levels = set()
+    role_text = ' '.join([getattr(user, 'position', '') or '', *[role.name or '' for role in roles]])
+    normalized = _normalize_role_text(role_text)
+
+    if any(role.is_vice_director for role in roles) or 'pho giam doc' in normalized:
+        levels.add(2)
+    if any(role.is_director for role in roles) or ('giam doc' in normalized and 'pho giam doc' not in normalized):
+        levels.add(1)
+    if 'truong phong' in normalized:
+        levels.add(3)
+    if 'nhan vien' in normalized:
+        levels.add(4)
+
+    return levels
+
+
 def _user_roles(user):
     if not user or not user.is_authenticated:
         return Role.objects.none()
@@ -116,7 +140,7 @@ def _user_roles(user):
 
 def _role_flags(user):
     roles = list(_user_roles(user))
-    levels = {role.level for role in roles}
+    levels = {role.level for role in roles} | _role_level_aliases(user, roles)
     return {
         'roles': roles,
         'levels': levels,

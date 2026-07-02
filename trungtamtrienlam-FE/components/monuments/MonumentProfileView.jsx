@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowRight, FileText, PenLine } from 'lucide-react'
+import { ArrowRight, FileText, PenLine, RotateCcw, X } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
@@ -91,6 +91,43 @@ function FileGroup({ title, files }) {
     )
 }
 
+function ReasonModal({ open, title, confirmText, confirmClassName, onClose, onConfirm, loading }) {
+    const [reason, setReason] = useState('')
+
+    useEffect(() => {
+        if (open) setReason('')
+    }, [open])
+
+    if (!open) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+            <div className="relative w-full max-w-lg rounded-lg bg-white shadow-xl">
+                <div className="flex items-center justify-between border-b px-5 py-4">
+                    <h2 className="text-base font-semibold text-[#1F1F1F]">{title}</h2>
+                    <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Đóng">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="px-5 py-4">
+                    <label className="mb-2 block text-sm font-semibold text-[#434547]">Nhận xét <span className="text-red-500">*</span></label>
+                    <textarea
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        className="min-h-[150px] w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#597EF7] focus:ring-2 focus:ring-[#597EF7]/20"
+                    />
+                </div>
+                <div className="flex justify-end gap-3 border-t px-5 py-4">
+                    <Button variant="outline" onClick={onClose} disabled={loading}>Hủy</Button>
+                    <Button onClick={() => onConfirm(reason)} loading={loading} className={`!rounded-lg ${confirmClassName}`}>
+                        {confirmText}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}
 function SectionView({ section }) {
     const imageUrl = buildMediaUrl(section.fileLink)
     const hasImage = [
@@ -125,6 +162,7 @@ export default function MonumentProfileView() {
     const [permission, setPermission] = useState({})
     const [editOpen, setEditOpen] = useState(false)
     const [actionLoading, setActionLoading] = useState(false)
+    const [reasonAction, setReasonAction] = useState(null)
 
     const loadDetail = useCallback(async () => {
         if (!params?.id) return
@@ -176,6 +214,38 @@ export default function MonumentProfileView() {
         }
     }
 
+    const runReasonAction = async (type, reason = '') => {
+        if (!monument?.id) return
+        if (!reason.trim()) {
+            toast.warning('Vui lòng nhập nhận xét')
+            return
+        }
+
+        setActionLoading(true)
+        try {
+            const response = type === 'redo'
+                ? await monumentApi.redoMonument({ id: monument.id, reason: reason.trim() })
+                : await monumentApi.notVerifyMonument({ id: monument.id, reason: reason.trim() })
+            toast.success(response?.message || (type === 'redo' ? 'Yêu cầu trả về làm lại hồ sơ di tích thành công' : 'Không duyệt hồ sơ di tích thành công'))
+            notifyMonumentProfileUpdated()
+            setReasonAction(null)
+            if ((response?.data || {}).permission?.isView === false) {
+                router.replace('/monument-profile/all')
+                return
+            }
+            await loadDetail()
+        } catch (error) {
+            toast.error(error?.response?.data?.message || (type === 'redo' ? 'Yêu cầu trả về làm lại hồ sơ di tích không thành công' : 'Không duyệt hồ sơ di tích không thành công'))
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    const confirmReasonAction = (reason) => {
+        if (!reasonAction?.type) return
+        runReasonAction(reasonAction.type, reason)
+    }
+
     const fileGroups = useMemo(() => {
         const groups = Number(monument?.type) === MonumentProfileConstants.types.private ? FILE_GROUPS_PRIVATE : FILE_GROUPS_PUBLIC
         return groups.map((group) => ({
@@ -203,11 +273,23 @@ export default function MonumentProfileView() {
                     <h1 className="text-2xl font-semibold text-[#1F1F1F]">Tải di tích lên</h1>
                     <StatusBadge status={monument.status} />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                     {permission.isUpdate && (
                         <Button variant="outline" onClick={() => setEditOpen(true)} disabled={actionLoading} className="!rounded-lg !border-[#434343] !text-[#1F1F1F] hover:!bg-[#F5F5F5]">
                             <PenLine className="h-4 w-4" />
                             Chỉnh sửa
+                        </Button>
+                    )}
+                    {permission.isRedo && (
+                        <Button onClick={() => setReasonAction({ type: 'redo' })} disabled={actionLoading} className="!rounded-lg !bg-[#D46B08] hover:!bg-[#AD4E00]">
+                            <RotateCcw className="h-4 w-4" />
+                            Trả làm lại
+                        </Button>
+                    )}
+                    {permission.isNotApprove && (
+                        <Button onClick={() => setReasonAction({ type: 'refuse' })} disabled={actionLoading} className="!rounded-lg !bg-[#CF1322] hover:!bg-[#A8071A]">
+                            <X className="h-4 w-4" />
+                            Không duyệt
                         </Button>
                     )}
                     {permission.isRequestApproval && (
@@ -271,6 +353,15 @@ export default function MonumentProfileView() {
                 </div>
             </div>
 
+            <ReasonModal
+                open={!!reasonAction}
+                title={reasonAction?.type === 'redo' ? 'Xác nhận trả lại' : 'Không duyệt tài liệu'}
+                confirmText={reasonAction?.type === 'redo' ? 'Xác nhận trả lại' : 'Xác nhận không duyệt'}
+                confirmClassName={reasonAction?.type === 'redo' ? '!bg-[#D46B08] hover:!bg-[#AD4E00]' : '!bg-[#CF1322] hover:!bg-[#A8071A]'}
+                onClose={() => setReasonAction(null)}
+                onConfirm={confirmReasonAction}
+                loading={actionLoading}
+            />
             <MonumentCreateModal
                 open={editOpen}
                 itemId={monument.id}
