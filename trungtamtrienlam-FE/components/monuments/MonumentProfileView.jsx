@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowRight, FileText, PenLine, RotateCcw, X } from 'lucide-react'
+import { ArrowRight, Check, FileText, PenLine, RotateCcw, X } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
@@ -128,6 +128,36 @@ function ReasonModal({ open, title, confirmText, confirmClassName, onClose, onCo
         </div>
     )
 }
+
+function ApprovalConfirmModal({ open, onClose, onConfirm, loading }) {
+    if (!open) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/45" onClick={loading ? undefined : onClose} />
+            <div className="relative w-full max-w-[448px] overflow-hidden rounded-lg bg-white shadow-xl">
+                <div className="border-b border-[#F0F0F0] px-6 py-5">
+                    <h2 className="text-xl font-semibold text-[#1F1F1F]">Duyệt tài liệu</h2>
+                </div>
+                <div className="px-6 py-8">
+                    <p className="text-sm leading-6 text-[#1F1F1F]">
+                        Khi duyệt, nếu thông tin hồ sơ là không công khai thì dữ liệu tệp tin sẽ được lưu vào kho lưu trữ, bạn có chắc chắn sẽ duyệt vào hiển thị nội dung
+                    </p>
+                </div>
+                <div className="flex items-center justify-end gap-3 bg-[#FAFAFA] px-6 py-4">
+                    <Button variant="outline" onClick={onClose} disabled={loading} className="!rounded-lg !border-[#D9D9D9] !text-[#434343] hover:!bg-[#F5F5F5]">
+                        <X className="h-4 w-4" />
+                        Hủy
+                    </Button>
+                    <Button onClick={onConfirm} loading={loading} className="!rounded-lg !bg-[#597EF7] hover:!bg-[#2F54EB]">
+                        <Check className="h-4 w-4" />
+                        Xác nhận duyệt
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}
 function SectionView({ section }) {
     const imageUrl = buildMediaUrl(section.fileLink)
     const hasImage = [
@@ -163,6 +193,7 @@ export default function MonumentProfileView() {
     const [editOpen, setEditOpen] = useState(false)
     const [actionLoading, setActionLoading] = useState(false)
     const [reasonAction, setReasonAction] = useState(null)
+    const [approvalOpen, setApprovalOpen] = useState(false)
 
     const loadDetail = useCallback(async () => {
         if (!params?.id) return
@@ -209,6 +240,28 @@ export default function MonumentProfileView() {
             await loadDetail()
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Không trình duyệt được hồ sơ')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    const verifyApproval = async () => {
+        if (!monument?.id) return
+
+        setActionLoading(true)
+        try {
+            const response = await monumentApi.verifyMonument({ id: monument.id })
+            const data = response?.data || {}
+            toast.success(response?.message || 'Duyệt hồ sơ di tích thành công')
+            notifyMonumentProfileUpdated()
+            setApprovalOpen(false)
+            if (data.permission?.isView === false) {
+                router.replace('/monument-profile/all')
+                return
+            }
+            await loadDetail()
+        } catch (error) {
+            toast.error(error?.response?.data?.message || 'Duyệt hồ sơ di tích không thành công')
         } finally {
             setActionLoading(false)
         }
@@ -292,10 +345,16 @@ export default function MonumentProfileView() {
                             Không duyệt
                         </Button>
                     )}
-                    {permission.isRequestApproval && (
+                    {permission.isRequestApproval && !permission.isApprove && (
                         <Button onClick={requestApproval} loading={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
                             <ArrowRight className="h-4 w-4" />
                             Trình duyệt
+                        </Button>
+                    )}
+                    {permission.isApprove && (
+                        <Button onClick={() => setApprovalOpen(true)} disabled={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
+                            <Check className="h-4 w-4" />
+                            Duyệt
                         </Button>
                     )}
                 </div>
@@ -353,6 +412,12 @@ export default function MonumentProfileView() {
                 </div>
             </div>
 
+            <ApprovalConfirmModal
+                open={approvalOpen}
+                onClose={() => setApprovalOpen(false)}
+                onConfirm={verifyApproval}
+                loading={actionLoading}
+            />
             <ReasonModal
                 open={!!reasonAction}
                 title={reasonAction?.type === 'redo' ? 'Xác nhận trả lại' : 'Không duyệt tài liệu'}
