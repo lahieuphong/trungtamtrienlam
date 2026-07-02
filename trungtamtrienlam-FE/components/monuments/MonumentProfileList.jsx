@@ -237,6 +237,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
             if (type === 'redo') response = await monumentApi.redoMonument({ id: item.id, reason })
             if (type === 'refuse') response = await monumentApi.notVerifyMonument({ id: item.id, reason })
             toast.success(response?.message || 'Xử lý hồ sơ thành công')
+            window.localStorage.setItem('monumentProfileUpdatedAt', String(Date.now()))
             setReasonAction(null)
             await loadData(page)
         } catch (error) {

@@ -160,8 +160,13 @@ export default function MonumentProfileView() {
         setActionLoading(true)
         try {
             const response = await monumentApi.requestApprovalMonument({ id: monument.id })
+            const data = response?.data || {}
             toast.success(response?.message || 'Đã trình duyệt hồ sơ')
             window.localStorage.setItem('monumentProfileUpdatedAt', String(Date.now()))
+            if (data.permission?.isView === false) {
+                router.replace('/monument-profile/all')
+                return
+            }
             await loadDetail()
         } catch (error) {
             toast.error(error?.response?.data?.message || 'Không trình duyệt được hồ sơ')
