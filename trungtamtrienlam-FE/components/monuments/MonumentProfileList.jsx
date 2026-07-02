@@ -148,8 +148,9 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const title = mode === 'review' ? 'Hồ sơ xét duyệt' : mode === 'private' ? 'Hồ sơ không công khai' : 'Toàn bộ hồ sơ'
     const currentUserId = useMemo(() => user?.id || user?.userID || user?.userId || user?.ID || null, [user])
 
-    const loadData = useCallback(async (nextPage = 1) => {
-        setLoading(true)
+    const loadData = useCallback(async (nextPage = 1, options = {}) => {
+        const silent = options.silent === true
+        if (!silent) setLoading(true)
         try {
             const params = {
                 page: nextPage,
@@ -170,9 +171,11 @@ export default function MonumentProfileList({ mode = 'review' }) {
             setItems(data.monuments || [])
             setTotal(data.total || 0)
         } catch (error) {
-            toast.error(error?.response?.data?.message || 'Không tải được danh sách hồ sơ di tích')
+            if (!silent) {
+                toast.error(error?.response?.data?.message || 'Không tải được danh sách hồ sơ di tích')
+            }
         } finally {
-            setLoading(false)
+            if (!silent) setLoading(false)
         }
     }, [levelType, sort, toast, view])
 
@@ -181,6 +184,35 @@ export default function MonumentProfileList({ mode = 'review' }) {
         loadData(1)
     }, [loadData])
 
+    useEffect(() => {
+        const refreshCurrentPage = () => {
+            loadData(page, { silent: true })
+        }
+
+        const refreshWhenVisible = () => {
+            if (document.visibilityState === 'visible') {
+                refreshCurrentPage()
+            }
+        }
+
+        const onStorage = (event) => {
+            if (event.key === 'monumentProfileUpdatedAt') {
+                refreshCurrentPage()
+            }
+        }
+
+        const intervalId = window.setInterval(refreshWhenVisible, 3000)
+        window.addEventListener('focus', refreshCurrentPage)
+        window.addEventListener('storage', onStorage)
+        document.addEventListener('visibilitychange', refreshWhenVisible)
+
+        return () => {
+            window.clearInterval(intervalId)
+            window.removeEventListener('focus', refreshCurrentPage)
+            window.removeEventListener('storage', onStorage)
+            document.removeEventListener('visibilitychange', refreshWhenVisible)
+        }
+    }, [loadData, page])
     const filteredItems = useMemo(() => {
         const query = keyword.trim().toLowerCase()
         if (!query) return items
