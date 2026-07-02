@@ -64,6 +64,11 @@ export default function Sidebar() {
     const [menuItems, setMenuItems] = useState([])
     const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
 
+    const isActivePath = useCallback((path) => {
+        if (!path) return false
+        if (pathname === path || pathname.startsWith(path)) return true
+        return path === '/websites/monument-3d' && pathname.startsWith('/websites/monument-profile/create')
+    }, [pathname])
     // Build tree whenever permissions change
     useEffect(() => {
         if (!permissions?.length) return
@@ -78,7 +83,7 @@ export default function Sidebar() {
         const expand = (items) => {
             items.forEach(item => {
                 if (item.children?.length) {
-                    const hasActive = item.children.some(c => pathname.startsWith(c.path || '___'))
+                    const hasActive = item.children.some(c => isActivePath(c.path))
                     if (hasActive) {
                         setExpandedMenus(prev => ({ ...prev, [item.id]: true }))
                     }
@@ -87,7 +92,7 @@ export default function Sidebar() {
             })
         }
         expand(menuItems)
-    }, [pathname, menuItems])
+    }, [isActivePath, menuItems])
 
     const handleResize = useCallback(() => {
         requestAnimationFrame(() => {
@@ -119,7 +124,7 @@ export default function Sidebar() {
             {items.map(item => {
                 const hasChildren = item.children?.length > 0
                 const isExpanded = expandedMenus[item.id]
-                const isCurrent = pathname === item.path
+                const isCurrent = isActivePath(item.path)
 
                 return (
                     <li key={item.id} className="mb-1">
@@ -129,7 +134,7 @@ export default function Sidebar() {
                                     onClick={() => toggleMenu(item.id)}
                                     aria-expanded={isExpanded}
                                     className={`flex items-center justify-between w-full px-4 py-2 text-sm transition-colors duration-200 ${
-                                        isCurrent || (item.path && pathname.startsWith(item.path))
+                                        isCurrent
                                             ? 'bg-blue-50 text-blue-600'
                                             : 'text-gray-700 hover:bg-gray-100'
                                     }`}
