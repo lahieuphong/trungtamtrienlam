@@ -158,6 +158,36 @@ function ApprovalConfirmModal({ open, onClose, onConfirm, loading }) {
         </div>
     )
 }
+
+function PublishConfirmModal({ open, onClose, onConfirm, loading }) {
+    if (!open) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/45" onClick={loading ? undefined : onClose} />
+            <div className="relative w-full max-w-[448px] overflow-hidden rounded-lg bg-white shadow-xl">
+                <div className="border-b border-[#F0F0F0] px-6 py-5">
+                    <h2 className="text-xl font-semibold text-[#1F1F1F]">Đẩy lên website</h2>
+                </div>
+                <div className="px-6 py-8">
+                    <p className="text-sm leading-6 text-[#1F1F1F]">
+                        Khi đẩy lên website, thông tin công khai sẽ được hiển thị cho người dùng thấy, bạn có chắc chắn muốn đẩy lên website
+                    </p>
+                </div>
+                <div className="flex items-center justify-end gap-3 bg-[#FAFAFA] px-6 py-4">
+                    <Button variant="outline" onClick={onClose} disabled={loading} className="!rounded-lg !border-[#D9D9D9] !text-[#434343] hover:!bg-[#F5F5F5]">
+                        <X className="h-4 w-4" />
+                        Hủy
+                    </Button>
+                    <Button onClick={onConfirm} loading={loading} className="!rounded-lg !bg-[#597EF7] hover:!bg-[#2F54EB]">
+                        <Check className="h-4 w-4" />
+                        Xác nhận
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}
 function SectionView({ section }) {
     const imageUrl = buildMediaUrl(section.fileLink)
     const hasImage = [
@@ -194,6 +224,7 @@ export default function MonumentProfileView() {
     const [actionLoading, setActionLoading] = useState(false)
     const [reasonAction, setReasonAction] = useState(null)
     const [approvalOpen, setApprovalOpen] = useState(false)
+    const [publishOpen, setPublishOpen] = useState(false)
 
     const loadDetail = useCallback(async () => {
         if (!params?.id) return
@@ -267,6 +298,37 @@ export default function MonumentProfileView() {
         }
     }
 
+    const publishProfile = async () => {
+        if (!monument?.id) return
+
+        setActionLoading(true)
+        try {
+            const response = await monumentApi.publishMonument({ id: monument.id })
+            const data = response?.data || {}
+            toast.success(response?.message || 'Đẩy hồ sơ lên website thành công')
+            setPublishOpen(false)
+            if (data.monument) {
+                setMonument(data.monument)
+                setSections(data.monumentSections || [])
+                setFiles(data.monumentFiles || [])
+                setPermission(data.permission || {})
+            } else {
+                setMonument((current) => current ? { ...current, status: MonumentProfileConstants.statuses.published } : current)
+                setPermission({})
+            }
+            notifyMonumentProfileUpdated()
+            if (data.permission?.isView === false) {
+                router.replace('/monument-profile/all')
+                return
+            }
+            await loadDetail()
+        } catch (error) {
+            toast.error(error?.response?.data?.message || 'Đẩy hồ sơ lên website không thành công')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
     const runReasonAction = async (type, reason = '') => {
         if (!monument?.id) return
         if (!reason.trim()) {
@@ -320,6 +382,8 @@ export default function MonumentProfileView() {
     const monumentStatus = Number(monument.status)
     const isPrivate = Number(monument.type) === MonumentProfileConstants.types.private
     const isPendingApproval = monumentStatus === MonumentProfileConstants.statuses.pendingApproval
+    const isApproved = monumentStatus === MonumentProfileConstants.statuses.approved
+    const canShowReviewActions = isPendingApproval || isApproved
     const isFinalized = [
         MonumentProfileConstants.statuses.approved,
         MonumentProfileConstants.statuses.published,
@@ -339,13 +403,13 @@ export default function MonumentProfileView() {
                             Chỉnh sửa
                         </Button>
                     )}
-                    {permission.isRedo && isPendingApproval && (
+                    {permission.isRedo && canShowReviewActions && (
                         <Button onClick={() => setReasonAction({ type: 'redo' })} disabled={actionLoading} className="!rounded-lg !bg-[#D46B08] hover:!bg-[#AD4E00]">
                             <RotateCcw className="h-4 w-4" />
                             Trả làm lại
                         </Button>
                     )}
-                    {permission.isNotApprove && isPendingApproval && (
+                    {permission.isNotApprove && canShowReviewActions && (
                         <Button onClick={() => setReasonAction({ type: 'refuse' })} disabled={actionLoading} className="!rounded-lg !bg-[#CF1322] hover:!bg-[#A8071A]">
                             <X className="h-4 w-4" />
                             Không duyệt
@@ -361,6 +425,12 @@ export default function MonumentProfileView() {
                         <Button onClick={() => setApprovalOpen(true)} disabled={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
                             <Check className="h-4 w-4" />
                             Duyệt
+                        </Button>
+                    )}
+                    {permission.isPublic && isApproved && (
+                        <Button onClick={() => setPublishOpen(true)} disabled={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
+                            <Check className="h-4 w-4" />
+                            Đẩy lên website
                         </Button>
                     )}
                 </div>
@@ -422,6 +492,12 @@ export default function MonumentProfileView() {
                 open={approvalOpen}
                 onClose={() => setApprovalOpen(false)}
                 onConfirm={verifyApproval}
+                loading={actionLoading}
+            />
+            <PublishConfirmModal
+                open={publishOpen}
+                onClose={() => setPublishOpen(false)}
+                onConfirm={publishProfile}
                 loading={actionLoading}
             />
             <ReasonModal

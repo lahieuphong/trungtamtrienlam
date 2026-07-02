@@ -192,15 +192,16 @@ def _permission_for(user, monument):
         or (is_pending_approval and monument.pending_level in (3, 2))
     )
     can_review_current_step = is_pending_approval and (can_current_level or is_admin)
+    can_manage_after_approval = monument.status == Monument.Status.APPROVED and (flags['is_director'] or is_admin)
 
     return {
         'isView': _can_view(user, monument),
         'isDelete': is_admin or (is_owner and monument.status in (Monument.Status.DRAFT, Monument.Status.NOT_APPROVED)),
         'isUpdate': is_admin or (is_owner and monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED)),
         'isApprove': can_final_approve or (is_admin and is_pending_approval and monument.pending_level == 1),
-        'isNotApprove': can_review_current_step,
-        'isRedo': can_review_current_step,
-        'isPublic': False,
+        'isNotApprove': can_review_current_step or can_manage_after_approval,
+        'isRedo': can_review_current_step or can_manage_after_approval,
+        'isPublic': can_manage_after_approval,
         'isDirector': flags['is_director'] or is_admin,
         'isRequestApproval': can_request_from_owner or can_forward or can_admin_request,
     }
