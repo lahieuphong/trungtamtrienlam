@@ -317,7 +317,13 @@ export default function MonumentProfileView() {
 
     if (!monument) return null
 
+    const monumentStatus = Number(monument.status)
     const isPrivate = Number(monument.type) === MonumentProfileConstants.types.private
+    const isPendingApproval = monumentStatus === MonumentProfileConstants.statuses.pendingApproval
+    const isFinalized = [
+        MonumentProfileConstants.statuses.approved,
+        MonumentProfileConstants.statuses.published,
+    ].includes(monumentStatus)
 
     return (
         <div className="p-6">
@@ -327,19 +333,19 @@ export default function MonumentProfileView() {
                     <StatusBadge status={monument.status} />
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                    {permission.isUpdate && (
+                    {permission.isUpdate && !isFinalized && (
                         <Button variant="outline" onClick={() => setEditOpen(true)} disabled={actionLoading} className="!rounded-lg !border-[#434343] !text-[#1F1F1F] hover:!bg-[#F5F5F5]">
                             <PenLine className="h-4 w-4" />
                             Chỉnh sửa
                         </Button>
                     )}
-                    {permission.isRedo && (
+                    {permission.isRedo && isPendingApproval && (
                         <Button onClick={() => setReasonAction({ type: 'redo' })} disabled={actionLoading} className="!rounded-lg !bg-[#D46B08] hover:!bg-[#AD4E00]">
                             <RotateCcw className="h-4 w-4" />
                             Trả làm lại
                         </Button>
                     )}
-                    {permission.isNotApprove && (
+                    {permission.isNotApprove && isPendingApproval && (
                         <Button onClick={() => setReasonAction({ type: 'refuse' })} disabled={actionLoading} className="!rounded-lg !bg-[#CF1322] hover:!bg-[#A8071A]">
                             <X className="h-4 w-4" />
                             Không duyệt
@@ -351,7 +357,7 @@ export default function MonumentProfileView() {
                             Trình duyệt
                         </Button>
                     )}
-                    {permission.isApprove && (
+                    {permission.isApprove && isPendingApproval && (
                         <Button onClick={() => setApprovalOpen(true)} disabled={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
                             <Check className="h-4 w-4" />
                             Duyệt

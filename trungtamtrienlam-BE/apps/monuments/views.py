@@ -186,21 +186,24 @@ def _permission_for(user, monument):
         and monument.pending_level == 1
         and can_current_level
     )
+    is_pending_approval = monument.status == Monument.Status.PENDING_APPROVAL
+    can_admin_request = is_admin and (
+        monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED)
+        or (is_pending_approval and monument.pending_level in (3, 2))
+    )
+    can_review_current_step = is_pending_approval and (can_current_level or is_admin)
 
     return {
         'isView': _can_view(user, monument),
         'isDelete': is_admin or (is_owner and monument.status in (Monument.Status.DRAFT, Monument.Status.NOT_APPROVED)),
         'isUpdate': is_admin or (is_owner and monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED)),
-        'isApprove': can_final_approve or is_admin,
-        'isNotApprove': (monument.status == Monument.Status.PENDING_APPROVAL and can_current_level) or is_admin,
-        'isRedo': (monument.status == Monument.Status.PENDING_APPROVAL and can_current_level) or is_admin,
-        'isPublic': (monument.status == Monument.Status.APPROVED and (flags['is_director'] or is_admin)),
+        'isApprove': can_final_approve or (is_admin and is_pending_approval and monument.pending_level == 1),
+        'isNotApprove': can_review_current_step,
+        'isRedo': can_review_current_step,
+        'isPublic': False,
         'isDirector': flags['is_director'] or is_admin,
-        'isRequestApproval': can_request_from_owner or can_forward or (
-            is_admin and monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED, Monument.Status.PENDING_APPROVAL)
-        ),
+        'isRequestApproval': can_request_from_owner or can_forward or can_admin_request,
     }
-
 
 def _avatar_for(monument):
     avatar = monument.files.filter(mode=MonumentFile.Mode.IMAGE_AVATAR, is_deleted=False).first()
