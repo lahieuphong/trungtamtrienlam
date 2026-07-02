@@ -3,6 +3,7 @@ import os
 
 from django.db import transaction
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -239,9 +240,13 @@ def _section_file(request, section, index):
     return None
 
 
-def _validate_create_payload(request, sections):
+def _validate_create_payload(request, sections, monument=None, existing_sections=None):
     errors = {}
     data = request.data
+    existing_sections = existing_sections or {}
+
+    def has_existing_file(mode):
+        return bool(monument and monument.files.filter(mode=mode, is_deleted=False).exists())
 
     for field, message in REQUIRED_COMMON_FIELDS.items():
         if not _get_data_value(data, field):
@@ -260,16 +265,18 @@ def _validate_create_payload(request, sections):
             section_type = _as_int(section.get('type'), MonumentSection.SectionType.IMAGE)
             has_content = bool(str(section.get('content') or '').strip())
             file_obj = _section_file(request, section, index)
+            existing_section = existing_sections.get(str(section.get('id') or ''))
+            has_section_file = bool(file_obj or (existing_section and existing_section.file))
             if section_type in (MonumentSection.SectionType.CONTENT, MonumentSection.SectionType.IMAGE_CONTENT, MonumentSection.SectionType.CONTENT_IMAGE) and not has_content:
                 errors[f'sections_{section.get("id") or index}_content'] = 'Vui lòng nhập nội dung section'
-            if section_type in (MonumentSection.SectionType.IMAGE, MonumentSection.SectionType.IMAGE_CONTENT, MonumentSection.SectionType.CONTENT_IMAGE) and not file_obj:
+            if section_type in (MonumentSection.SectionType.IMAGE, MonumentSection.SectionType.IMAGE_CONTENT, MonumentSection.SectionType.CONTENT_IMAGE) and not has_section_file:
                 errors[f'sections_{section.get("id") or index}_image'] = 'Vui lòng chọn hình ảnh section'
 
-        if not request.FILES.getlist('fileAvatars'):
+        if not request.FILES.getlist('fileAvatars') and not has_existing_file(MonumentFile.Mode.IMAGE_AVATAR):
             errors['fileAvatars'] = 'Vui lòng chọn hình đại diện'
-        if not request.FILES.getlist('fileModel3Ds'):
+        if not request.FILES.getlist('fileModel3Ds') and not has_existing_file(MonumentFile.Mode.FILE_MODEL_3D):
             errors['fileModel3Ds'] = 'Vui lòng chọn tệp 3D'
-        if not request.FILES.getlist('fileImageDetails'):
+        if not request.FILES.getlist('fileImageDetails') and not has_existing_file(MonumentFile.Mode.IMAGE_DETAIL):
             errors['fileImageDetails'] = 'Vui lòng chọn hình ảnh chi tiết'
     else:
         if not _get_data_value(data, 'description'):
@@ -351,12 +358,18 @@ class MonumentListView(APIView):
                 queryset = queryset.filter(status=Monument.Status.PENDING_APPROVAL)
         elif view == 2:
             queryset = queryset.filter(type=Monument.ProfileType.PRIVATE)
+        else:
+            queryset = queryset.filter(type=Monument.ProfileType.PUBLIC)
 
         if level_type in (0, 1, 2):
             queryset = queryset.filter(type_of_monument=level_type)
 
         if sort == 1:
             queryset = queryset.order_by('created_at')
+        elif sort == 2:
+            queryset = queryset.order_by(Lower('name').asc())
+        elif sort == 3:
+            queryset = queryset.order_by(Lower('name').desc())
         else:
             queryset = queryset.order_by('-created_at')
 
@@ -440,7 +453,8 @@ class MonumentUpdateView(APIView):
             return ResponseServer.forbidden('Bạn không có quyền chỉnh sửa hồ sơ này')
 
         sections = _parse_sections(request)
-        errors = _validate_create_payload(request, sections)
+        existing_sections = {str(section.id): section for section in monument.sections.filter(is_deleted=False)}
+        errors = _validate_create_payload(request, sections, monument=monument, existing_sections=existing_sections)
         if errors:
             return ResponseServer.failure(message='Dữ liệu chưa hợp lệ', errors=errors)
 
@@ -461,7 +475,7 @@ class MonumentUpdateView(APIView):
         monument.save()
 
         monument.sections.all().delete()
-        _save_sections(request, monument, sections, request.user)
+        _save_sections(request, monument, sections, request.user, existing_sections=existing_sections)
         _save_files(request, monument, request.user)
 
         return ResponseServer.success(
@@ -617,19 +631,22 @@ def _request_next(monument, user):
     return ResponseServer.success(data=_serialize_detail(monument, user), message=message)
 
 
-def _save_sections(request, monument, sections, user):
+def _save_sections(request, monument, sections, user, existing_sections=None):
+    existing_sections = existing_sections or {}
     for index, section in enumerate(sections):
         file_obj = _section_file(request, section, index)
-        section_file_type = _file_type(getattr(file_obj, 'name', '')) if file_obj else None
+        existing_section = existing_sections.get(str(section.get('id') or ''))
+        section_file = file_obj or (existing_section.file if existing_section and existing_section.file else None)
+        section_file_type = _file_type(getattr(file_obj, 'name', '')) if file_obj else (existing_section.file_type if existing_section else None)
         MonumentSection.objects.create(
             monument=monument,
             content=section.get('content') or '',
             type=_as_int(section.get('type'), MonumentSection.SectionType.IMAGE),
             order=_as_int(section.get('order'), index + 1),
-            file=file_obj,
-            file_name=getattr(file_obj, 'name', None),
-            file_size=getattr(file_obj, 'size', 0) or 0,
-            file_extension=_extension(getattr(file_obj, 'name', '')) if file_obj else None,
+            file=section_file,
+            file_name=getattr(file_obj, 'name', None) if file_obj else (existing_section.file_name if existing_section else None),
+            file_size=(getattr(file_obj, 'size', 0) or 0) if file_obj else (existing_section.file_size if existing_section else 0),
+            file_extension=_extension(getattr(file_obj, 'name', '')) if file_obj else (existing_section.file_extension if existing_section else None),
             file_type=section_file_type,
             created_by=str(user.id),
         )
