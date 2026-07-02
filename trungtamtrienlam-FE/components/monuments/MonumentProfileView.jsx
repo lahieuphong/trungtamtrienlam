@@ -9,6 +9,7 @@ import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
 import { useToast } from '@/contexts/ToastContext'
 import { MonumentFileConstants, MonumentProfileConstants, MonumentSectionConstants } from '@/constants/monumentConstants'
 import { buildMediaUrl } from '@/lib/mediaUrl'
+import { notifyMonumentProfileUpdated } from '@/lib/monumentRealtime'
 import * as monumentApi from '@/lib/api/monumentsApi'
 
 const LEVEL_NAMES = {
@@ -162,7 +163,7 @@ export default function MonumentProfileView() {
             const response = await monumentApi.requestApprovalMonument({ id: monument.id })
             const data = response?.data || {}
             toast.success(response?.message || 'Đã trình duyệt hồ sơ')
-            window.localStorage.setItem('monumentProfileUpdatedAt', String(Date.now()))
+            notifyMonumentProfileUpdated()
             if (data.permission?.isView === false) {
                 router.replace('/monument-profile/all')
                 return

@@ -377,8 +377,14 @@ class MonumentListView(APIView):
         start = (page - 1) * page_size
         monuments = queryset[start:start + page_size]
 
+        monument_items = []
+        for item in monuments:
+            serialized = serialize_monument(item, avatar=_avatar_for(item))
+            serialized['permission'] = _permission_for(request.user, item)
+            monument_items.append(serialized)
+
         data = {
-            'monuments': [serialize_monument(item, avatar=_avatar_for(item)) for item in monuments],
+            'monuments': monument_items,
             'total': total,
         }
         return ResponseServer.success(data=data, message='Lấy danh sách di tích thành công')

@@ -10,6 +10,7 @@ import { Select } from '@/components/common/Select'
 import { useToast } from '@/contexts/ToastContext'
 import { MonumentFileConstants, MonumentProfileConstants, MonumentSectionConstants } from '@/constants/monumentConstants'
 import { buildMediaUrl } from '@/lib/mediaUrl'
+import { notifyMonumentProfileUpdated } from '@/lib/monumentRealtime'
 import * as monumentApi from '@/lib/api/monumentsApi'
 
 const ACCEPTS = {
@@ -388,6 +389,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                 ? await monumentApi.updateMonument(buildFormData())
                 : await monumentApi.createMonument(buildFormData())
             toast.success(response?.message || (isEditing ? 'Đã cập nhật hồ sơ' : 'Đã lưu tạm hồ sơ'))
+            notifyMonumentProfileUpdated()
             setForm(createInitialForm())
             setErrors({})
             onSaved?.()

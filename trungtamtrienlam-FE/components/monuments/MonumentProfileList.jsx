@@ -14,6 +14,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { MonumentProfileConstants } from '@/constants/monumentConstants'
 import { buildMediaUrl } from '@/lib/mediaUrl'
+import {
+    MONUMENT_PROFILE_REFRESH_INTERVAL_MS,
+    MONUMENT_PROFILE_UPDATE_CHANNEL,
+    MONUMENT_PROFILE_UPDATE_EVENT,
+    MONUMENT_PROFILE_UPDATE_KEY,
+    notifyMonumentProfileUpdated,
+} from '@/lib/monumentRealtime'
 import * as monumentApi from '@/lib/api/monumentsApi'
 
 const PAGE_SIZE = 10
@@ -32,7 +39,7 @@ const LEVEL_FILTERS = [
     { id: 'city', label: 'Cấp thành phố', value: MonumentProfileConstants.levelObjects.city },
 ]
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, muted = false }) {
     const config = {
         [MonumentProfileConstants.statuses.draft]: 'bg-[#F0F0F0] text-[#434343]',
         [MonumentProfileConstants.statuses.pendingApproval]: 'bg-[#2F54EB] text-white',
@@ -40,6 +47,14 @@ function StatusBadge({ status }) {
         [MonumentProfileConstants.statuses.notApproved]: 'bg-[#F5222D] text-white',
         [MonumentProfileConstants.statuses.redo]: 'bg-[#D46B08] text-white',
         [MonumentProfileConstants.statuses.published]: 'bg-[#D46B08] text-white',
+    }
+
+    if (muted) {
+        return (
+            <span className="inline-flex min-w-[100px] justify-center rounded-md bg-[#F0F0F0] px-3 py-1 text-xs font-medium text-[#8C8C8C]">
+                {MonumentProfileConstants.statusNames[status] || 'Không rõ'}
+            </span>
+        )
     }
 
     return (
@@ -87,6 +102,10 @@ function formatDate(value) {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return ''
     return date.toLocaleDateString('vi-VN')
+}
+
+function normalizeText(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
 function ReasonModal({ open, title, confirmText, onClose, onConfirm, loading }) {
@@ -147,6 +166,19 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const view = isAllMode ? allView : mode === 'private' ? 2 : 1
     const title = mode === 'review' ? 'Hồ sơ xét duyệt' : mode === 'private' ? 'Hồ sơ không công khai' : 'Toàn bộ hồ sơ'
     const currentUserId = useMemo(() => user?.id || user?.userID || user?.userId || user?.ID || null, [user])
+    const currentApprovalLevel = useMemo(() => {
+        const roleText = normalizeText([
+            user?.position,
+            user?.roleName,
+            user?.role,
+            user?.title,
+        ].filter(Boolean).join(' '))
+
+        if (roleText.includes('truong phong')) return 3
+        if (roleText.includes('pho giam doc')) return 2
+        if (roleText.includes('giam doc')) return 1
+        return null
+    }, [user])
 
     const loadData = useCallback(async (nextPage = 1, options = {}) => {
         const silent = options.silent === true
@@ -196,12 +228,22 @@ export default function MonumentProfileList({ mode = 'review' }) {
         }
 
         const onStorage = (event) => {
-            if (event.key === 'monumentProfileUpdatedAt') {
+            if (event.key === MONUMENT_PROFILE_UPDATE_KEY) {
                 refreshCurrentPage()
             }
         }
 
-        const intervalId = window.setInterval(refreshWhenVisible, 3000)
+        let channel = null
+        if ('BroadcastChannel' in window) {
+            channel = new BroadcastChannel(MONUMENT_PROFILE_UPDATE_CHANNEL)
+            channel.onmessage = (event) => {
+                if (event.data?.type === MONUMENT_PROFILE_UPDATE_EVENT) {
+                    refreshCurrentPage()
+                }
+            }
+        }
+
+        const intervalId = window.setInterval(refreshWhenVisible, MONUMENT_PROFILE_REFRESH_INTERVAL_MS)
         window.addEventListener('focus', refreshCurrentPage)
         window.addEventListener('storage', onStorage)
         document.addEventListener('visibilitychange', refreshWhenVisible)
@@ -211,6 +253,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
             window.removeEventListener('focus', refreshCurrentPage)
             window.removeEventListener('storage', onStorage)
             document.removeEventListener('visibilitychange', refreshWhenVisible)
+            channel?.close()
         }
     }, [loadData, page])
     const filteredItems = useMemo(() => {
@@ -237,7 +280,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
             if (type === 'redo') response = await monumentApi.redoMonument({ id: item.id, reason })
             if (type === 'refuse') response = await monumentApi.notVerifyMonument({ id: item.id, reason })
             toast.success(response?.message || 'Xử lý hồ sơ thành công')
-            window.localStorage.setItem('monumentProfileUpdatedAt', String(Date.now()))
+            notifyMonumentProfileUpdated()
             setReasonAction(null)
             await loadData(page)
         } catch (error) {
@@ -262,6 +305,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
         try {
             const response = await monumentApi.deleteMonument({ id: deleteItem.id })
             toast.success(response?.message || 'Xóa hồ sơ di tích thành công')
+            notifyMonumentProfileUpdated()
             setDeleteItem(null)
             await loadData(page)
         } catch (error) {
@@ -275,9 +319,31 @@ export default function MonumentProfileList({ mode = 'review' }) {
 
     const isLockedDraft = (item) => Number(item.status) === MonumentProfileConstants.statuses.draft && !isOwnMonument(item)
 
+    const isWaitingOtherLevel = (item) => {
+        if (Number(item.status) !== MonumentProfileConstants.statuses.pendingApproval || isOwnMonument(item)) {
+            return false
+        }
+
+        const pendingLevel = Number(item.pendingLevel)
+        const blockedByPermission = item.permission?.isView === false
+        const blockedByRoleLevel = Boolean(currentApprovalLevel && pendingLevel && pendingLevel !== currentApprovalLevel)
+        return blockedByPermission || blockedByRoleLevel
+    }
+    const isLockedItem = (item) => isLockedDraft(item) || isWaitingOtherLevel(item)
+
+    const getLockedMessage = (item) => {
+        if (isLockedDraft(item)) return 'Bản nháp chưa gửi'
+        return item.pendingLevelName ? `Đang chờ ${item.pendingLevelName}` : 'Chưa tới lượt duyệt'
+    }
+
+    const getLockedActionText = (item) => {
+        if (isLockedDraft(item)) return 'Chưa trình duyệt'
+        return item.pendingLevelName ? `Chờ ${item.pendingLevelName}` : 'Chưa tới lượt'
+    }
+
     const displayItems = useMemo(() => (
-        filteredItems.map((item) => isLockedDraft(item) ? { ...item, isDisabled: true } : item)
-    ), [currentUserId, filteredItems])
+        filteredItems.map((item) => isLockedItem(item) ? { ...item, isDisabled: true } : item)
+    ), [currentApprovalLevel, currentUserId, filteredItems])
     const canEditDraft = (item) => {
         const isOwner = currentUserId && String(item.userID) === String(currentUserId)
         return isOwner && [
@@ -300,7 +366,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
             title: 'Tên hồ sơ',
             render: (_, item) => {
                 const avatarUrl = buildMediaUrl(item.avatar)
-                const locked = isLockedDraft(item)
+                const locked = isLockedItem(item)
 
                 return (
                     <div className={`flex min-w-[360px] gap-3 transition ${locked ? 'opacity-45 grayscale' : ''}`}>
@@ -308,7 +374,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
                         <div className="flex min-w-0 flex-col gap-1">
                             <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-base font-semibold text-[#434547]">{item.name}</p>
-                                {locked && <span className="rounded bg-[#F5F5F5] px-2 py-0.5 text-xs font-medium text-[#8C8C8C]">Bản nháp chưa gửi</span>}
+                                {locked && <span className="rounded bg-[#F5F5F5] px-2 py-0.5 text-xs font-medium text-[#8C8C8C]">{getLockedMessage(item)}</span>}
                             </div>
                             <div className="mt-1 inline-flex items-start gap-2 text-xs font-normal text-[#434547]">
                                 <Map size={12} className="mt-[2px] flex-shrink-0 text-[#2F54EB]" />
@@ -322,7 +388,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
         {
             key: 'status',
             title: 'Trạng thái',
-            render: (status) => <StatusBadge status={status} />,
+            render: (_, item) => <StatusBadge status={item.status} muted={isLockedItem(item)} />,
         },
         {
             key: 'actions',
@@ -330,15 +396,14 @@ export default function MonumentProfileList({ mode = 'review' }) {
             headerContentClassName: 'justify-center',
             cellClassName: 'text-center',
             render: (_, item) => {
-                if (isLockedDraft(item)) {
+                if (isLockedItem(item)) {
                     return (
-                        <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]" title="Nhân viên chưa trình duyệt hồ sơ này">
+                        <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]" title={getLockedMessage(item)}>
                             <Eye size={16} className="text-[#BFBFBF]" />
-                            <span>Chưa trình duyệt</span>
+                            <span>{getLockedActionText(item)}</span>
                         </div>
                     )
                 }
-
                 return (
                     <div className="flex items-center justify-center gap-3">
                         <button type="button" onClick={() => router.push(`/monument-profile/view/${item.id}`)} aria-label="Xem hồ sơ">
@@ -374,7 +439,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
         {
             key: 'status',
             title: 'Trạng thái',
-            render: (status) => <StatusBadge status={status} />,
+            render: (_, item) => <StatusBadge status={item.status} muted={isLockedItem(item)} />,
         },
         {
             key: 'pendingLevel',
