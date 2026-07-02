@@ -1,7 +1,5 @@
-'use client'
-
-import MonumentProfileList from '@/components/monuments/MonumentProfileList'
+import { redirect } from 'next/navigation'
 
 export default function MonumentProfilePage() {
-    return <MonumentProfileList mode="review" />
+    redirect('/monument-profile/verify')
 }

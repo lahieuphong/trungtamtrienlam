@@ -1,4 +1,5 @@
-﻿import { redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
+
 export default function RedirectPage() {
-    redirect('/monument-profile')
+    redirect('/monument-profile/verify')
 }

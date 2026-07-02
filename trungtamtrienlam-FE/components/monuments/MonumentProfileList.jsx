@@ -331,6 +331,14 @@ export default function MonumentProfileList({ mode = 'review' }) {
     }
     const isLockedItem = (item) => isLockedDraft(item) || isWaitingOtherLevel(item)
 
+    const getPendingReviewerName = (item) => {
+        if (item.pendingLevelName) return item.pendingLevelName
+        const pendingLevel = Number(item.pendingLevel)
+        if (pendingLevel === 3) return 'Trưởng phòng'
+        if (pendingLevel === 2) return 'Phó giám đốc'
+        if (pendingLevel === 1) return 'Giám đốc'
+        return '-'
+    }
     const getLockedMessage = (item) => {
         if (isLockedDraft(item)) return 'Bản nháp chưa gửi'
         return item.pendingLevelName ? `Đang chờ ${item.pendingLevelName}` : 'Chưa tới lượt duyệt'
@@ -425,6 +433,22 @@ export default function MonumentProfileList({ mode = 'review' }) {
         },
     ]
 
+    const reviewListColumns = [
+        allColumns[0],
+        allColumns[1],
+        {
+            key: 'pendingReviewer',
+            title: 'Người duyệt',
+            render: (_, item) => (
+                <span className={`text-sm font-medium ${isLockedItem(item) ? 'text-[#8C8C8C]' : 'text-[#1F1F1F]'}`}>
+                    {getPendingReviewerName(item)}
+                </span>
+            ),
+        },
+        allColumns[2],
+    ]
+
+    const listColumns = mode === 'review' ? reviewListColumns : allColumns
     const reviewColumns = [
         {
             key: 'name',
@@ -515,26 +539,37 @@ export default function MonumentProfileList({ mode = 'review' }) {
         setPage(1)
     }
 
-    if (isAllMode) {
+    if (isAllMode || mode === 'review') {
         return (
             <div className="p-6">
                 <h1 className="text-lg font-medium text-[#1F1F1F]">Toàn bộ hồ sơ</h1>
 
                 <div className="mt-3 inline-flex items-center gap-1 rounded-lg border border-[#ADC6FF] p-1">
-                    <button
-                        type="button"
-                        onClick={() => onChangeAllView(0)}
-                        className={`w-[150px] rounded-lg p-2 text-sm font-medium transition duration-150 ease-in-out ${view === 0 ? 'bg-[rgba(240,245,255,1)] text-[rgba(89,126,247,1)]' : 'text-[#434343]'}`}
-                    >
-                        Hồ sơ công khai
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => onChangeAllView(2)}
-                        className={`w-[200px] rounded-lg p-2 text-sm font-medium transition duration-150 ease-in-out ${view === 2 ? 'bg-[rgba(240,245,255,1)] text-[rgba(89,126,247,1)]' : 'text-[#434343]'}`}
-                    >
-                        Hồ sơ không công khai
-                    </button>
+                    {mode === 'review' ? (
+                        <button
+                            type="button"
+                            className="w-[150px] rounded-lg bg-[rgba(240,245,255,1)] p-2 text-sm font-medium text-[rgba(89,126,247,1)] transition duration-150 ease-in-out"
+                        >
+                            Hồ sơ xét duyệt
+                        </button>
+                    ) : (
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => onChangeAllView(0)}
+                                className={`w-[150px] rounded-lg p-2 text-sm font-medium transition duration-150 ease-in-out ${view === 0 ? 'bg-[rgba(240,245,255,1)] text-[rgba(89,126,247,1)]' : 'text-[#434343]'}`}
+                            >
+                                Hồ sơ công khai
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onChangeAllView(2)}
+                                className={`w-[200px] rounded-lg p-2 text-sm font-medium transition duration-150 ease-in-out ${view === 2 ? 'bg-[rgba(240,245,255,1)] text-[rgba(89,126,247,1)]' : 'text-[#434343]'}`}
+                            >
+                                Hồ sơ không công khai
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-start justify-between gap-6">
@@ -578,7 +613,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
 
                 <div className="mt-4">
                     <Table
-                        columns={allColumns}
+                        columns={listColumns}
                         data={displayItems}
                         currentPage={page}
                         itemsPerPage={PAGE_SIZE}

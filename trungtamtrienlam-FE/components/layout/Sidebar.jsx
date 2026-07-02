@@ -41,6 +41,10 @@ function getIcon(uniqueKey) {
     )
 }
 
+function normalizeMenuPath(path) {
+    return path === '/monument-profile' ? '/monument-profile/verify' : path
+}
+
 function buildMenuTree(items, parentId = null) {
     return items
         .filter(item => item.parrentID === parentId)
@@ -48,7 +52,7 @@ function buildMenuTree(items, parentId = null) {
             id: item.uniqueKey || item.functionID,
             functionID: item.functionID,
             label: item.functionName,
-            path: item.path,
+            path: normalizeMenuPath(item.path),
             icon: getIcon(item.uniqueKey),
             children: buildMenuTree(items, item.functionID),
         }))
@@ -67,6 +71,8 @@ export default function Sidebar() {
     const isActivePath = useCallback((path) => {
         if (!path) return false
         if (pathname === path || pathname.startsWith(path)) return true
+        if (path === '/monument-profile/verify' && pathname.startsWith('/monument-profile/view')) return true
+        if (path === '/monument-profile/verify' && pathname === '/monument-profile') return true
         return path === '/websites/monument-3d' && pathname.startsWith('/websites/monument-profile/create')
     }, [pathname])
     // Build tree whenever permissions change

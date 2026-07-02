@@ -87,7 +87,7 @@ export default function NotificationItem({ n, onMarkRead, delay = 0, read = true
             case 4: router.push('/tasks/pendingIssuance'); break
             case 5: router.push('/media/share-folder'); break
             case 6: router.push('/ratings/rankings'); break
-            case 8: router.push('/monument-profile'); break
+            case 8: router.push('/monument-profile/verify'); break
             case 9: router.push('/calendar'); break
             case 11: router.push('/templates/wordprocessing'); break
             default: break
