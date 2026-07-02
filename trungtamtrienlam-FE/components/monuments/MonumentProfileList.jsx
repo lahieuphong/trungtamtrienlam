@@ -238,6 +238,13 @@ export default function MonumentProfileList({ mode = 'review' }) {
         }
     }
 
+    const isOwnMonument = (item) => currentUserId && String(item.userID) === String(currentUserId)
+
+    const isLockedDraft = (item) => Number(item.status) === MonumentProfileConstants.statuses.draft && !isOwnMonument(item)
+
+    const displayItems = useMemo(() => (
+        filteredItems.map((item) => isLockedDraft(item) ? { ...item, isDisabled: true } : item)
+    ), [currentUserId, filteredItems])
     const canEditDraft = (item) => {
         const isOwner = currentUserId && String(item.userID) === String(currentUserId)
         return isOwner && [
@@ -260,12 +267,16 @@ export default function MonumentProfileList({ mode = 'review' }) {
             title: 'Tên hồ sơ',
             render: (_, item) => {
                 const avatarUrl = buildMediaUrl(item.avatar)
+                const locked = isLockedDraft(item)
 
                 return (
-                    <div className="flex min-w-[360px] gap-3">
+                    <div className={`flex min-w-[360px] gap-3 transition ${locked ? 'opacity-45 grayscale' : ''}`}>
                         <MonumentAvatar src={avatarUrl} name={item.name} />
                         <div className="flex min-w-0 flex-col gap-1">
-                            <p className="text-base font-semibold text-[#434547]">{item.name}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-base font-semibold text-[#434547]">{item.name}</p>
+                                {locked && <span className="rounded bg-[#F5F5F5] px-2 py-0.5 text-xs font-medium text-[#8C8C8C]">Bản nháp chưa gửi</span>}
+                            </div>
                             <div className="mt-1 inline-flex items-start gap-2 text-xs font-normal text-[#434547]">
                                 <Map size={12} className="mt-[2px] flex-shrink-0 text-[#2F54EB]" />
                                 <span>{item.address}</span>
@@ -285,23 +296,34 @@ export default function MonumentProfileList({ mode = 'review' }) {
             title: 'Thao tác',
             headerContentClassName: 'justify-center',
             cellClassName: 'text-center',
-            render: (_, item) => (
-                <div className="flex items-center justify-center gap-3">
-                    <button type="button" onClick={() => router.push(`/monument-profile/view/${item.id}`)} aria-label="Xem hồ sơ">
-                        <Eye size={16} className="text-[#2F54EB]" />
-                    </button>
-                    {canEditDraft(item) && (
-                        <button type="button" onClick={() => setEditItem(item)} aria-label="Sửa hồ sơ">
-                            <PenLine size={16} className="text-[#2F54EB]" />
+            render: (_, item) => {
+                if (isLockedDraft(item)) {
+                    return (
+                        <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]" title="Nhân viên chưa trình duyệt hồ sơ này">
+                            <Eye size={16} className="text-[#BFBFBF]" />
+                            <span>Chưa trình duyệt</span>
+                        </div>
+                    )
+                }
+
+                return (
+                    <div className="flex items-center justify-center gap-3">
+                        <button type="button" onClick={() => router.push(`/monument-profile/view/${item.id}`)} aria-label="Xem hồ sơ">
+                            <Eye size={16} className="text-[#2F54EB]" />
                         </button>
-                    )}
-                    {canDeleteDraft(item) && (
-                        <button type="button" onClick={() => setDeleteItem(item)} aria-label="Xóa hồ sơ">
-                            <Trash2 size={16} className="text-[#F5222D]" />
-                        </button>
-                    )}
-                </div>
-            ),
+                        {canEditDraft(item) && (
+                            <button type="button" onClick={() => setEditItem(item)} aria-label="Sửa hồ sơ">
+                                <PenLine size={16} className="text-[#2F54EB]" />
+                            </button>
+                        )}
+                        {canDeleteDraft(item) && (
+                            <button type="button" onClick={() => setDeleteItem(item)} aria-label="Xóa hồ sơ">
+                                <Trash2 size={16} className="text-[#F5222D]" />
+                            </button>
+                        )}
+                    </div>
+                )
+            },
         },
     ]
 
@@ -459,7 +481,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
                 <div className="mt-4">
                     <Table
                         columns={allColumns}
-                        data={filteredItems}
+                        data={displayItems}
                         currentPage={page}
                         itemsPerPage={PAGE_SIZE}
                         totalItems={totalItemsDisplay}
@@ -516,7 +538,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
             <div className="mt-4">
                 <Table
                     columns={reviewColumns}
-                    data={filteredItems}
+                    data={displayItems}
                     currentPage={page}
                     itemsPerPage={PAGE_SIZE}
                     totalItems={totalItemsDisplay}

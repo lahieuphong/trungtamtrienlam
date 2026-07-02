@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, FileText } from 'lucide-react'
+import { ArrowRight, FileText, PenLine } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
+import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
 import { useToast } from '@/contexts/ToastContext'
 import { MonumentFileConstants, MonumentProfileConstants, MonumentSectionConstants } from '@/constants/monumentConstants'
 import { buildMediaUrl } from '@/lib/mediaUrl'
@@ -120,34 +121,53 @@ export default function MonumentProfileView() {
     const [monument, setMonument] = useState(null)
     const [sections, setSections] = useState([])
     const [files, setFiles] = useState([])
+    const [permission, setPermission] = useState({})
+    const [editOpen, setEditOpen] = useState(false)
+    const [actionLoading, setActionLoading] = useState(false)
+
+    const loadDetail = useCallback(async () => {
+        if (!params?.id) return
+
+        setLoading(true)
+        try {
+            const response = await monumentApi.getMonument({ id: params.id })
+            const data = response?.data || {}
+            if (!data.monument) {
+                toast.error('Không tìm thấy hồ sơ di tích')
+                router.replace('/monument-profile/all')
+                return
+            }
+
+            setMonument(data.monument)
+            setSections(data.monumentSections || [])
+            setFiles(data.monumentFiles || [])
+            setPermission(data.permission || {})
+        } catch (error) {
+            toast.error(error?.response?.data?.message || 'Không tải được hồ sơ di tích')
+            router.replace('/monument-profile/all')
+        } finally {
+            setLoading(false)
+        }
+    }, [params?.id, router, toast])
 
     useEffect(() => {
-        const loadDetail = async () => {
-            if (!params?.id) return
-
-            setLoading(true)
-            try {
-                const response = await monumentApi.getMonument({ id: params.id })
-                const data = response?.data || {}
-                if (!data.monument) {
-                    toast.error('Không tìm thấy hồ sơ di tích')
-                    router.replace('/monument-profile/all')
-                    return
-                }
-
-                setMonument(data.monument)
-                setSections(data.monumentSections || [])
-                setFiles(data.monumentFiles || [])
-            } catch (error) {
-                toast.error(error?.response?.data?.message || 'Không tải được hồ sơ di tích')
-                router.replace('/monument-profile/all')
-            } finally {
-                setLoading(false)
-            }
-        }
-
         loadDetail()
-    }, [params?.id, router, toast])
+    }, [loadDetail])
+
+    const requestApproval = async () => {
+        if (!monument?.id) return
+
+        setActionLoading(true)
+        try {
+            const response = await monumentApi.requestApprovalMonument({ id: monument.id })
+            toast.success(response?.message || 'Đã trình duyệt hồ sơ')
+            await loadDetail()
+        } catch (error) {
+            toast.error(error?.response?.data?.message || 'Không trình duyệt được hồ sơ')
+        } finally {
+            setActionLoading(false)
+        }
+    }
 
     const fileGroups = useMemo(() => {
         const groups = Number(monument?.type) === MonumentProfileConstants.types.private ? FILE_GROUPS_PRIVATE : FILE_GROUPS_PUBLIC
@@ -176,10 +196,20 @@ export default function MonumentProfileView() {
                     <h1 className="text-2xl font-semibold text-[#1F1F1F]">Tải di tích lên</h1>
                     <StatusBadge status={monument.status} />
                 </div>
-                <Button variant="outline" onClick={() => router.back()}>
-                    <ArrowLeft className="h-4 w-4" />
-                    Quay lại
-                </Button>
+                <div className="flex items-center gap-2">
+                    {permission.isUpdate && (
+                        <Button variant="outline" onClick={() => setEditOpen(true)} disabled={actionLoading} className="!rounded-lg !border-[#434343] !text-[#1F1F1F] hover:!bg-[#F5F5F5]">
+                            <PenLine className="h-4 w-4" />
+                            Chỉnh sửa
+                        </Button>
+                    )}
+                    {permission.isRequestApproval && (
+                        <Button onClick={requestApproval} loading={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
+                            <ArrowRight className="h-4 w-4" />
+                            Trình duyệt
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {monument.reason && (
@@ -233,6 +263,14 @@ export default function MonumentProfileView() {
                     {fileGroups.map((group) => <FileGroup key={group.title} title={group.title} files={group.files} />)}
                 </div>
             </div>
+
+            <MonumentCreateModal
+                open={editOpen}
+                itemId={monument.id}
+                profileType={monument.type}
+                onClose={() => setEditOpen(false)}
+                onSaved={loadDetail}
+            />
         </div>
     )
 }
