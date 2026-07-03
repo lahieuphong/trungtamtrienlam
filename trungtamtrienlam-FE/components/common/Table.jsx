@@ -19,6 +19,7 @@ export function Table({
     rowNumberTitle = 'STT',
     startRowNumber = 1,
     startRowNumberFrom,
+    rowNumberRender,
     itemsPerPage = 10,
     classNameColumn = '',
 }) {
@@ -66,14 +67,17 @@ export function Table({
                 key: '__rowNumber',
                 title: rowNumberTitle,
                 sortable: false,
-                render: (_, __, rowIndex) => {
+                render: (_, row, rowIndex) => {
                     const offset = (currentPage - 1) * itemsPerPage
+                    if (rowNumberRender) {
+                        return rowNumberRender(row, rowIndex, sortedData, { offset, currentPage, itemsPerPage })
+                    }
                     return (startRowNumberFrom ?? startRowNumber) + offset + rowIndex
                 },
             },
             ...columns,
         ]
-    }, [columns, currentPage, itemsPerPage, rowNumberTitle, showRowNumbers, startRowNumber, startRowNumberFrom])
+    }, [columns, currentPage, itemsPerPage, rowNumberRender, rowNumberTitle, showRowNumbers, sortedData, startRowNumber, startRowNumberFrom])
 
     const renderSortIcon = (column) => {
         if (sortColumn !== column.key) return <ChevronDown className="w-4 h-4 ml-1 opacity-30" />

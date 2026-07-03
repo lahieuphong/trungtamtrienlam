@@ -363,6 +363,14 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const displayItems = useMemo(() => (
         filteredItems.map((item) => isLockedItem(item) ? { ...item, isDisabled: true } : item)
     ), [currentApprovalLevel, currentUserId, filteredItems, isAllMode, view])
+
+    const renderMonumentRowNumber = useCallback((item, rowIndex, rows) => {
+        if (isMutedItem(item)) {
+            return <span className="text-xs font-medium text-[#8C8C8C]" title="Chưa chính thức">-</span>
+        }
+
+        return rows.slice(0, rowIndex).filter((row) => !isMutedItem(row)).length + 1
+    }, [currentApprovalLevel, currentUserId, isAllMode, view])
     const canEditDraft = (item) => {
         const isOwner = currentUserId && String(item.userID) === String(currentUserId)
         return isOwner && [
@@ -472,15 +480,6 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const reviewListColumns = [
         allColumns[0],
         allColumns[1],
-        {
-            key: 'pendingReviewer',
-            title: 'Người duyệt',
-            render: (_, item) => (
-                <span className={`text-sm font-medium ${isMutedItem(item) ? 'text-[#8C8C8C]' : 'text-[#1F1F1F]'}`}>
-                    {getPendingReviewerName(item)}
-                </span>
-            ),
-        },
         reviewActionColumn,
     ]
 
@@ -661,6 +660,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
                         emptyMessage="Không tìm thấy hồ sơ di tích nào"
                         loading={loading}
                         showRowNumbers
+                        rowNumberRender={renderMonumentRowNumber}
                         startRowNumberFrom={1}
                         classNameColumn="bg-[#D9D9D9]"
                     />
@@ -718,6 +718,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
                     emptyMessage="Không tìm thấy hồ sơ di tích nào"
                     loading={loading}
                     showRowNumbers
+                    rowNumberRender={renderMonumentRowNumber}
                     startRowNumberFrom={1}
                     classNameColumn="bg-[#D9D9D9]"
                 />
