@@ -381,7 +381,15 @@ class MonumentListView(APIView):
 
         if view == 1:
             if not flags['is_admin']:
-                queryset = queryset.filter(status=Monument.Status.PENDING_APPROVAL, pending_level__in=flags['levels'])
+                owner_workflow_statuses = [
+                    Monument.Status.DRAFT,
+                    Monument.Status.REDO,
+                    Monument.Status.NOT_APPROVED,
+                ]
+                queryset = queryset.filter(
+                    Q(status=Monument.Status.PENDING_APPROVAL, pending_level__in=flags['levels'])
+                    | Q(user=request.user, status__in=owner_workflow_statuses, type=Monument.ProfileType.PUBLIC)
+                )
             else:
                 queryset = queryset.filter(status=Monument.Status.PENDING_APPROVAL)
         elif view == 2:
@@ -462,11 +470,7 @@ class MonumentCreateView(APIView):
         _save_sections(request, monument, sections, request.user)
         _save_files(request, monument, request.user)
 
-        should_request_approval = (
-            monument.type == Monument.ProfileType.PUBLIC
-            or _as_bool(_get_data_value(data, 'submitForApproval'))
-        )
-        if should_request_approval:
+        if _as_bool(_get_data_value(data, 'submitForApproval')):
             _request_next(monument, request.user)
 
         return ResponseServer.success(

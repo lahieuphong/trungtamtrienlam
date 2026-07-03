@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
 
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
 import { MonumentProfileConstants } from '@/constants/monumentConstants'
 
 export default function MonumentCreateEntry({ alias = 'public' }) {
+    const router = useRouter()
     const [open, setOpen] = useState(false)
     const profileType = alias === 'private'
         ? MonumentProfileConstants.types.private
@@ -27,6 +29,7 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
                 open={open}
                 profileType={profileType}
                 onClose={() => setOpen(false)}
+                onSaved={() => router.push('/monument-profile/verify')}
             />
         </div>
     )

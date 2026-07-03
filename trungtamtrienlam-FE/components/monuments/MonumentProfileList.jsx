@@ -329,13 +329,16 @@ export default function MonumentProfileList({ mode = 'review' }) {
         const blockedByRoleLevel = Boolean(currentApprovalLevel && pendingLevel && pendingLevel !== currentApprovalLevel)
         return blockedByPermission || blockedByRoleLevel
     }
-    const isPendingInAllPublicView = (item) => (
+    const isWorkflowItemInAllPublicView = (item) => (
         isAllMode
         && view === 0
-        && Number(item.status) === MonumentProfileConstants.statuses.pendingApproval
+        && [
+            MonumentProfileConstants.statuses.draft,
+            MonumentProfileConstants.statuses.pendingApproval,
+        ].includes(Number(item.status))
     )
 
-    const isLockedItem = (item) => isPendingInAllPublicView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
+    const isLockedItem = (item) => isWorkflowItemInAllPublicView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
 
     const getPendingReviewerName = (item) => {
         if (item.pendingLevelName) return item.pendingLevelName
