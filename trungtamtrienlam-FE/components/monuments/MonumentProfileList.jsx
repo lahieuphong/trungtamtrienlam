@@ -760,9 +760,9 @@ export default function MonumentProfileList({ mode = 'review' }) {
     }
 
     const levelFilterOptions = useMemo(() => {
-        if (isAllMode && view === 0) return LEVEL_FILTERS
+        if ((isAllMode && view === 0) || mode === 'review') return LEVEL_FILTERS
         return LEVEL_FILTERS.filter((filter) => !filter.publicOnly)
-    }, [isAllMode, view])
+    }, [isAllMode, mode, view])
     if (isAllMode || mode === 'review') {
         return (
             <div className="p-6">
