@@ -486,16 +486,15 @@ export default function MonumentProfileList({ mode = 'review' }) {
         const blockedByRoleLevel = Boolean(currentApprovalLevel && pendingLevel && pendingLevel !== currentApprovalLevel)
         return blockedByPermission || blockedByRoleLevel
     }
-    const isWorkflowItemInAllPublicView = (item) => (
-        isAllMode
-        && view === 0
+    const isWorkflowItemInManagedListView = (item) => (
+        ((isAllMode && view === 0) || mode === 'private')
         && [
             MonumentProfileConstants.statuses.draft,
             MonumentProfileConstants.statuses.pendingApproval,
         ].includes(Number(item.status))
     )
 
-    const isLockedItem = (item) => isWorkflowItemInAllPublicView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
+    const isLockedItem = (item) => isWorkflowItemInManagedListView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
     const isMutedItem = (item) => isLockedItem(item)
 
     const getPendingReviewerName = (item) => {
@@ -517,16 +516,16 @@ export default function MonumentProfileList({ mode = 'review' }) {
         return item.pendingLevelName ? `Chờ ${item.pendingLevelName}` : 'Chưa tới lượt'
     }
 
-    const shouldHideTemporaryRows = isAllMode && view === 0 && selectedLevelFilter.hideTemporary === true
+    const shouldHideTemporaryRows = ((isAllMode && view === 0) || mode === 'private') && selectedLevelFilter.hideTemporary === true
     const visibleItems = useMemo(() => (
         shouldHideTemporaryRows
             ? filteredItems.filter((item) => !isMutedItem(item))
             : filteredItems
-    ), [currentApprovalLevel, currentUserId, filteredItems, isAllMode, selectedLevelFilter.hideTemporary, shouldHideTemporaryRows, view])
+    ), [currentApprovalLevel, currentUserId, filteredItems, isAllMode, mode, selectedLevelFilter.hideTemporary, shouldHideTemporaryRows, view])
 
     const displayItems = useMemo(() => (
         visibleItems.map((item) => isLockedItem(item) ? { ...item, isDisabled: true } : item)
-    ), [currentApprovalLevel, currentUserId, isAllMode, view, visibleItems])
+    ), [currentApprovalLevel, currentUserId, isAllMode, mode, view, visibleItems])
 
     const totalItemsForTable = useMemo(() => {
         if (shouldHideTemporaryRows) return visibleItems.length
@@ -540,7 +539,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
         }
 
         return rows.slice(0, rowIndex).filter((row) => !isMutedItem(row)).length + 1
-    }, [currentApprovalLevel, currentUserId, isAllMode, view])
+    }, [currentApprovalLevel, currentUserId, isAllMode, mode, view])
     const canEditDraft = (item) => {
         const isOwner = currentUserId && String(item.userID) === String(currentUserId)
         return isOwner && [
@@ -760,13 +759,13 @@ export default function MonumentProfileList({ mode = 'review' }) {
     }
 
     const levelFilterOptions = useMemo(() => {
-        if ((isAllMode && view === 0) || mode === 'review') return LEVEL_FILTERS
+        if ((isAllMode && view === 0) || mode === 'review' || mode === 'private') return LEVEL_FILTERS
         return LEVEL_FILTERS.filter((filter) => !filter.publicOnly)
     }, [isAllMode, mode, view])
-    if (isAllMode || mode === 'review') {
+    if (isAllMode || mode === 'review' || mode === 'private') {
         return (
             <div className="p-6">
-                <h1 className="text-lg font-medium text-[#1F1F1F]">Toàn bộ hồ sơ</h1>
+                <h1 className="text-lg font-medium text-[#1F1F1F]">{mode === 'private' ? title : 'Toàn bộ hồ sơ'}</h1>
 
                 <div className="mt-3 inline-flex items-center gap-1 rounded-lg border border-[#ADC6FF] p-1">
                     {mode === 'review' ? (
@@ -775,6 +774,13 @@ export default function MonumentProfileList({ mode = 'review' }) {
                             className="w-[150px] rounded-lg bg-[rgba(240,245,255,1)] p-2 text-sm font-medium text-[rgba(89,126,247,1)] transition duration-150 ease-in-out"
                         >
                             Hồ sơ xét duyệt
+                        </button>
+                    ) : mode === 'private' ? (
+                        <button
+                            type="button"
+                            className="w-[200px] rounded-lg bg-[rgba(240,245,255,1)] p-2 text-sm font-medium text-[rgba(89,126,247,1)] transition duration-150 ease-in-out"
+                        >
+                            Hồ sơ không công khai
                         </button>
                     ) : (
                         <>

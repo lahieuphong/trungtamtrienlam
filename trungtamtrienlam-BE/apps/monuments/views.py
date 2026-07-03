@@ -44,6 +44,13 @@ FILE_BUCKETS = {
     'fileRatings': MonumentFile.Mode.FILE_RATING,
 }
 
+PRIVATE_REQUIRED_FILE_BUCKETS = {
+    'fileAvatar2s': (MonumentFile.Mode.IMAGE_AVATAR_2, 'Vui lòng chọn hình đại diện'),
+    'fileStructures': (MonumentFile.Mode.FILE_STRUCTURE, 'Vui lòng chọn tệp kiến trúc'),
+    'fileImageTechs': (MonumentFile.Mode.IMAGE_TECH, 'Vui lòng chọn hình ảnh bản vẽ kỹ thuật'),
+    'fileMaps': (MonumentFile.Mode.FILE_MAP, 'Vui lòng chọn bản đồ khoanh vùng'),
+}
+
 REQUIRED_COMMON_FIELDS = {
     'name': 'Vui lòng nhập tên di tích',
     'recognitionDecision': 'Vui lòng nhập quyết định công nhận',
@@ -207,7 +214,8 @@ def _permission_for(user, monument):
     }
 
 def _avatar_for(monument):
-    avatar = monument.files.filter(mode=MonumentFile.Mode.IMAGE_AVATAR, is_deleted=False).first()
+    avatar_mode = MonumentFile.Mode.IMAGE_AVATAR_2 if monument.type == Monument.ProfileType.PRIVATE else MonumentFile.Mode.IMAGE_AVATAR
+    avatar = monument.files.filter(mode=avatar_mode, is_deleted=False).first()
     return avatar.file.name if avatar and avatar.file else None
 
 
@@ -309,6 +317,9 @@ def _validate_create_payload(request, sections, monument=None, existing_sections
     else:
         if not _get_data_value(data, 'description'):
             errors['description'] = 'Vui lòng nhập nội dung'
+        for bucket, (mode, message) in PRIVATE_REQUIRED_FILE_BUCKETS.items():
+            if not request.FILES.getlist(bucket) and not has_existing_file(mode):
+                errors[bucket] = message
 
     for bucket in FILE_BUCKETS:
         for file_obj in request.FILES.getlist(bucket):
@@ -388,7 +399,7 @@ class MonumentListView(APIView):
                 ]
                 queryset = queryset.filter(
                     Q(status=Monument.Status.PENDING_APPROVAL, pending_level__in=flags['levels'])
-                    | Q(user=request.user, status__in=owner_workflow_statuses, type=Monument.ProfileType.PUBLIC)
+                    | Q(user=request.user, status__in=owner_workflow_statuses)
                 )
             else:
                 owner_workflow_statuses = [
@@ -398,7 +409,7 @@ class MonumentListView(APIView):
                 ]
                 queryset = queryset.filter(
                     Q(status=Monument.Status.PENDING_APPROVAL)
-                    | Q(user=request.user, status__in=owner_workflow_statuses, type=Monument.ProfileType.PUBLIC)
+                    | Q(user=request.user, status__in=owner_workflow_statuses)
                 )
         elif view == 2:
             queryset = queryset.filter(type=Monument.ProfileType.PRIVATE)

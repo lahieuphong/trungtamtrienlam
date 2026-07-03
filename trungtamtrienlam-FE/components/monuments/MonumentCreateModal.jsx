@@ -41,6 +41,10 @@ const createInitialForm = () => ({
     fileImageDetails: [],
     fileVideos: [],
     fileModel3Ds: [],
+    fileAvatar2s: [],
+    fileStructures: [],
+    fileImageTechs: [],
+    fileMaps: [],
 })
 
 function getExtension(fileName = '') {
@@ -200,6 +204,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
     const [loadingDetail, setLoadingDetail] = useState(false)
     const onCloseRef = useRef(onClose)
     const isEditing = !!itemId
+    const isPrivateProfile = Number(profileType) === Number(MonumentProfileConstants.types.private)
 
     useEffect(() => {
         onCloseRef.current = onClose
@@ -253,6 +258,10 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                     fileImageDetails: filesByMode(MonumentFileConstants.modes.imageDetail),
                     fileVideos: filesByMode(MonumentFileConstants.modes.fileVideo),
                     fileModel3Ds: filesByMode(MonumentFileConstants.modes.fileModel3D),
+                    fileAvatar2s: filesByMode(MonumentFileConstants.modes.imageAvatar2),
+                    fileStructures: filesByMode(MonumentFileConstants.modes.fileStructure),
+                    fileImageTechs: filesByMode(MonumentFileConstants.modes.imageTech),
+                    fileMaps: filesByMode(MonumentFileConstants.modes.fileMap),
                 })
             } catch (error) {
                 toast.error(error?.response?.data?.message || 'Không tải được hồ sơ di tích')
@@ -320,21 +329,30 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
         if (!form.address.trim()) nextErrors.address = 'Vui lòng nhập địa chỉ'
         if (!form.yearOfConstruction.trim()) nextErrors.yearOfConstruction = 'Vui lòng nhập năm xây dựng'
         if (!form.location.trim()) nextErrors.location = 'Vui lòng nhập vị trí'
-        if (!form.sections.length) nextErrors.sections = 'Vui lòng thêm section nội dung'
 
-        form.sections.forEach((section, index) => {
-            const key = section.id || index
-            if ([1, 2, 3].includes(Number(section.type)) && !section.content.trim()) {
-                nextErrors[`section_${key}_content`] = 'Vui lòng nhập nội dung section'
-            }
-            if ([0, 1, 3].includes(Number(section.type)) && !section.file) {
-                nextErrors[`section_${key}_file`] = 'Vui lòng chọn hình ảnh section'
-            }
-        })
+        if (isPrivateProfile) {
+            if (!form.description.trim()) nextErrors.description = 'Vui lòng nhập nội dung'
+            if (!form.fileAvatar2s.length) nextErrors.fileAvatar2s = 'Vui lòng chọn hình đại diện'
+            if (!form.fileStructures.length) nextErrors.fileStructures = 'Vui lòng chọn tệp kiến trúc'
+            if (!form.fileImageTechs.length) nextErrors.fileImageTechs = 'Vui lòng chọn hình ảnh bản vẽ kỹ thuật'
+            if (!form.fileMaps.length) nextErrors.fileMaps = 'Vui lòng chọn bản đồ khoanh vùng'
+        } else {
+            if (!form.sections.length) nextErrors.sections = 'Vui lòng thêm section nội dung'
 
-        if (!form.fileAvatars.length) nextErrors.fileAvatars = 'Vui lòng chọn hình đại diện'
-        if (!form.fileModel3Ds.length) nextErrors.fileModel3Ds = 'Vui lòng chọn tệp GLB/3D'
-        if (!form.fileImageDetails.length) nextErrors.fileImageDetails = 'Vui lòng chọn hình ảnh chi tiết'
+            form.sections.forEach((section, index) => {
+                const key = section.id || index
+                if ([1, 2, 3].includes(Number(section.type)) && !section.content.trim()) {
+                    nextErrors[`section_${key}_content`] = 'Vui lòng nhập nội dung section'
+                }
+                if ([0, 1, 3].includes(Number(section.type)) && !section.file) {
+                    nextErrors[`section_${key}_file`] = 'Vui lòng chọn hình ảnh section'
+                }
+            })
+
+            if (!form.fileAvatars.length) nextErrors.fileAvatars = 'Vui lòng chọn hình đại diện'
+            if (!form.fileModel3Ds.length) nextErrors.fileModel3Ds = 'Vui lòng chọn tệp GLB/3D'
+            if (!form.fileImageDetails.length) nextErrors.fileImageDetails = 'Vui lòng chọn hình ảnh chi tiết'
+        }
 
         setErrors(nextErrors)
         return Object.keys(nextErrors).length === 0
@@ -354,20 +372,24 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
         body.append('description', form.description || '')
         body.append('type', String(profileType))
         body.append('submitForApproval', 'false')
-        body.append('sections', JSON.stringify(form.sections.map((section, index) => ({
+
+        const sectionsPayload = isPrivateProfile ? [] : form.sections.map((section, index) => ({
             id: section.id,
             type: Number(section.type),
             content: section.content,
             order: index + 1,
-        }))))
+        }))
+        body.append('sections', JSON.stringify(sectionsPayload))
 
-        form.sections.forEach((section, index) => {
-            if (isNativeFile(section.file)) {
-                body.append(`sections[${index}][file]`, section.file)
-            }
-        })
+        if (!isPrivateProfile) {
+            form.sections.forEach((section, index) => {
+                if (isNativeFile(section.file)) {
+                    body.append(`sections[${index}][file]`, section.file)
+                }
+            })
+        }
 
-        const fileBuckets = [
+        const publicFileBuckets = [
             'fileRecognitionDecisions',
             'fileRatings',
             'fileAvatars',
@@ -376,12 +398,22 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
             'fileVideos',
             'fileModel3Ds',
         ]
+        const privateFileBuckets = [
+            'fileRecognitionDecisions',
+            'fileRatings',
+            'fileAvatar2s',
+            'fileVideos',
+            'fileModel3Ds',
+            'fileStructures',
+            'fileImageTechs',
+            'fileMaps',
+        ]
+        const fileBuckets = isPrivateProfile ? privateFileBuckets : publicFileBuckets
         fileBuckets.forEach((bucket) => {
             form[bucket].filter(isNativeFile).forEach((file) => body.append(bucket, file))
         })
         return body
     }
-
     const submit = async () => {
         if (!validate()) {
             toast.warning('Vui lòng kiểm tra lại thông tin hồ sơ')
@@ -496,96 +528,144 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
 
                         <div className="mt-6 flex items-center justify-between border-t border-[#F0F0F0] pt-4">
                             <div className="inline-flex rounded-lg border border-[#ADC6FF] p-1">
-                                <button type="button" className="rounded-md bg-[#F0F5FF] px-3 py-2 text-sm font-medium text-[#597EF7]">Công khai</button>
+                                <button type="button" className="rounded-md bg-[#F0F5FF] px-3 py-2 text-sm font-medium text-[#597EF7]">
+                                    {isPrivateProfile ? 'Bí mật' : 'Công khai'}
+                                </button>
                             </div>
                         </div>
 
-                        <div className="mt-4">
-                            <Field label="Nội dung" required error={errors.sections}>
-                                <div className="space-y-4">
-                                    {form.sections.map((section, index) => {
-                                        const sectionKey = section.id || index
-                                        const needsImage = [0, 1, 3].includes(Number(section.type))
-                                        const needsContent = [1, 2, 3].includes(Number(section.type))
-                                        return (
-                                            <div key={section.id} className="rounded-md border border-[#E5E7EB] p-3">
-                                                <div className="mb-3 flex items-center justify-between gap-3">
-                                                    <p className="text-sm font-semibold text-[#434547]">Section {index + 1}</p>
-                                                    <button type="button" onClick={() => removeSection(section.id)} className="inline-flex items-center rounded p-1 text-red-500 hover:bg-red-50" aria-label="Xóa section">
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                                {needsImage && (
-                                                    <UploadBucket
-                                                        id={`section-${section.id}`}
-                                                        files={section.file ? [section.file] : []}
-                                                        onChange={(files, warningMessage) => {
-                                                            if (warningMessage) {
-                                                                toast.warning(warningMessage)
-                                                                return
-                                                            }
-                                                            updateSection(section.id, { file: files[0] || null })
-                                                        }}
-                                                        accept={ACCEPTS.image}
-                                                        multiple={false}
-                                                        validateFile={validateImage}
-                                                        error={errors[`section_${sectionKey}_file`]}
-                                                    />
-                                                )}
-                                                {needsContent && (
-                                                    <div className="mt-3">
-                                                        <textarea
-                                                            value={section.content}
-                                                            onChange={(event) => updateSection(section.id, { content: event.target.value })}
-                                                            className={`min-h-[130px] w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#597EF7] focus:ring-2 focus:ring-[#597EF7]/20 ${errors[`section_${sectionKey}_content`] ? 'border-red-400' : 'border-gray-300'}`}
-                                                        />
-                                                        {errors[`section_${sectionKey}_content`] && <p className="mt-1 text-xs text-red-500">{errors[`section_${sectionKey}_content`]}</p>}
+                        {isPrivateProfile ? (
+                            <>
+                                <div className="mt-4">
+                                    <Field label="Nội dung" required error={errors.description}>
+                                        <textarea
+                                            name="description"
+                                            value={form.description}
+                                            onChange={onChangeInput}
+                                            className={`min-h-[160px] w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#597EF7] focus:ring-2 focus:ring-[#597EF7]/20 ${errors.description ? 'border-red-400' : 'border-gray-300'}`}
+                                        />
+                                    </Field>
+                                </div>
+
+                                <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+                                    <Field label="Hình đại diện" required error={errors.fileAvatar2s}>
+                                        <UploadBucket id="fileAvatar2s" files={form.fileAvatar2s} onChange={setFiles('fileAvatar2s')} accept={ACCEPTS.image} multiple={false} validateFile={validateImage} error={errors.fileAvatar2s} />
+                                    </Field>
+                                    <Field label="Hình ảnh/Video 3D xoay 360" error={errors.fileVideos}>
+                                        <UploadBucket id="fileVideos" files={form.fileVideos} onChange={setFiles('fileVideos')} accept={`${ACCEPTS.image},${ACCEPTS.video}`} error={errors.fileVideos} />
+                                    </Field>
+                                </div>
+
+                                <div className="mt-5">
+                                    <Field label="Định dạng 3D" error={errors.fileModel3Ds}>
+                                        <UploadBucket id="fileModel3Ds" files={form.fileModel3Ds} onChange={setFiles('fileModel3Ds')} accept={ACCEPTS.model3d} validateFile={validateModel3D} error={errors.fileModel3Ds} />
+                                    </Field>
+                                </div>
+
+                                <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+                                    <Field label="Kiến trúc" required error={errors.fileStructures}>
+                                        <UploadBucket id="fileStructures" files={form.fileStructures} onChange={setFiles('fileStructures')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileStructures} />
+                                    </Field>
+                                    <Field label="Hình ảnh bản vẽ kỹ thuật" required error={errors.fileImageTechs}>
+                                        <UploadBucket id="fileImageTechs" files={form.fileImageTechs} onChange={setFiles('fileImageTechs')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageTechs} />
+                                    </Field>
+                                </div>
+
+                                <div className="mt-5">
+                                    <Field label="Bản đồ khoanh vùng" required error={errors.fileMaps}>
+                                        <UploadBucket id="fileMaps" files={form.fileMaps} onChange={setFiles('fileMaps')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileMaps} />
+                                    </Field>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="mt-4">
+                                    <Field label="Nội dung" required error={errors.sections}>
+                                        <div className="space-y-4">
+                                            {form.sections.map((section, index) => {
+                                                const sectionKey = section.id || index
+                                                const needsImage = [0, 1, 3].includes(Number(section.type))
+                                                const needsContent = [1, 2, 3].includes(Number(section.type))
+                                                return (
+                                                    <div key={section.id} className="rounded-md border border-[#E5E7EB] p-3">
+                                                        <div className="mb-3 flex items-center justify-between gap-3">
+                                                            <p className="text-sm font-semibold text-[#434547]">Section {index + 1}</p>
+                                                            <button type="button" onClick={() => removeSection(section.id)} className="inline-flex items-center rounded p-1 text-red-500 hover:bg-red-50" aria-label="Xóa section">
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                        {needsImage && (
+                                                            <UploadBucket
+                                                                id={`section-${section.id}`}
+                                                                files={section.file ? [section.file] : []}
+                                                                onChange={(files, warningMessage) => {
+                                                                    if (warningMessage) {
+                                                                        toast.warning(warningMessage)
+                                                                        return
+                                                                    }
+                                                                    updateSection(section.id, { file: files[0] || null })
+                                                                }}
+                                                                accept={ACCEPTS.image}
+                                                                multiple={false}
+                                                                validateFile={validateImage}
+                                                                error={errors[`section_${sectionKey}_file`]}
+                                                            />
+                                                        )}
+                                                        {needsContent && (
+                                                            <div className="mt-3">
+                                                                <textarea
+                                                                    value={section.content}
+                                                                    onChange={(event) => updateSection(section.id, { content: event.target.value })}
+                                                                    className={`min-h-[130px] w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#597EF7] focus:ring-2 focus:ring-[#597EF7]/20 ${errors[`section_${sectionKey}_content`] ? 'border-red-400' : 'border-gray-300'}`}
+                                                                />
+                                                                {errors[`section_${sectionKey}_content`] && <p className="mt-1 text-xs text-red-500">{errors[`section_${sectionKey}_content`]}</p>}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
+                                                )
+                                            })}
+                                        </div>
+                                        <div className="mt-3 rounded-md border border-[#BFBFBF] bg-white p-6 text-center">
+                                            <button type="button" onClick={addSection} className="inline-flex items-center gap-2 rounded-lg border border-[#2F54EB] bg-[#F0F5FF] px-3 py-2 text-sm font-medium text-[#2F54EB]">
+                                                <Plus className="h-4 w-4" />
+                                                Thêm section
+                                            </button>
+                                            <div className="mt-5 grid grid-cols-1 gap-3 text-left md:grid-cols-2">
+                                                {MonumentSectionConstants.options.map((option) => (
+                                                    <RadioOption key={option.value} name="sectionType" value={option.value} checked={sectionType === option.value} onChange={setSectionType} label={option.label} />
+                                                ))}
                                             </div>
-                                        )
-                                    })}
+                                        </div>
+                                    </Field>
                                 </div>
-                                <div className="mt-3 rounded-md border border-[#BFBFBF] bg-white p-6 text-center">
-                                    <button type="button" onClick={addSection} className="inline-flex items-center gap-2 rounded-lg border border-[#2F54EB] bg-[#F0F5FF] px-3 py-2 text-sm font-medium text-[#2F54EB]">
-                                        <Plus className="h-4 w-4" />
-                                        Thêm section
-                                    </button>
-                                    <div className="mt-5 grid grid-cols-1 gap-3 text-left md:grid-cols-2">
-                                        {MonumentSectionConstants.options.map((option) => (
-                                            <RadioOption key={option.value} name="sectionType" value={option.value} checked={sectionType === option.value} onChange={setSectionType} label={option.label} />
-                                        ))}
-                                    </div>
+
+                                <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+                                    <Field label="Hình đại diện" required error={errors.fileAvatars}>
+                                        <UploadBucket id="fileAvatars" files={form.fileAvatars} onChange={setFiles('fileAvatars')} accept={ACCEPTS.image} multiple={false} validateFile={validateImage} error={errors.fileAvatars} />
+                                    </Field>
+                                    <Field label="Hình ảnh hiện vật" error={errors.fileImageObjects}>
+                                        <UploadBucket id="fileImageObjects" files={form.fileImageObjects} onChange={setFiles('fileImageObjects')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageObjects} />
+                                    </Field>
                                 </div>
-                            </Field>
-                        </div>
 
-                        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                            <Field label="Hình đại diện" required error={errors.fileAvatars}>
-                                <UploadBucket id="fileAvatars" files={form.fileAvatars} onChange={setFiles('fileAvatars')} accept={ACCEPTS.image} multiple={false} validateFile={validateImage} error={errors.fileAvatars} />
-                            </Field>
-                            <Field label="Hình ảnh hiện vật" error={errors.fileImageObjects}>
-                                <UploadBucket id="fileImageObjects" files={form.fileImageObjects} onChange={setFiles('fileImageObjects')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageObjects} />
-                            </Field>
-                        </div>
+                                <div className="mt-5">
+                                    <Field label="Định dạng 3D" required error={errors.fileModel3Ds}>
+                                        <UploadBucket id="fileModel3Ds" files={form.fileModel3Ds} onChange={setFiles('fileModel3Ds')} accept={ACCEPTS.model3d} validateFile={validateModel3D} error={errors.fileModel3Ds} />
+                                    </Field>
+                                </div>
 
-                        <div className="mt-5">
-                            <Field label="Định dạng 3D" required error={errors.fileModel3Ds}>
-                                <UploadBucket id="fileModel3Ds" files={form.fileModel3Ds} onChange={setFiles('fileModel3Ds')} accept={ACCEPTS.model3d} validateFile={validateModel3D} error={errors.fileModel3Ds} />
-                            </Field>
-                        </div>
-
-                        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                            <Field label="Hình ảnh chi tiết" required error={errors.fileImageDetails}>
-                                <UploadBucket id="fileImageDetails" files={form.fileImageDetails} onChange={setFiles('fileImageDetails')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageDetails} />
-                            </Field>
-                            <Field label="Video mp4" error={errors.fileVideos}>
-                                <UploadBucket id="fileVideos" files={form.fileVideos} onChange={setFiles('fileVideos')} accept={ACCEPTS.video} error={errors.fileVideos} />
-                            </Field>
-                        </div>
+                                <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+                                    <Field label="Hình ảnh chi tiết" required error={errors.fileImageDetails}>
+                                        <UploadBucket id="fileImageDetails" files={form.fileImageDetails} onChange={setFiles('fileImageDetails')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageDetails} />
+                                    </Field>
+                                    <Field label="Video mp4" error={errors.fileVideos}>
+                                        <UploadBucket id="fileVideos" files={form.fileVideos} onChange={setFiles('fileVideos')} accept={ACCEPTS.video} error={errors.fileVideos} />
+                                    </Field>
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
-
                 <div className="flex items-center justify-end gap-3 border-t border-[#F0F0F0] px-6 py-4">
                     <Button variant="outline" onClick={onClose} disabled={!!submitting}>
                         <X className="h-4 w-4" />
