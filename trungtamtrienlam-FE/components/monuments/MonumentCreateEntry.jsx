@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Info, Plus } from 'lucide-react'
+import { Plus, TriangleAlert } from 'lucide-react'
 
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
 import { MonumentProfileConstants } from '@/constants/monumentConstants'
@@ -64,13 +64,13 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
     if (!canCreate) {
         return (
             <div className="flex min-h-[calc(100vh-4rem)] flex-1 items-center justify-center bg-[#f7f8fa] p-6">
-                <div className="w-full max-w-md rounded-lg border border-[#D9E3FF] bg-white px-6 py-7 text-center shadow-sm">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#F0F5FF] text-[#2F54EB]">
-                        <Info size={24} />
+                <div className="w-full max-w-md rounded-lg border border-[#FFD591] bg-white px-6 py-7 text-center shadow-sm">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#FFF7E6] text-[#D46B08]">
+                        <TriangleAlert size={24} />
                     </div>
-                    <h1 className="mt-4 text-lg font-semibold text-[#1F1F1F]">Chưa thể tải Di tích 3D</h1>
+                    <h1 className="mt-4 text-lg font-semibold text-[#1F1F1F]">Chưa thể thêm Di tích 3D</h1>
                     <p className="mt-2 text-sm leading-6 text-[#595959]">
-                        Hồ sơ Di tích 3D cần được tạo từ tài khoản Nhân viên hoặc Admin. Vui lòng đăng nhập đúng tài khoản để tải di tích lên.
+                        Hồ sơ Di tích 3D cần được tạo từ tài khoản Nhân viên. Vui lòng đăng nhập đúng tài khoản để tải di tích lên.
                     </p>
                 </div>
             </div>
