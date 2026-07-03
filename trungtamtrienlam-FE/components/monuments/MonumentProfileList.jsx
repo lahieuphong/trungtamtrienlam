@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Check, Eye, Globe2, Map, PenLine, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { ArrowRight, Check, CheckCircle, ChevronDown, ChevronRight, Eye, Files, Globe2, Landmark, ListFilter, Map, PenLine, RotateCcw, Search, Trash2, X } from 'lucide-react'
 
 import { Breadcrumb } from '@/components/common/Breadcrumb'
 import { Button } from '@/components/common/Button'
@@ -32,11 +32,15 @@ const SORT_OPTIONS = [
     { value: 1, label: 'Thời gian thêm vào cũ nhất' },
 ]
 
+const LEVEL_FILTER_ALL = 'allRecords'
+const LEVEL_FILTER_CURRENT = 'currentRecords'
+
 const LEVEL_FILTERS = [
-    { id: 'all', label: 'Tất cả', value: null },
-    { id: 'specialNation', label: 'Cấp quốc gia đặc biệt', value: MonumentProfileConstants.levelObjects.specialNation },
-    { id: 'nation', label: 'Cấp quốc gia', value: MonumentProfileConstants.levelObjects.nation },
-    { id: 'city', label: 'Cấp thành phố', value: MonumentProfileConstants.levelObjects.city },
+    { id: 'all', label: 'Tất cả hồ sơ', value: LEVEL_FILTER_ALL, type: null, hideTemporary: false, Icon: Files },
+    { id: 'current', label: 'Hồ sơ hiện hành', value: LEVEL_FILTER_CURRENT, type: null, hideTemporary: true, publicOnly: true, Icon: CheckCircle },
+    { id: 'specialNation', label: 'Cấp quốc gia đặc biệt', value: MonumentProfileConstants.levelObjects.specialNation, type: MonumentProfileConstants.levelObjects.specialNation, hideTemporary: true, Icon: Landmark },
+    { id: 'nation', label: 'Cấp quốc gia', value: MonumentProfileConstants.levelObjects.nation, type: MonumentProfileConstants.levelObjects.nation, hideTemporary: true, Icon: Landmark },
+    { id: 'city', label: 'Cấp thành phố', value: MonumentProfileConstants.levelObjects.city, type: MonumentProfileConstants.levelObjects.city, hideTemporary: true, Icon: Landmark },
 ]
 
 function StatusBadge({ status, muted = false }) {
@@ -64,15 +68,86 @@ function StatusBadge({ status, muted = false }) {
     )
 }
 
-function CheckboxFilter({ id, label, checked, onChange }) {
-    return (
-        <label htmlFor={id} className="flex cursor-pointer items-center group">
-            <input id={id} type="checkbox" checked={checked} onChange={onChange} className="sr-only" />
-            <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${checked ? 'border-[#597EF7] bg-[#597EF7]' : 'border-gray-300 bg-white group-hover:border-[#597EF7]'}`}>
-                <Check className={`h-3.5 w-3.5 text-white transition-opacity ${checked ? 'opacity-100' : 'opacity-0'}`} />
+function LevelFilterDropdown({ options, selectedValue, selectedSteps, open, onToggle, onSelect, dropdownRef }) {
+    const primaryOptions = options.filter((filter) => filter.type === null)
+    const levelOptions = options.filter((filter) => filter.type !== null)
+
+    const renderSelectedPath = () => (
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {selectedSteps.map((step, index) => (
+                <span key={`${step}-${index}`} className="inline-flex min-w-0 items-center gap-1.5">
+                    {index > 0 && <ChevronRight size={13} className="flex-shrink-0 text-[#8C8C8C]" />}
+                    <span className={`max-w-[140px] truncate rounded sm:max-w-[180px] px-2 py-0.5 text-xs font-semibold ${index === selectedSteps.length - 1 ? 'bg-[#F0F5FF] text-[#2F54EB]' : 'bg-[#F5F5F5] text-[#595959]'}`}>
+                        {step}
+                    </span>
+                </span>
+            ))}
+        </span>
+    )
+
+    const renderOptionContent = (filter, isLevelFilter = false) => {
+        const FilterIcon = filter.Icon
+
+        return (
+            <span className={`flex min-w-0 flex-1 items-center gap-2 ${isLevelFilter ? 'pl-5' : ''}`}>
+                {FilterIcon && <FilterIcon size={16} className="flex-shrink-0 text-current" />}
+                <span className="truncate font-medium">{filter.label}</span>
             </span>
-            <span className="ml-2 select-none text-sm font-medium text-gray-700">{label}</span>
-        </label>
+        )
+    }
+
+    const renderOptionButton = (filter, isLevelFilter = false) => {
+        const checked = selectedValue === filter.value
+
+        return (
+            <button
+                key={filter.id}
+                type="button"
+                onClick={() => onSelect(filter.value)}
+                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition duration-150 ease-in-out ${checked ? 'bg-[#F0F5FF] text-[#2F54EB]' : 'text-[#434343] hover:bg-[#F5F7FF] hover:text-[#2F54EB]'}`}
+            >
+                {renderOptionContent(filter, isLevelFilter)}
+                {checked && <Check size={16} className="flex-shrink-0" />}
+            </button>
+        )
+    }
+
+    return (
+        <div ref={dropdownRef} className="relative w-full">
+            <button
+                type="button"
+                aria-expanded={open}
+                onClick={onToggle}
+                className={`flex min-h-[40px] w-full items-center gap-3 rounded-md border bg-white px-3 py-1.5 text-left transition duration-150 ease-in-out ${open ? 'border-[#597EF7] shadow-sm' : 'border-[#D9D9D9] hover:border-[#85A5FF]'}`}
+            >
+                <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-[#F0F5FF] text-[#2F54EB]">
+                    <ListFilter size={16} />
+                </span>
+                <span className="flex min-w-0 flex-1 items-center">
+                    {renderSelectedPath()}
+                </span>
+                <ChevronDown size={16} className={`flex-shrink-0 text-[#595959] transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <div className="absolute right-0 z-30 mt-2 w-full overflow-hidden rounded-md border border-[#E5E7EB] bg-white py-1 shadow-lg">
+                    {primaryOptions.map((filter) => {
+                        const hasLevelChildren = filter.value === LEVEL_FILTER_CURRENT && levelOptions.length > 0
+
+                        if (!hasLevelChildren) return renderOptionButton(filter)
+
+                        return (
+                            <div key={filter.id} className="group">
+                                {renderOptionButton(filter)}
+                                <div className="hidden pb-1 group-hover:block group-focus-within:block">
+                                    {levelOptions.map((levelFilter) => renderOptionButton(levelFilter, true))}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
     )
 }
 
@@ -148,13 +223,15 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const router = useRouter()
     const toast = useToast()
     const { user } = useAuth()
+    const filterDropdownRef = useRef(null)
     const [items, setItems] = useState([])
     const [total, setTotal] = useState(0)
     const [page, setPage] = useState(1)
     const [loading, setLoading] = useState(false)
     const [keyword, setKeyword] = useState('')
     const [sort, setSort] = useState('')
-    const [levelType, setLevelType] = useState(null)
+    const [levelType, setLevelType] = useState(LEVEL_FILTER_ALL)
+    const [filterOpen, setFilterOpen] = useState(false)
     const [allView, setAllView] = useState(0)
     const [reasonAction, setReasonAction] = useState(null)
     const [actionLoading, setActionLoading] = useState(false)
@@ -180,6 +257,14 @@ export default function MonumentProfileList({ mode = 'review' }) {
         return null
     }, [user])
 
+    const selectedLevelFilter = useMemo(() => (
+        LEVEL_FILTERS.find((filter) => filter.value === levelType) || LEVEL_FILTERS[0]
+    ), [levelType])
+    const selectedLevelType = selectedLevelFilter.type ?? null
+    const selectedLevelSteps = selectedLevelFilter.type !== null
+        ? ['Hồ sơ hiện hành', selectedLevelFilter.label]
+        : [selectedLevelFilter.label]
+
     const loadData = useCallback(async (nextPage = 1, options = {}) => {
         const silent = options.silent === true
         if (!silent) setLoading(true)
@@ -194,8 +279,8 @@ export default function MonumentProfileList({ mode = 'review' }) {
                 params.sort = sort
             }
 
-            if (levelType !== null) {
-                params.type = levelType
+            if (selectedLevelType !== null) {
+                params.type = selectedLevelType
             }
 
             const response = await monumentApi.fetchMonument(params)
@@ -209,12 +294,34 @@ export default function MonumentProfileList({ mode = 'review' }) {
         } finally {
             if (!silent) setLoading(false)
         }
-    }, [levelType, sort, toast, view])
+    }, [selectedLevelType, sort, toast, view])
 
     useEffect(() => {
         setPage(1)
         loadData(1)
     }, [loadData])
+
+    useEffect(() => {
+        if (!filterOpen) return undefined
+
+        const closeWhenOutside = (event) => {
+            if (!filterDropdownRef.current?.contains(event.target)) {
+                setFilterOpen(false)
+            }
+        }
+
+        const closeOnEscape = (event) => {
+            if (event.key === 'Escape') setFilterOpen(false)
+        }
+
+        document.addEventListener('mousedown', closeWhenOutside)
+        document.addEventListener('keydown', closeOnEscape)
+
+        return () => {
+            document.removeEventListener('mousedown', closeWhenOutside)
+            document.removeEventListener('keydown', closeOnEscape)
+        }
+    }, [filterOpen])
 
     useEffect(() => {
         const refreshCurrentPage = () => {
@@ -360,13 +467,26 @@ export default function MonumentProfileList({ mode = 'review' }) {
         return item.pendingLevelName ? `Chờ ${item.pendingLevelName}` : 'Chưa tới lượt'
     }
 
+    const shouldHideTemporaryRows = isAllMode && view === 0 && selectedLevelFilter.hideTemporary === true
+    const visibleItems = useMemo(() => (
+        shouldHideTemporaryRows
+            ? filteredItems.filter((item) => !isMutedItem(item))
+            : filteredItems
+    ), [currentApprovalLevel, currentUserId, filteredItems, isAllMode, selectedLevelFilter.hideTemporary, shouldHideTemporaryRows, view])
+
     const displayItems = useMemo(() => (
-        filteredItems.map((item) => isLockedItem(item) ? { ...item, isDisabled: true } : item)
-    ), [currentApprovalLevel, currentUserId, filteredItems, isAllMode, view])
+        visibleItems.map((item) => isLockedItem(item) ? { ...item, isDisabled: true } : item)
+    ), [currentApprovalLevel, currentUserId, isAllMode, view, visibleItems])
+
+    const totalItemsForTable = useMemo(() => {
+        if (shouldHideTemporaryRows) return visibleItems.length
+        return totalItemsDisplay
+    }, [shouldHideTemporaryRows, totalItemsDisplay, visibleItems.length])
+    const tableLoading = loading && items.length === 0
 
     const renderMonumentRowNumber = useCallback((item, rowIndex, rows) => {
         if (isMutedItem(item)) {
-            return <span className="text-xs font-medium text-[#8C8C8C]" title="Chưa chính thức">-</span>
+            return null
         }
 
         return rows.slice(0, rowIndex).filter((row) => !isMutedItem(row)).length + 1
@@ -560,6 +680,10 @@ export default function MonumentProfileList({ mode = 'review' }) {
 
     const onChangeAllView = (nextView) => {
         setAllView(nextView)
+        if (levelType === LEVEL_FILTER_CURRENT) {
+            setLevelType(LEVEL_FILTER_ALL)
+        }
+        setFilterOpen(false)
         setPage(1)
     }
 
@@ -569,11 +693,16 @@ export default function MonumentProfileList({ mode = 'review' }) {
         setPage(1)
     }
 
-    const onChangeLevelType = (value) => () => {
+    const onChangeLevelType = (value) => {
         setLevelType(value)
+        setFilterOpen(false)
         setPage(1)
     }
 
+    const levelFilterOptions = useMemo(() => {
+        if (isAllMode && view === 0) return LEVEL_FILTERS
+        return LEVEL_FILTERS.filter((filter) => !filter.publicOnly)
+    }, [isAllMode, view])
     if (isAllMode || mode === 'review') {
         return (
             <div className="p-6">
@@ -607,42 +736,41 @@ export default function MonumentProfileList({ mode = 'review' }) {
                     )}
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-start justify-between gap-6">
-                    <div className="flex flex-wrap items-start gap-4">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-sm font-semibold text-[#393B3D]">Sắp xếp theo</label>
-                            <div className="w-full md:w-[340px]">
-                                <Select value={sort} options={SORT_OPTIONS} onChange={onChangeSort} placeholder="Chọn..." />
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-sm font-semibold text-[#393B3D]">Tìm kiếm</label>
-                            <div className="relative w-full md:w-[340px]">
-                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="text"
-                                    value={keyword}
-                                    onChange={(event) => setKeyword(event.target.value)}
-                                    placeholder="Nhập tên hoặc địa chỉ di tích..."
-                                    className="h-[40px] w-full rounded-md border border-[#d9d9d9] pl-9 pr-3 text-sm outline-none transition duration-150 ease-in-out focus:border-[#597EF7]"
-                                />
-                            </div>
+                <div className="mt-3 grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="flex min-w-0 flex-col gap-1">
+                        <label className="text-sm font-semibold text-[#393B3D]">Sắp xếp theo</label>
+                        <div className="w-full">
+                            <Select value={sort} options={SORT_OPTIONS} onChange={onChangeSort} placeholder="Chọn..." />
                         </div>
                     </div>
 
-                    <div className="flex min-w-[430px] flex-col gap-1">
-                        <label className="invisible text-sm font-semibold">Phân loại</label>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                            {LEVEL_FILTERS.map((filter) => (
-                                <CheckboxFilter
-                                    key={filter.id}
-                                    id={filter.id}
-                                    label={filter.label}
-                                    checked={levelType === filter.value}
-                                    onChange={onChangeLevelType(filter.value)}
-                                />
-                            ))}
+                    <div className="flex min-w-0 flex-col gap-1">
+                        <label className="text-sm font-semibold text-[#393B3D]">Tìm kiếm</label>
+                        <div className="relative w-full">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                value={keyword}
+                                onChange={(event) => setKeyword(event.target.value)}
+                                placeholder="Nhập tên hoặc địa chỉ di tích..."
+                                className="h-[40px] w-full rounded-md border border-[#d9d9d9] pl-9 pr-3 text-sm outline-none transition duration-150 ease-in-out focus:border-[#597EF7]"
+                            />
                         </div>
+                    </div>
+
+                    <div className="hidden xl:block" aria-hidden="true" />
+
+                    <div className="flex min-w-0 flex-col gap-1 md:col-span-2 xl:col-span-1">
+                        <label className="text-sm font-semibold text-[#393B3D]">Bộ lọc</label>
+                        <LevelFilterDropdown
+                            options={levelFilterOptions}
+                            selectedValue={levelType}
+                            selectedSteps={selectedLevelSteps}
+                            open={filterOpen}
+                            onToggle={() => setFilterOpen((current) => !current)}
+                            onSelect={onChangeLevelType}
+                            dropdownRef={filterDropdownRef}
+                        />
                     </div>
                 </div>
 
@@ -652,13 +780,13 @@ export default function MonumentProfileList({ mode = 'review' }) {
                         data={displayItems}
                         currentPage={page}
                         itemsPerPage={PAGE_SIZE}
-                        totalItems={totalItemsDisplay}
+                        totalItems={totalItemsForTable}
                         onPageChange={(nextPage) => {
                             setPage(nextPage)
                             loadData(nextPage)
                         }}
                         emptyMessage="Không tìm thấy hồ sơ di tích nào"
-                        loading={loading}
+                        loading={tableLoading}
                         showRowNumbers
                         rowNumberRender={renderMonumentRowNumber}
                         startRowNumberFrom={1}
@@ -710,13 +838,13 @@ export default function MonumentProfileList({ mode = 'review' }) {
                     data={displayItems}
                     currentPage={page}
                     itemsPerPage={PAGE_SIZE}
-                    totalItems={totalItemsDisplay}
+                    totalItems={totalItemsForTable}
                     onPageChange={(nextPage) => {
                         setPage(nextPage)
                         loadData(nextPage)
                     }}
                     emptyMessage="Không tìm thấy hồ sơ di tích nào"
-                    loading={loading}
+                    loading={tableLoading}
                     showRowNumbers
                     rowNumberRender={renderMonumentRowNumber}
                     startRowNumberFrom={1}
