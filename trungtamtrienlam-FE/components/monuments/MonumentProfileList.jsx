@@ -339,8 +339,10 @@ export default function MonumentProfileList({ mode = 'review' }) {
     )
 
     const isLockedItem = (item) => isWorkflowItemInAllPublicView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
+    const isMutedItem = (item) => isLockedItem(item)
 
     const getPendingReviewerName = (item) => {
+        if (Number(item.status) === MonumentProfileConstants.statuses.draft) return 'Nhân viên'
         if (item.pendingLevelName) return item.pendingLevelName
         const pendingLevel = Number(item.pendingLevel)
         if (pendingLevel === 3) return 'Trưởng phòng'
@@ -349,12 +351,12 @@ export default function MonumentProfileList({ mode = 'review' }) {
         return '-'
     }
     const getLockedMessage = (item) => {
-        if (isLockedDraft(item)) return 'Bản nháp chưa gửi'
+        if (Number(item.status) === MonumentProfileConstants.statuses.draft) return 'Bản nháp chưa gửi'
         return item.pendingLevelName ? `Đang chờ ${item.pendingLevelName}` : 'Chưa tới lượt duyệt'
     }
 
     const getLockedActionText = (item) => {
-        if (isLockedDraft(item)) return 'Chưa trình duyệt'
+        if (Number(item.status) === MonumentProfileConstants.statuses.draft) return 'Chưa trình duyệt'
         return item.pendingLevelName ? `Chờ ${item.pendingLevelName}` : 'Chưa tới lượt'
     }
 
@@ -383,15 +385,15 @@ export default function MonumentProfileList({ mode = 'review' }) {
             title: 'Tên hồ sơ',
             render: (_, item) => {
                 const avatarUrl = buildMediaUrl(item.avatar)
-                const locked = isLockedItem(item)
+                const muted = isMutedItem(item)
 
                 return (
-                    <div className={`flex min-w-[360px] gap-3 transition ${locked ? 'opacity-45 grayscale' : ''}`}>
+                    <div className={`flex min-w-[360px] gap-3 transition ${muted ? 'opacity-45 grayscale' : ''}`}>
                         <MonumentAvatar src={avatarUrl} name={item.name} />
                         <div className="flex min-w-0 flex-col gap-1">
                             <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-base font-semibold text-[#434547]">{item.name}</p>
-                                {locked && <span className="rounded bg-[#F5F5F5] px-2 py-0.5 text-xs font-medium text-[#8C8C8C]">{getLockedMessage(item)}</span>}
+                                {muted && <span className="rounded bg-[#F5F5F5] px-2 py-0.5 text-xs font-medium text-[#8C8C8C]">{getLockedMessage(item)}</span>}
                             </div>
                             <div className="mt-1 inline-flex items-start gap-2 text-xs font-normal text-[#434547]">
                                 <Map size={12} className="mt-[2px] flex-shrink-0 text-[#2F54EB]" />
@@ -405,7 +407,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
         {
             key: 'status',
             title: 'Trạng thái',
-            render: (_, item) => <StatusBadge status={item.status} muted={isLockedItem(item)} />,
+            render: (_, item) => <StatusBadge status={item.status} muted={isMutedItem(item)} />,
         },
         {
             key: 'actions',
@@ -442,6 +444,31 @@ export default function MonumentProfileList({ mode = 'review' }) {
         },
     ]
 
+    const reviewActionColumn = {
+        key: 'actions',
+        title: 'Thao tác',
+        headerContentClassName: 'justify-center',
+        cellClassName: 'text-center',
+        render: (_, item) => {
+            if (isLockedItem(item)) {
+                return (
+                    <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]" title={getLockedMessage(item)}>
+                        <Eye size={16} className="text-[#BFBFBF]" />
+                        <span>{getLockedActionText(item)}</span>
+                    </div>
+                )
+            }
+
+            return (
+                <div className="flex items-center justify-center gap-3">
+                    <button type="button" onClick={() => router.push(`/monument-profile/view/${item.id}`)} aria-label="Xem hồ sơ">
+                        <Eye size={16} className="text-[#2F54EB]" />
+                    </button>
+                </div>
+            )
+        },
+    }
+
     const reviewListColumns = [
         allColumns[0],
         allColumns[1],
@@ -449,12 +476,12 @@ export default function MonumentProfileList({ mode = 'review' }) {
             key: 'pendingReviewer',
             title: 'Người duyệt',
             render: (_, item) => (
-                <span className={`text-sm font-medium ${isLockedItem(item) ? 'text-[#8C8C8C]' : 'text-[#1F1F1F]'}`}>
+                <span className={`text-sm font-medium ${isMutedItem(item) ? 'text-[#8C8C8C]' : 'text-[#1F1F1F]'}`}>
                     {getPendingReviewerName(item)}
                 </span>
             ),
         },
-        allColumns[2],
+        reviewActionColumn,
     ]
 
     const listColumns = mode === 'review' ? reviewListColumns : allColumns
@@ -472,7 +499,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
         {
             key: 'status',
             title: 'Trạng thái',
-            render: (_, item) => <StatusBadge status={item.status} muted={isLockedItem(item)} />,
+            render: (_, item) => <StatusBadge status={item.status} muted={isMutedItem(item)} />,
         },
         {
             key: 'pendingLevel',
