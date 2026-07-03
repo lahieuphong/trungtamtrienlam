@@ -1,7 +1,5 @@
-'use client'
-
-import MonumentProfileList from '@/components/monuments/MonumentProfileList'
+import { redirect } from 'next/navigation'
 
 export default function MonumentPrivatePage() {
-    return <MonumentProfileList mode="private" />
+    redirect('/monument-profile/create/private')
 }
