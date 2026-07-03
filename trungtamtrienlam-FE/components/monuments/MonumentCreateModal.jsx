@@ -198,7 +198,12 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
     const [errors, setErrors] = useState({})
     const [submitting, setSubmitting] = useState(null)
     const [loadingDetail, setLoadingDetail] = useState(false)
+    const onCloseRef = useRef(onClose)
     const isEditing = !!itemId
+
+    useEffect(() => {
+        onCloseRef.current = onClose
+    }, [onClose])
 
     useEffect(() => {
         if (!open) {
@@ -251,7 +256,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                 })
             } catch (error) {
                 toast.error(error?.response?.data?.message || 'Không tải được hồ sơ di tích')
-                onClose?.()
+                onCloseRef.current?.()
             } finally {
                 if (mounted) setLoadingDetail(false)
             }
@@ -261,7 +266,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
         return () => {
             mounted = false
         }
-    }, [itemId, onClose, open, toast])
+    }, [itemId, open, toast])
 
     if (!open) return null
 

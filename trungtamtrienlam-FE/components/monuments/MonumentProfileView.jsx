@@ -7,6 +7,7 @@ import { ArrowRight, Check, FileText, PenLine, RotateCcw, X } from 'lucide-react
 import { Button } from '@/components/common/Button'
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { MonumentFileConstants, MonumentProfileConstants, MonumentSectionConstants } from '@/constants/monumentConstants'
 import { buildMediaUrl } from '@/lib/mediaUrl'
 import { notifyMonumentProfileUpdated } from '@/lib/monumentRealtime'
@@ -34,6 +35,38 @@ const FILE_GROUPS_PRIVATE = [
     { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D },
 ]
 
+function normalizeRoleText(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u0111\u0110]/g, 'd')
+        .toLowerCase()
+}
+
+function isAdminAccount(user) {
+    if (!user) return false
+
+    const roleText = normalizeRoleText([
+        user.position,
+        user.roleName,
+        user.role,
+        user.title,
+        user.userType,
+        user.accountType,
+    ].filter(Boolean).join(' '))
+
+    return Boolean(
+        user.isAdmin
+        || user.is_admin
+        || user.isSuperuser
+        || user.is_superuser
+        || user.isStaffAdmin
+        || user.role?.isAdmin
+        || user.role?.is_admin
+        || roleText.includes('admin')
+        || roleText.includes('quan tri')
+    )
+}
 function StatusBadge({ status }) {
     const config = {
         [MonumentProfileConstants.statuses.draft]: 'bg-[#F0F0F0] text-[#434343]',
@@ -215,6 +248,7 @@ export default function MonumentProfileView() {
     const params = useParams()
     const router = useRouter()
     const toast = useToast()
+    const { user } = useAuth()
     const [loading, setLoading] = useState(true)
     const [monument, setMonument] = useState(null)
     const [sections, setSections] = useState([])
@@ -224,7 +258,10 @@ export default function MonumentProfileView() {
     const [actionLoading, setActionLoading] = useState(false)
     const [reasonAction, setReasonAction] = useState(null)
     const [approvalOpen, setApprovalOpen] = useState(false)
+    const [requestApprovalOpen, setRequestApprovalOpen] = useState(false)
     const [publishOpen, setPublishOpen] = useState(false)
+    const currentUserId = useMemo(() => user?.id || user?.userID || user?.userId || user?.ID || null, [user])
+    const isAdmin = useMemo(() => isAdminAccount(user), [user])
 
     const loadDetail = useCallback(async () => {
         if (!params?.id) return
@@ -264,6 +301,7 @@ export default function MonumentProfileView() {
             const data = response?.data || {}
             toast.success(response?.message || 'Đã trình duyệt hồ sơ')
             notifyMonumentProfileUpdated()
+            setRequestApprovalOpen(false)
             if (data.permission?.isView === false) {
                 router.replace('/monument-profile/all')
                 return
@@ -276,6 +314,27 @@ export default function MonumentProfileView() {
         }
     }
 
+    const shouldConfirmAdminRequest = () => {
+        const status = Number(monument?.status)
+        const isOwner = currentUserId && String(monument?.userID) === String(currentUserId)
+        return Boolean(
+            isAdmin
+            && isOwner
+            && [
+                MonumentProfileConstants.statuses.draft,
+                MonumentProfileConstants.statuses.redo,
+                MonumentProfileConstants.statuses.notApproved,
+            ].includes(status)
+        )
+    }
+
+    const handleRequestApprovalClick = () => {
+        if (shouldConfirmAdminRequest()) {
+            setRequestApprovalOpen(true)
+            return
+        }
+        requestApproval()
+    }
     const verifyApproval = async () => {
         if (!monument?.id) return
 
@@ -383,7 +442,8 @@ export default function MonumentProfileView() {
     const isPrivate = Number(monument.type) === MonumentProfileConstants.types.private
     const isPendingApproval = monumentStatus === MonumentProfileConstants.statuses.pendingApproval
     const isApproved = monumentStatus === MonumentProfileConstants.statuses.approved
-    const canShowReviewActions = isPendingApproval || isApproved
+    const isAdminOwnerFlow = Boolean(isAdmin && currentUserId && String(monument.userID) === String(currentUserId))
+    const canShowReviewActions = (isPendingApproval || isApproved) && !isAdminOwnerFlow
     const isFinalized = [
         MonumentProfileConstants.statuses.approved,
         MonumentProfileConstants.statuses.published,
@@ -416,7 +476,7 @@ export default function MonumentProfileView() {
                         </Button>
                     )}
                     {permission.isRequestApproval && !permission.isApprove && (
-                        <Button onClick={requestApproval} loading={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
+                        <Button onClick={handleRequestApprovalClick} loading={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
                             <ArrowRight className="h-4 w-4" />
                             Trình duyệt
                         </Button>
@@ -488,6 +548,12 @@ export default function MonumentProfileView() {
                 </div>
             </div>
 
+            <ApprovalConfirmModal
+                open={requestApprovalOpen}
+                onClose={() => setRequestApprovalOpen(false)}
+                onConfirm={requestApproval}
+                loading={actionLoading}
+            />
             <ApprovalConfirmModal
                 open={approvalOpen}
                 onClose={() => setApprovalOpen(false)}

@@ -20,10 +20,20 @@ class MonumentHistoryInline(admin.TabularInline):
 
 @admin.register(Monument)
 class MonumentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'status', 'pending_level', 'type', 'user', 'created_at')
+    list_display = ('name', 'status', 'pending_level_display', 'type', 'user', 'created_at')
     list_filter = ('status', 'pending_level', 'type', 'type_of_monument')
     search_fields = ('name', 'address', 'recognition_decision')
     inlines = (MonumentSectionInline, MonumentFileInline, MonumentHistoryInline)
+
+    @admin.display(ordering='pending_level', description='Pending level')
+    def pending_level_display(self, obj):
+        if obj.pending_level == 3:
+            return '3 - Trưởng phòng'
+        if obj.pending_level == 2:
+            return '2 - Phó giám đốc'
+        if obj.pending_level == 1:
+            return '1 - Giám đốc'
+        return 'Không chờ duyệt'
 
 
 @admin.register(MonumentFile)

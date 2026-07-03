@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, TriangleAlert } from 'lucide-react'
 
@@ -48,10 +48,29 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
     const router = useRouter()
     const { user, loading } = useAuth()
     const [open, setOpen] = useState(false)
+    const redirectTimerRef = useRef(null)
     const profileType = alias === 'private'
         ? MonumentProfileConstants.types.private
         : MonumentProfileConstants.types.public
     const canCreate = useMemo(() => canCreateMonument3D(user), [user])
+
+    useEffect(() => {
+        router.prefetch?.('/monument-profile/verify')
+
+        return () => {
+            if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current)
+        }
+    }, [router])
+
+    const handleSaved = useCallback(() => {
+        setOpen(false)
+
+        if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current)
+        redirectTimerRef.current = window.setTimeout(() => {
+            redirectTimerRef.current = null
+            router.replace('/monument-profile/verify')
+        }, 80)
+    }, [router])
 
     if (loading) {
         return (
@@ -92,7 +111,7 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
                 open={open}
                 profileType={profileType}
                 onClose={() => setOpen(false)}
-                onSaved={() => router.push('/monument-profile/verify')}
+                onSaved={handleSaved}
             />
         </div>
     )

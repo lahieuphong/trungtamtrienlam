@@ -391,7 +391,15 @@ class MonumentListView(APIView):
                     | Q(user=request.user, status__in=owner_workflow_statuses, type=Monument.ProfileType.PUBLIC)
                 )
             else:
-                queryset = queryset.filter(status=Monument.Status.PENDING_APPROVAL)
+                owner_workflow_statuses = [
+                    Monument.Status.DRAFT,
+                    Monument.Status.REDO,
+                    Monument.Status.NOT_APPROVED,
+                ]
+                queryset = queryset.filter(
+                    Q(status=Monument.Status.PENDING_APPROVAL)
+                    | Q(user=request.user, status__in=owner_workflow_statuses, type=Monument.ProfileType.PUBLIC)
+                )
         elif view == 2:
             queryset = queryset.filter(type=Monument.ProfileType.PRIVATE)
         else:
@@ -653,6 +661,21 @@ def _request_next(monument, user):
     permission = _permission_for(user, monument)
     if not permission['isRequestApproval']:
         return ResponseServer.forbidden('Bạn không có quyền trình duyệt hồ sơ này')
+    flags = _role_flags(user)
+    if (
+        flags['is_admin']
+        and monument.user_id == user.id
+        and monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED)
+    ):
+        _create_history(monument, user, MonumentHistory.Status.VERIFIED, confirmed_by=user)
+        monument.status = Monument.Status.APPROVED
+        monument.pending_level = None
+        monument.submitted_at = monument.submitted_at or timezone.now()
+        monument.approved_at = timezone.now()
+        monument.reason = None
+        monument.updated_by = str(user.id)
+        monument.save(update_fields=['status', 'pending_level', 'submitted_at', 'approved_at', 'reason', 'updated_by', 'updated_at'])
+        return ResponseServer.success(data=_serialize_detail(monument, user), message='Duyệt hồ sơ di tích thành công')
 
     next_level = _next_level_for_request(monument, user)
     if not next_level:

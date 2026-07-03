@@ -220,6 +220,33 @@ function ReasonModal({ open, title, confirmText, onClose, onConfirm, loading }) 
     )
 }
 
+function PublishConfirmModal({ open, onClose, onConfirm, loading }) {
+    if (!open) return null
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+            <div className="relative w-full max-w-lg rounded-lg bg-white shadow-xl">
+                <div className="border-b px-6 py-4">
+                    <h2 className="text-xl font-semibold text-[#1F1F1F]">Đẩy lên website</h2>
+                </div>
+                <div className="px-6 py-8 text-sm leading-6 text-[#1F1F1F]">
+                    Khi đẩy lên website, thông tin công khai sẽ được hiển thị cho người dùng thấy, bạn có chắc chắn muốn đẩy lên website
+                </div>
+                <div className="flex justify-end gap-3 border-t bg-[#FAFAFA] px-6 py-4">
+                    <Button variant="outline" onClick={onClose} disabled={loading} className="!rounded-lg">
+                        <X className="h-4 w-4" />
+                        Hủy
+                    </Button>
+                    <Button onClick={onConfirm} loading={loading} className="!rounded-lg !bg-[#597EF7] hover:!bg-[#2F54EB]">
+                        <Check className="h-4 w-4" />
+                        Xác nhận
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+}
 export default function MonumentProfileList({ mode = 'review' }) {
     const router = useRouter()
     const toast = useToast()
@@ -238,6 +265,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const [actionLoading, setActionLoading] = useState(false)
     const [editItem, setEditItem] = useState(null)
     const [deleteItem, setDeleteItem] = useState(null)
+    const [publishItem, setPublishItem] = useState(null)
     const [deleteLoading, setDeleteLoading] = useState(false)
 
     const isAllMode = mode === 'all'
@@ -421,6 +449,12 @@ export default function MonumentProfileList({ mode = 'review' }) {
         runAction(reasonAction.type, reasonAction.item, reason.trim())
     }
 
+    const confirmPublish = async () => {
+        if (!publishItem) return
+
+        await runAction('publish', publishItem)
+        setPublishItem(null)
+    }
     const confirmDelete = async () => {
         if (!deleteItem) return
 
@@ -608,6 +642,16 @@ export default function MonumentProfileList({ mode = 'review' }) {
                     <button type="button" onClick={() => router.push(`/monument-profile/view/${item.id}`)} aria-label="Xem hồ sơ">
                         <Eye size={16} className="text-[#2F54EB]" />
                     </button>
+                    {canEditDraft(item) && (
+                        <button type="button" onClick={() => setEditItem(item)} aria-label="Sửa hồ sơ">
+                            <PenLine size={16} className="text-[#2F54EB]" />
+                        </button>
+                    )}
+                    {canDeleteDraft(item) && (
+                        <button type="button" onClick={() => setDeleteItem(item)} aria-label="Xóa hồ sơ">
+                            <Trash2 size={16} className="text-[#F5222D]" />
+                        </button>
+                    )}
                 </div>
             )
         },
@@ -683,7 +727,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
                             </>
                         )}
                         {canPublish && (
-                            <Button size="sm" onClick={() => runAction('publish', item)} disabled={actionLoading} className="!bg-[#08979C] hover:!bg-[#08737A]">
+                            <Button size="sm" onClick={() => setPublishItem(item)} disabled={actionLoading} className="!bg-[#08979C] hover:!bg-[#08737A]">
                                 <Globe2 className="h-4 w-4" />
                                 Đẩy lên website
                             </Button>
@@ -825,7 +869,12 @@ export default function MonumentProfileList({ mode = 'review' }) {
                     onClose={() => setDeleteItem(null)}
                     onConfirm={confirmDelete}
                 />
-            </div>
+                <PublishConfirmModal
+                    open={!!publishItem}
+                    onClose={() => setPublishItem(null)}
+                    onConfirm={confirmPublish}
+                    loading={actionLoading}
+                />            </div>
         )
     }
 
