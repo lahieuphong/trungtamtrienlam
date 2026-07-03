@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { MonumentProfileConstants } from '@/constants/monumentConstants'
 import { buildMediaUrl } from '@/lib/mediaUrl'
+import { sortBySearchScore } from '@/lib/search'
 import {
     MONUMENT_PROFILE_REFRESH_INTERVAL_MS,
     MONUMENT_PROFILE_UPDATE_CHANNEL,
@@ -363,10 +364,25 @@ export default function MonumentProfileList({ mode = 'review' }) {
             channel?.close()
         }
     }, [loadData, page])
+    const handleKeywordChange = useCallback((event) => {
+        setKeyword(event.target.value)
+        setPage(1)
+    }, [])
+
     const filteredItems = useMemo(() => {
-        const query = keyword.trim().toLowerCase()
+        const query = keyword.trim()
         if (!query) return items
-        return items.filter((item) => `${item.name || ''} ${item.address || ''}`.toLowerCase().includes(query))
+
+        return sortBySearchScore(
+            items,
+            query,
+            (item) => [
+                item.name,
+                item.address,
+                item.decisionNumber,
+                item.content,
+            ].filter(Boolean).join(' ')
+        )
     }, [items, keyword])
 
     const totalItemsDisplay = useMemo(() => {
@@ -751,7 +767,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
                             <input
                                 type="text"
                                 value={keyword}
-                                onChange={(event) => setKeyword(event.target.value)}
+                                onChange={handleKeywordChange}
                                 placeholder="Nhập tên hoặc địa chỉ di tích..."
                                 className="h-[40px] w-full rounded-md border border-[#d9d9d9] pl-9 pr-3 text-sm outline-none transition duration-150 ease-in-out focus:border-[#597EF7]"
                             />
@@ -825,7 +841,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                     <input
                         value={keyword}
-                        onChange={(event) => setKeyword(event.target.value)}
+                        onChange={handleKeywordChange}
                         placeholder="Tìm tên hoặc địa chỉ di tích..."
                         className="h-10 w-full rounded-md border border-gray-300 pl-9 pr-3 text-sm outline-none focus:border-[#597EF7] focus:ring-2 focus:ring-[#597EF7]/20"
                     />
