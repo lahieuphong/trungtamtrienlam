@@ -462,7 +462,11 @@ class MonumentCreateView(APIView):
         _save_sections(request, monument, sections, request.user)
         _save_files(request, monument, request.user)
 
-        if _as_bool(_get_data_value(data, 'submitForApproval')):
+        should_request_approval = (
+            monument.type == Monument.ProfileType.PUBLIC
+            or _as_bool(_get_data_value(data, 'submitForApproval'))
+        )
+        if should_request_approval:
             _request_next(monument, request.user)
 
         return ResponseServer.success(

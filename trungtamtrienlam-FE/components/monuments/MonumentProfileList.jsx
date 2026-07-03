@@ -329,7 +329,13 @@ export default function MonumentProfileList({ mode = 'review' }) {
         const blockedByRoleLevel = Boolean(currentApprovalLevel && pendingLevel && pendingLevel !== currentApprovalLevel)
         return blockedByPermission || blockedByRoleLevel
     }
-    const isLockedItem = (item) => isLockedDraft(item) || isWaitingOtherLevel(item)
+    const isPendingInAllPublicView = (item) => (
+        isAllMode
+        && view === 0
+        && Number(item.status) === MonumentProfileConstants.statuses.pendingApproval
+    )
+
+    const isLockedItem = (item) => isPendingInAllPublicView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
 
     const getPendingReviewerName = (item) => {
         if (item.pendingLevelName) return item.pendingLevelName
@@ -351,7 +357,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
 
     const displayItems = useMemo(() => (
         filteredItems.map((item) => isLockedItem(item) ? { ...item, isDisabled: true } : item)
-    ), [currentApprovalLevel, currentUserId, filteredItems])
+    ), [currentApprovalLevel, currentUserId, filteredItems, isAllMode, view])
     const canEditDraft = (item) => {
         const isOwner = currentUserId && String(item.userID) === String(currentUserId)
         return isOwner && [
