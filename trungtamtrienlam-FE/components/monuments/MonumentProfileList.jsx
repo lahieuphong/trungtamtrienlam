@@ -497,7 +497,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         return blockedByPermission || blockedByRoleLevel
     }
     const isWorkflowItemInManagedListView = (item) => (
-        ((isAllMode && view === 0) || mode === 'private')
+        ((isAllMode && (view === 0 || view === 2)) || mode === 'private')
         && [
             MonumentProfileConstants.statuses.draft,
             MonumentProfileConstants.statuses.pendingApproval,
@@ -526,7 +526,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         return item.pendingLevelName ? `Chờ ${item.pendingLevelName}` : 'Chưa tới lượt'
     }
 
-    const shouldHideTemporaryRows = ((isAllMode && view === 0) || mode === 'private') && selectedLevelFilter.hideTemporary === true
+    const shouldHideTemporaryRows = ((isAllMode && (view === 0 || view === 2)) || mode === 'private') && selectedLevelFilter.hideTemporary === true
     const visibleItems = useMemo(() => (
         shouldHideTemporaryRows
             ? filteredItems.filter((item) => !isMutedItem(item))
@@ -772,7 +772,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
     }
 
     const levelFilterOptions = useMemo(() => {
-        if ((isAllMode && view === 0) || mode === 'review' || mode === 'private') return LEVEL_FILTERS
+        if ((isAllMode && (view === 0 || view === 2)) || mode === 'review' || mode === 'private') return LEVEL_FILTERS
         return LEVEL_FILTERS.filter((filter) => !filter.publicOnly)
     }, [isAllMode, mode, view])
     if (isAllMode || mode === 'review' || mode === 'private') {
