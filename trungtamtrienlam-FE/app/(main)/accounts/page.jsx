@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Eye, Pencil, Trash2, Plus, KeyRound } from 'lucide-react'
+import { Search, Eye, EyeOff, Pencil, Trash2, Plus, KeyRound, XCircle, CheckCircle } from 'lucide-react'
 import { useDebouncedValue } from '@/lib/search'
 import { Breadcrumb } from '@/components/common/Breadcrumb'
 import { Table } from '@/components/common/Table'
 import { Button } from '@/components/common/Button'
-import { ConfirmModal } from '@/components/common/Modal'
-import { fetchUsers, deleteUser, resetUser } from '@/lib/api/usersApi'
+import { Input } from '@/components/common/Input'
+import { Modal, ConfirmModal } from '@/components/common/Modal'
+import { fetchUsers, deleteUser, changeUserPassword } from '@/lib/api/usersApi'
 import { getStaffFileUrl } from '@/lib/mediaUrl'
 import { UserFileConstants } from '@/constants/userConstants'
 import { useToast } from '@/contexts/ToastContext'
@@ -30,6 +31,13 @@ export default function AccountsPage() {
     const [error, setError] = useState(null)
     const [accountToDelete, setAccountToDelete] = useState(null)
     const [accountToResetPassword, setAccountToResetPassword] = useState(null)
+    const [accountToChangePassword, setAccountToChangePassword] = useState(null)
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmPassword, setConfirmPassword] = useState('')
+    const [newPasswordError, setNewPasswordError] = useState('')
+    const [confirmPasswordError, setConfirmPasswordError] = useState('')
+    const [showNewPassword, setShowNewPassword] = useState(false)
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [actionLoading, setActionLoading] = useState(false)
 
 
@@ -91,23 +99,76 @@ export default function AccountsPage() {
         }
     }
 
-    const handleResetPasswordConfirm = async () => {
+    const openPasswordModal = (account) => {
+        setAccountToResetPassword(account)
+        setAccountToChangePassword(null)
+        setNewPassword('')
+        setConfirmPassword('')
+        setNewPasswordError('')
+        setConfirmPasswordError('')
+        setShowNewPassword(false)
+        setShowConfirmPassword(false)
+    }
+
+    const closePasswordModal = () => {
+        setAccountToResetPassword(null)
+        setAccountToChangePassword(null)
+        setNewPassword('')
+        setConfirmPassword('')
+        setNewPasswordError('')
+        setConfirmPasswordError('')
+        setShowNewPassword(false)
+        setShowConfirmPassword(false)
+    }
+
+    const handleResetPasswordConfirm = () => {
         if (!accountToResetPassword) return
+        setAccountToChangePassword(accountToResetPassword)
+        setAccountToResetPassword(null)
+        setNewPassword('')
+        setConfirmPassword('')
+        setNewPasswordError('')
+        setConfirmPasswordError('')
+        setShowNewPassword(false)
+        setShowConfirmPassword(false)
+    }
+
+    const handleChangePasswordConfirm = async () => {
+        if (!accountToChangePassword) return
+        const password = newPassword.trim()
+        const passwordConfirmation = confirmPassword.trim()
+        if (!password) {
+            setNewPasswordError('Vui lòng nhập mật khẩu mới')
+            return
+        }
+        if (password.length < 6) {
+            setNewPasswordError('Mật khẩu mới phải có ít nhất 6 ký tự')
+            return
+        }
+        if (!passwordConfirmation) {
+            setConfirmPasswordError('Vui lòng xác nhận lại mật khẩu')
+            return
+        }
+        if (password !== passwordConfirmation) {
+            setConfirmPasswordError('Mật khẩu xác nhận không khớp')
+            return
+        }
+
         try {
             setActionLoading(true)
-            const response = await resetUser(accountToResetPassword.id)
+            const response = await changeUserPassword(accountToChangePassword.id, password)
             if (response?.status === 200) {
-                toast.success('Đặt lại mật khẩu thành công. Hệ thống đã gửi đường dẫn đặt lại mật khẩu đến email của người dùng!')
+                toast.success(response?.message || 'Đổi mật khẩu thành công!')
+                closePasswordModal()
                 await loadAccounts()
             } else {
-                toast.error('Đặt lại mật khẩu thất bại!')
+                toast.error(response?.message || 'Đổi mật khẩu thất bại!')
             }
         } catch (err) {
-            console.error('Error resetting password:', err)
-            toast.error('Đặt lại mật khẩu thất bại!')
+            console.error('Error changing password:', err)
+            toast.error(err?.response?.data?.message || 'Đổi mật khẩu thất bại!')
         } finally {
             setActionLoading(false)
-            setAccountToResetPassword(null)
         }
     }
 
@@ -190,7 +251,7 @@ export default function AccountsPage() {
                         type="button"
                         className="inline-flex items-center justify-center font-medium transition-colors duration-200 focus:outline-none bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 text-sm px-4 py-2 rounded-lg cursor-pointer text-gray-500 hover:text-red-500 hover:bg-transparent !p-0"
                         title="Đặt lại mật khẩu"
-                        onClick={() => setAccountToResetPassword(account)}
+                        onClick={() => openPasswordModal(account)}
                     >
                         <KeyRound className="w-5 h-5" />
                     </button>
@@ -252,15 +313,131 @@ export default function AccountsPage() {
                 title="Xoá tài khoản"
                 message="Hành động này không thể hoàn tác và tất cả dữ liệu liên quan sẽ bị xoá vĩnh viễn."
                 loading={actionLoading}
+                cancelIcon={<XCircle className="h-4 w-4" />}
+                confirmIcon={<CheckCircle className="h-4 w-4" />}
             />
             <ConfirmModal
                 open={!!accountToResetPassword}
                 onClose={() => setAccountToResetPassword(null)}
                 onConfirm={handleResetPasswordConfirm}
                 title="Đặt lại mật khẩu"
-                message="Bạn có chắc chắn muốn đặt lại mật khẩu cho tài khoản này?"
-                loading={actionLoading}
+                message={(
+                    <>
+                        Bạn có chắc chắn muốn đặt lại mật khẩu cho tài khoản{' '}
+                        <span className="font-semibold text-gray-800">
+                            {accountToResetPassword?.fullName || accountToResetPassword?.userName || ''}
+                        </span>{' '}
+                        nha?
+                    </>
+                )}
+                cancelIcon={<XCircle className="h-4 w-4" />}
+                confirmIcon={<CheckCircle className="h-4 w-4" />}
             />
+            <Modal
+                open={!!accountToChangePassword}
+                onClose={closePasswordModal}
+                title="Đổi mật khẩu mới"
+                size="sm"
+                footer={(
+                    <>
+                        <Button variant="outline" onClick={closePasswordModal} disabled={actionLoading}>
+                            <XCircle className="h-4 w-4" />
+                            Hủy
+                        </Button>
+                        <Button
+                            variant="danger"
+                            onClick={handleChangePasswordConfirm}
+                            loading={actionLoading}
+                        >
+                            <KeyRound className="h-4 w-4" />
+                            Đổi mật khẩu
+                        </Button>
+                    </>
+                )}
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                        Nhập mật khẩu mới cho tài khoản{' '}
+                        <span className="font-semibold text-gray-800">
+                            {accountToChangePassword?.fullName || accountToChangePassword?.userName || ''}
+                        </span>{' '}
+                        nha.
+                    </p>
+                    <div>
+                        <label htmlFor="new-password" className="mb-2 block text-sm font-medium text-gray-700">
+                            Mật khẩu mới
+                        </label>
+                        <Input
+                            id="new-password"
+                            name="newPassword"
+                            type={showNewPassword ? 'text' : 'password'}
+                            value={newPassword}
+                            onChange={(event) => {
+                                setNewPassword(event.target.value)
+                                setNewPasswordError('')
+                                setConfirmPasswordError('')
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault()
+                                    handleChangePasswordConfirm()
+                                }
+                            }}
+                            placeholder="Nhập mật khẩu mới"
+                            error={!!newPasswordError}
+                            errorMessage={newPasswordError}
+                            disabled={actionLoading}
+                            rightElement={(
+                                <button
+                                    type="button"
+                                    aria-label={showNewPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                                    className="text-gray-400 transition-colors hover:text-gray-600 focus:outline-none"
+                                    onClick={() => setShowNewPassword(prev => !prev)}
+                                    onMouseDown={event => event.preventDefault()}
+                                >
+                                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            )}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="confirm-password" className="mb-2 block text-sm font-medium text-gray-700">
+                            Xác nhận mật khẩu
+                        </label>
+                        <Input
+                            id="confirm-password"
+                            name="confirmPassword"
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            value={confirmPassword}
+                            onChange={(event) => {
+                                setConfirmPassword(event.target.value)
+                                setConfirmPasswordError('')
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault()
+                                    handleChangePasswordConfirm()
+                                }
+                            }}
+                            placeholder="Nhập lại mật khẩu mới"
+                            error={!!confirmPasswordError}
+                            errorMessage={confirmPasswordError}
+                            disabled={actionLoading}
+                            rightElement={(
+                                <button
+                                    type="button"
+                                    aria-label={showConfirmPassword ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'}
+                                    className="text-gray-400 transition-colors hover:text-gray-600 focus:outline-none"
+                                    onClick={() => setShowConfirmPassword(prev => !prev)}
+                                    onMouseDown={event => event.preventDefault()}
+                                >
+                                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            )}
+                        />
+                    </div>
+                </div>
+            </Modal>
         </div>
     )
 }

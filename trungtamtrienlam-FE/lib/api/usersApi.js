@@ -52,3 +52,11 @@ export const resetUser = async (userId) => {
         throw error
     }
 }
+
+export const changeUserPassword = async (userId, password) => {
+    try {
+        return (await apiClient.post('/accounts/staff/change-password/', { id: userId, password })).data
+    } catch (error) {
+        throw error
+    }
+}
