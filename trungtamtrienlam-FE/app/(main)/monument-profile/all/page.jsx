@@ -1,7 +1,6 @@
-'use client'
-
 import MonumentProfileList from '@/components/monuments/MonumentProfileList'
 
-export default function MonumentAllPage() {
-    return <MonumentProfileList mode="all" />
+export default async function MonumentAllPage({ searchParams }) {
+    const params = await searchParams
+    return <MonumentProfileList mode="all" initialTab={params?.tab} />
 }

@@ -36,6 +36,11 @@ const SORT_OPTIONS = [
 const LEVEL_FILTER_ALL = 'allRecords'
 const LEVEL_FILTER_CURRENT = 'currentRecords'
 
+
+function getAllViewFromTab(tab) {
+    const normalized = String(tab || '').trim().toLowerCase()
+    return normalized === 'private' || normalized === '2' ? 2 : 0
+}
 const LEVEL_FILTERS = [
     { id: 'all', label: 'Tất cả hồ sơ', value: LEVEL_FILTER_ALL, type: null, hideTemporary: false, Icon: Files },
     { id: 'current', label: 'Hồ sơ hiện hành', value: LEVEL_FILTER_CURRENT, type: null, hideTemporary: true, publicOnly: true, Icon: CheckCircle },
@@ -247,7 +252,7 @@ function PublishConfirmModal({ open, onClose, onConfirm, loading }) {
         </div>
     )
 }
-export default function MonumentProfileList({ mode = 'review' }) {
+export default function MonumentProfileList({ mode = 'review', initialTab }) {
     const router = useRouter()
     const toast = useToast()
     const { user } = useAuth()
@@ -260,7 +265,7 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const [sort, setSort] = useState('')
     const [levelType, setLevelType] = useState(LEVEL_FILTER_ALL)
     const [filterOpen, setFilterOpen] = useState(false)
-    const [allView, setAllView] = useState(0)
+    const [allView, setAllView] = useState(() => getAllViewFromTab(initialTab))
     const [reasonAction, setReasonAction] = useState(null)
     const [actionLoading, setActionLoading] = useState(false)
     const [editItem, setEditItem] = useState(null)
@@ -271,6 +276,11 @@ export default function MonumentProfileList({ mode = 'review' }) {
     const isAllMode = mode === 'all'
     const view = isAllMode ? allView : mode === 'private' ? 2 : 1
     const title = mode === 'review' ? 'Hồ sơ xét duyệt' : mode === 'private' ? 'Hồ sơ không công khai' : 'Toàn bộ hồ sơ'
+
+    useEffect(() => {
+        if (isAllMode) setAllView(getAllViewFromTab(initialTab))
+    }, [initialTab, isAllMode])
+
     const currentUserId = useMemo(() => user?.id || user?.userID || user?.userId || user?.ID || null, [user])
     const currentApprovalLevel = useMemo(() => {
         const roleText = normalizeText([
@@ -739,6 +749,9 @@ export default function MonumentProfileList({ mode = 'review' }) {
 
     const onChangeAllView = (nextView) => {
         setAllView(nextView)
+        if (isAllMode) {
+            router.replace(`/monument-profile/all?tab=${nextView === 2 ? 'private' : 'public'}`, { scroll: false })
+        }
         if (levelType === LEVEL_FILTER_CURRENT) {
             setLevelType(LEVEL_FILTER_ALL)
         }

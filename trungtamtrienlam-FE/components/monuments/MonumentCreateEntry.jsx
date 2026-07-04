@@ -53,14 +53,17 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
         ? MonumentProfileConstants.types.private
         : MonumentProfileConstants.types.public
     const canCreate = useMemo(() => canCreateMonument3D(user), [user])
+    const redirectAfterSave = profileType === MonumentProfileConstants.types.private
+        ? '/monument-profile/all?tab=private'
+        : '/monument-profile/verify'
 
     useEffect(() => {
-        router.prefetch?.('/monument-profile/verify')
+        router.prefetch?.(redirectAfterSave)
 
         return () => {
             if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current)
         }
-    }, [router])
+    }, [redirectAfterSave, router])
 
     const handleSaved = useCallback(() => {
         setOpen(false)
@@ -68,9 +71,9 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
         if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current)
         redirectTimerRef.current = window.setTimeout(() => {
             redirectTimerRef.current = null
-            router.replace('/monument-profile/verify')
+            router.replace(redirectAfterSave)
         }, 80)
-    }, [router])
+    }, [redirectAfterSave, router])
 
     if (loading) {
         return (
