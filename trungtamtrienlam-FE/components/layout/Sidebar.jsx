@@ -41,8 +41,49 @@ function getIcon(uniqueKey) {
     )
 }
 
+const ROUTE_ALIASES = {
+    '/monument-profile': '/monument-profile/verify',
+    '/monument/review': '/monument-profile/verify',
+    '/monument/private': '/monument-profile/private',
+    '/monument/all': '/monument-profile/all',
+    '/monument/public/menu': '/websites/menu',
+    '/monument/public/news': '/websites/news',
+    '/monument/public/home': '/websites/home',
+    '/monument/public/about': '/websites/about-us',
+    '/monument/public/config': '/websites/config',
+    '/monument/public/contacts': '/websites/contact',
+    '/monument/public/3d': '/websites/monument-profile/create/public',
+    '/websites/monument-3d': '/websites/monument-profile/create/public',
+    '/tasks': '/tasks/tasks',
+    '/tasks/pending': '/tasks/pendingIssuance',
+    '/tasks/issued': '/tasks/degital',
+    '/ratings/leaderboard': '/ratings/rankings',
+    '/ratings/titles': '/ratings/awards',
+    '/settings/config': '/settings/system',
+    '/settings/notifications': '/settings/notification',
+    '/templates/process': '/templates/formmanagement',
+    '/templates/manage': '/templates',
+    '/wordprocessing': '/templates/wordprocessing',
+}
+
+const ACTIVE_ROUTE_CHILDREN = {
+    '/accounts': ['/accounts/detail', '/accounts/edit', '/accounts/new'],
+    '/archives': ['/archives/detail'],
+    '/documents': ['/documents/detail'],
+    '/tasks/tasks': ['/tasks/detail'],
+    '/websites/news': ['/websites/news/create'],
+    '/monument-profile/verify': ['/monument-profile/view'],
+    '/monument-profile/private': ['/monument-profile/create/private'],
+}
+
+function canonicalizePath(path) {
+    if (!path) return path
+    const cleanPath = path.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
+    return ROUTE_ALIASES[cleanPath] || cleanPath
+}
+
 function normalizeMenuPath(path) {
-    return path === '/monument-profile' ? '/monument-profile/verify' : path
+    return canonicalizePath(path)
 }
 
 function buildMenuTree(items, parentId = null) {
@@ -69,11 +110,15 @@ export default function Sidebar() {
     const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
 
     const isActivePath = useCallback((path) => {
-        if (!path) return false
-        if (pathname === path || pathname.startsWith(path)) return true
-        if (path === '/monument-profile/verify' && pathname.startsWith('/monument-profile/view')) return true
-        if (path === '/monument-profile/verify' && pathname === '/monument-profile') return true
-        return path === '/websites/monument-3d' && pathname.startsWith('/websites/monument-profile/create')
+        const menuPath = canonicalizePath(path)
+        const currentPath = canonicalizePath(pathname)
+        if (!menuPath || !currentPath) return false
+        if (currentPath === menuPath) return true
+
+        return (ACTIVE_ROUTE_CHILDREN[menuPath] || []).some(childPath => {
+            const canonicalChild = canonicalizePath(childPath)
+            return currentPath === canonicalChild || currentPath.startsWith(`${canonicalChild}/`)
+        })
     }, [pathname])
     // Build tree whenever permissions change
     useEffect(() => {
@@ -84,20 +129,20 @@ export default function Sidebar() {
         setMenuItems(buildMenuTree(viewable, null))
     }, [permissions])
 
-    // Auto-expand parent if a child route is active
+    // Auto-expand parent if any descendant route is active
     useEffect(() => {
-        const expand = (items) => {
-            items.forEach(item => {
-                if (item.children?.length) {
-                    const hasActive = item.children.some(c => isActivePath(c.path))
-                    if (hasActive) {
-                        setExpandedMenus(prev => ({ ...prev, [item.id]: true }))
-                    }
-                    expand(item.children)
-                }
-            })
+        const nextExpanded = {}
+
+        const hasActiveDescendant = (item) => {
+            const childIsActive = item.children?.some(child => hasActiveDescendant(child)) || false
+            if (childIsActive) nextExpanded[item.id] = true
+            return isActivePath(item.path) || childIsActive
         }
-        expand(menuItems)
+
+        menuItems.forEach(hasActiveDescendant)
+        if (Object.keys(nextExpanded).length) {
+            setExpandedMenus(prev => ({ ...prev, ...nextExpanded }))
+        }
     }, [isActivePath, menuItems])
 
     const handleResize = useCallback(() => {
