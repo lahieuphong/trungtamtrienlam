@@ -391,6 +391,7 @@ class MonumentListView(APIView):
         flags = _role_flags(request.user)
 
         if view == 1:
+            queryset = queryset.filter(type=Monument.ProfileType.PUBLIC)
             if not flags['is_admin']:
                 owner_workflow_statuses = [
                     Monument.Status.DRAFT,

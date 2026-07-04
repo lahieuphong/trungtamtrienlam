@@ -186,7 +186,11 @@ function formatDate(value) {
 }
 
 function normalizeText(value) {
-    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\u0111\u0110]/g, 'd')
+        .toLowerCase()
 }
 
 function ReasonModal({ open, title, confirmText, onClose, onConfirm, loading }) {
@@ -496,12 +500,31 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         const blockedByRoleLevel = Boolean(currentApprovalLevel && pendingLevel && pendingLevel !== currentApprovalLevel)
         return blockedByPermission || blockedByRoleLevel
     }
+    const isPrivateManagedListView = (isAllMode && view === 2) || mode === 'private'
+    const isOwnerEditableDraftInPrivateList = (item) => (
+        isPrivateManagedListView
+        && isOwnMonument(item)
+        && [
+            MonumentProfileConstants.statuses.draft,
+            MonumentProfileConstants.statuses.redo,
+        ].includes(Number(item.status))
+    )
+
+    const isCurrentReviewerPendingItem = (item) => (
+        Number(item.status) === MonumentProfileConstants.statuses.pendingApproval
+        && currentApprovalLevel
+        && Number(item.pendingLevel) === Number(currentApprovalLevel)
+        && item.permission?.isView !== false
+    )
+
     const isWorkflowItemInManagedListView = (item) => (
         ((isAllMode && (view === 0 || view === 2)) || mode === 'private')
         && [
             MonumentProfileConstants.statuses.draft,
             MonumentProfileConstants.statuses.pendingApproval,
         ].includes(Number(item.status))
+        && !isOwnerEditableDraftInPrivateList(item)
+        && !isCurrentReviewerPendingItem(item)
     )
 
     const isLockedItem = (item) => isWorkflowItemInManagedListView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)

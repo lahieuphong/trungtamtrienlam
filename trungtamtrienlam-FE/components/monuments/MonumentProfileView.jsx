@@ -262,6 +262,11 @@ export default function MonumentProfileView() {
     const [publishOpen, setPublishOpen] = useState(false)
     const currentUserId = useMemo(() => user?.id || user?.userID || user?.userId || user?.ID || null, [user])
     const isAdmin = useMemo(() => isAdminAccount(user), [user])
+    const getMonumentListPath = useCallback((nextMonument = monument) => (
+        Number(nextMonument?.type) === MonumentProfileConstants.types.private
+            ? '/monument-profile/all?tab=private'
+            : '/monument-profile/all'
+    ), [monument])
 
     const loadDetail = useCallback(async () => {
         if (!params?.id) return
@@ -303,7 +308,7 @@ export default function MonumentProfileView() {
             notifyMonumentProfileUpdated()
             setRequestApprovalOpen(false)
             if (data.permission?.isView === false) {
-                router.replace('/monument-profile/all')
+                router.replace(getMonumentListPath())
                 return
             }
             await loadDetail()
@@ -346,7 +351,7 @@ export default function MonumentProfileView() {
             notifyMonumentProfileUpdated()
             setApprovalOpen(false)
             if (data.permission?.isView === false) {
-                router.replace('/monument-profile/all')
+                router.replace(getMonumentListPath(data.monument || monument))
                 return
             }
             await loadDetail()
@@ -377,7 +382,7 @@ export default function MonumentProfileView() {
             }
             notifyMonumentProfileUpdated()
             if (data.permission?.isView === false) {
-                router.replace('/monument-profile/all')
+                router.replace(getMonumentListPath(data.monument || monument))
                 return
             }
             await loadDetail()
@@ -404,7 +409,7 @@ export default function MonumentProfileView() {
             notifyMonumentProfileUpdated()
             setReasonAction(null)
             if ((response?.data || {}).permission?.isView === false) {
-                router.replace('/monument-profile/all')
+                router.replace(getMonumentListPath())
                 return
             }
             await loadDetail()

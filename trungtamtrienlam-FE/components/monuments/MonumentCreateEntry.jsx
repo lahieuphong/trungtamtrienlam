@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, TriangleAlert } from 'lucide-react'
+import { Loader2, Plus, TriangleAlert } from 'lucide-react'
 
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
 import { MonumentProfileConstants } from '@/constants/monumentConstants'
@@ -48,6 +48,7 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
     const router = useRouter()
     const { user, loading } = useAuth()
     const [open, setOpen] = useState(false)
+    const [redirecting, setRedirecting] = useState(false)
     const redirectTimerRef = useRef(null)
     const profileType = alias === 'private'
         ? MonumentProfileConstants.types.private
@@ -67,12 +68,13 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
 
     const handleSaved = useCallback(() => {
         setOpen(false)
+        setRedirecting(true)
 
         if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current)
         redirectTimerRef.current = window.setTimeout(() => {
             redirectTimerRef.current = null
             router.replace(redirectAfterSave)
-        }, 80)
+        }, 260)
     }, [redirectAfterSave, router])
 
     if (loading) {
@@ -100,11 +102,12 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
     }
 
     return (
-        <div className="flex min-h-[calc(100vh-4rem)] flex-1 items-center justify-center bg-[#f7f8fa] p-6">
+        <div className="relative flex min-h-[calc(100vh-4rem)] flex-1 items-center justify-center overflow-hidden bg-[#f7f8fa] p-6">
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="inline-flex items-center rounded-md bg-[#597EF7] px-4 py-2 text-lg font-medium text-white transition hover:bg-[#486BE0] focus:outline-none focus:ring-2 focus:ring-[#597EF7] focus:ring-offset-2"
+                disabled={redirecting}
+                className="inline-flex items-center rounded-md bg-[#597EF7] px-4 py-2 text-lg font-medium text-white transition hover:bg-[#486BE0] focus:outline-none focus:ring-2 focus:ring-[#597EF7] focus:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
                 aria-label="Tạo hồ sơ di tích"
             >
                 <Plus size={24} className="mr-2" />
@@ -116,6 +119,15 @@ export default function MonumentCreateEntry({ alias = 'public' }) {
                 onClose={() => setOpen(false)}
                 onSaved={handleSaved}
             />
+            <div
+                className={`pointer-events-none absolute inset-0 flex items-center justify-center bg-[#f7f8fa]/85 backdrop-blur-[2px] transition duration-200 ease-out ${redirecting ? 'opacity-100' : 'opacity-0'}`}
+                aria-hidden={!redirecting}
+            >
+                <div className={`flex items-center gap-3 rounded-lg border border-[#D6E4FF] bg-white px-5 py-3 text-sm font-medium text-[#2F54EB] shadow-sm transition duration-200 ease-out ${redirecting ? 'translate-y-0 scale-100' : 'translate-y-2 scale-95'}`}>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang mở hồ sơ...
+                </div>
+            </div>
         </div>
     )
 }
