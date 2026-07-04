@@ -308,7 +308,7 @@ export default function MonumentProfileView() {
             notifyMonumentProfileUpdated()
             setRequestApprovalOpen(false)
             if (data.permission?.isView === false) {
-                router.replace(getMonumentListPath())
+                router.replace(getMonumentListPath(data.monument || monument))
                 return
             }
             await loadDetail()
@@ -408,8 +408,9 @@ export default function MonumentProfileView() {
             toast.success(response?.message || (type === 'redo' ? 'Yêu cầu trả về làm lại hồ sơ di tích thành công' : 'Không duyệt hồ sơ di tích thành công'))
             notifyMonumentProfileUpdated()
             setReasonAction(null)
-            if ((response?.data || {}).permission?.isView === false) {
-                router.replace(getMonumentListPath())
+            const data = response?.data || {}
+            if (data.permission?.isView === false) {
+                router.replace(getMonumentListPath(data.monument || monument))
                 return
             }
             await loadDetail()
@@ -453,6 +454,7 @@ export default function MonumentProfileView() {
         MonumentProfileConstants.statuses.approved,
         MonumentProfileConstants.statuses.published,
     ].includes(monumentStatus)
+    const isAdminPrivatePublishBlocked = isAdmin && isPrivate && isApproved
 
     return (
         <div className="p-6">
@@ -493,10 +495,19 @@ export default function MonumentProfileView() {
                         </Button>
                     )}
                     {permission.isPublic && isApproved && (
-                        <Button onClick={() => setPublishOpen(true)} disabled={actionLoading} className="!rounded-lg !bg-[#2F54EB] hover:!bg-[#1D39C4]">
-                            <Check className="h-4 w-4" />
-                            Đẩy lên website
-                        </Button>
+                        <span className={isAdminPrivatePublishBlocked ? 'inline-flex cursor-not-allowed' : 'inline-flex'}>
+                            <Button
+                                onClick={isAdminPrivatePublishBlocked ? undefined : () => setPublishOpen(true)}
+                                disabled={actionLoading || isAdminPrivatePublishBlocked}
+                                className={`!rounded-lg ${isAdminPrivatePublishBlocked ? '!bg-[#BFBFBF] !text-white hover:!bg-[#BFBFBF] !cursor-not-allowed' : '!bg-[#2F54EB] hover:!bg-[#1D39C4]'}`}
+                            >
+                                <span className="inline-flex items-center -space-x-2.5" aria-hidden="true">
+                                    <Check className="h-4 w-4" />
+                                    <Check className="h-4 w-4" />
+                                </span>
+                                Đẩy lên website
+                            </Button>
+                        </span>
                     )}
                 </div>
             </div>

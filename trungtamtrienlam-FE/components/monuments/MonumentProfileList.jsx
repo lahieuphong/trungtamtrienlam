@@ -193,6 +193,31 @@ function normalizeText(value) {
         .toLowerCase()
 }
 
+function isAdminAccount(user) {
+    if (!user) return false
+
+    const roleText = normalizeText([
+        user.position,
+        user.roleName,
+        user.role,
+        user.title,
+        user.userType,
+        user.accountType,
+    ].filter(Boolean).join(' '))
+
+    return Boolean(
+        user.isAdmin
+        || user.is_admin
+        || user.isSuperuser
+        || user.is_superuser
+        || user.isStaffAdmin
+        || user.role?.isAdmin
+        || user.role?.is_admin
+        || roleText.includes('admin')
+        || roleText.includes('quan tri')
+    )
+}
+
 function ReasonModal({ open, title, confirmText, onClose, onConfirm, loading }) {
     const [reason, setReason] = useState('')
 
@@ -286,6 +311,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
     }, [initialTab, isAllMode])
 
     const currentUserId = useMemo(() => user?.id || user?.userID || user?.userId || user?.ID || null, [user])
+    const isAdmin = useMemo(() => isAdminAccount(user), [user])
     const currentApprovalLevel = useMemo(() => {
         const roleText = normalizeText([
             user?.position,
@@ -488,10 +514,10 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
 
     const isOwnMonument = (item) => currentUserId && String(item.userID) === String(currentUserId)
 
-    const isLockedDraft = (item) => Number(item.status) === MonumentProfileConstants.statuses.draft && !isOwnMonument(item)
+    const isLockedDraft = (item) => Number(item.status) === MonumentProfileConstants.statuses.draft && !isOwnMonument(item) && !isAdmin
 
     const isWaitingOtherLevel = (item) => {
-        if (Number(item.status) !== MonumentProfileConstants.statuses.pendingApproval || isOwnMonument(item)) {
+        if (Number(item.status) !== MonumentProfileConstants.statuses.pendingApproval || isOwnMonument(item) || isAdmin) {
             return false
         }
 
@@ -503,7 +529,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
     const isPrivateManagedListView = (isAllMode && view === 2) || mode === 'private'
     const isOwnerEditableDraftInPrivateList = (item) => (
         isPrivateManagedListView
-        && isOwnMonument(item)
+        && (isOwnMonument(item) || isAdmin)
         && [
             MonumentProfileConstants.statuses.draft,
             MonumentProfileConstants.statuses.redo,
@@ -512,8 +538,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
 
     const isCurrentReviewerPendingItem = (item) => (
         Number(item.status) === MonumentProfileConstants.statuses.pendingApproval
-        && currentApprovalLevel
-        && Number(item.pendingLevel) === Number(currentApprovalLevel)
+        && (isAdmin || (currentApprovalLevel && Number(item.pendingLevel) === Number(currentApprovalLevel)))
         && item.permission?.isView !== false
     )
 
@@ -554,11 +579,11 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         shouldHideTemporaryRows
             ? filteredItems.filter((item) => !isMutedItem(item))
             : filteredItems
-    ), [currentApprovalLevel, currentUserId, filteredItems, isAllMode, mode, selectedLevelFilter.hideTemporary, shouldHideTemporaryRows, view])
+    ), [currentApprovalLevel, currentUserId, filteredItems, isAdmin, isAllMode, mode, selectedLevelFilter.hideTemporary, shouldHideTemporaryRows, view])
 
     const displayItems = useMemo(() => (
         visibleItems.map((item) => isLockedItem(item) ? { ...item, isDisabled: true } : item)
-    ), [currentApprovalLevel, currentUserId, isAllMode, mode, view, visibleItems])
+    ), [currentApprovalLevel, currentUserId, isAdmin, isAllMode, mode, view, visibleItems])
 
     const totalItemsForTable = useMemo(() => {
         if (shouldHideTemporaryRows) return visibleItems.length
@@ -572,18 +597,21 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         }
 
         return rows.slice(0, rowIndex).filter((row) => !isMutedItem(row)).length + 1
-    }, [currentApprovalLevel, currentUserId, isAllMode, mode, view])
+    }, [currentApprovalLevel, currentUserId, isAdmin, isAllMode, mode, view])
     const canEditDraft = (item) => {
         const isOwner = currentUserId && String(item.userID) === String(currentUserId)
-        return isOwner && [
+        const canUsePermission = isOwner || item.permission?.isUpdate === true
+        return canUsePermission && [
             MonumentProfileConstants.statuses.draft,
             MonumentProfileConstants.statuses.redo,
+            MonumentProfileConstants.statuses.notApproved,
         ].includes(Number(item.status))
     }
 
     const canDeleteDraft = (item) => {
         const isOwner = currentUserId && String(item.userID) === String(currentUserId)
-        return isOwner && [
+        const canUsePermission = isOwner || item.permission?.isDelete === true
+        return canUsePermission && [
             MonumentProfileConstants.statuses.draft,
             MonumentProfileConstants.statuses.notApproved,
         ].includes(Number(item.status))
