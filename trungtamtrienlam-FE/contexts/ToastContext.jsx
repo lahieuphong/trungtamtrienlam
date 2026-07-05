@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import ToastContainer from "@/components/Toast/ToastContainer"
-import { TOAST_TYPES } from "@/components/Toast/constants"
+import { DEFAULT_TOAST_DURATION_MS, TOAST_TYPES } from "@/components/Toast/constants"
 
 const ToastActionsContext = createContext(null)
 const ToastStateContext = createContext(null)
@@ -27,7 +27,7 @@ export const useToastState = () => {
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
 
-  const addToast = useCallback(({ type = TOAST_TYPES.INFO, message, duration = 5000, position = "top-right" }) => {
+  const addToast = useCallback(({ type = TOAST_TYPES.INFO, message, duration = DEFAULT_TOAST_DURATION_MS, position = "top-right" }) => {
     const id = uuidv4()
     const newToast = {
       id,

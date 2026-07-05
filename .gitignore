@@ -19,6 +19,9 @@ build/
 .env
 .env.*
 !.env.example
+venv/
+.venv/
+/trungtamtrienlam-BE/venv/
 
 # Database
 db.sqlite3

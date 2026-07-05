@@ -238,6 +238,11 @@ export default function Sidebar() {
     const avatarInitial = (displayName || 'U')[0].toUpperCase()
     const avatarUrl = useMemo(() => buildMediaUrl(user?.avatar), [user?.avatar])
 
+    const handleLogout = () => {
+        sessionStorage.setItem('logoutSuccess', 'true')
+        logout()
+    }
+
     useEffect(() => {
         setAvatarLoadFailed(false)
     }, [avatarUrl])
@@ -339,7 +344,7 @@ export default function Sidebar() {
                 {/* Footer */}
                 <div
                     id="footerSidebar"
-                    className={`absolute bottom-0 left-0 border-t border-gray-200 p-2 bg-white h-16 flex items-center ${collapsed && !isMobile ? 'w-16' : 'w-full'}`}
+                    className={`absolute bottom-0 left-0 border-t border-gray-200 p-4 bg-white h-16 flex items-center ${collapsed && !isMobile ? 'w-16' : 'w-full'}`}
                 >
                     {(!collapsed || isMobile) ? (
                         <div className="flex items-center justify-between w-full">
@@ -352,13 +357,16 @@ export default function Sidebar() {
                             </div>
                             <div className="relative">
                                 <input id="sidebarCheck" type="checkbox" className="peer hidden" />
-                                <label htmlFor="sidebarCheck" className="cursor-pointer p-2 block">
-                                    <MoreVertical className="w-4 h-4" />
+                                <label
+                                    htmlFor="sidebarCheck"
+                                    className="block cursor-pointer rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500"
+                                >
+                                    <MoreVertical className="h-4 w-4" />
                                 </label>
                                 <div className="fixed bottom-0 left-[-100%] bg-white shadow-lg rounded-md transition-all duration-300 peer-checked:left-[152px] peer-checked:bottom-[60px] z-50">
                                     <button
-                                        onClick={logout}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full whitespace-nowrap"
+                                        onClick={handleLogout}
+                                        className="flex w-full items-center gap-2 whitespace-nowrap px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-red-50 hover:text-red-600"
                                     >
                                         <LogOut className="w-4 h-4" />
                                         Đăng xuất
@@ -367,7 +375,7 @@ export default function Sidebar() {
                             </div>
                         </div>
                     ) : (
-                        <div className="flex justify-center py-1">
+                        <div className="flex justify-center">
                             {renderUserAvatar()}
                         </div>
                     )}

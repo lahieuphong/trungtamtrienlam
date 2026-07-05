@@ -16,11 +16,11 @@ export default function ToastContainer() {
   }, {})
 
   const positionClasses = {
-    "top-right": "pointer-events-none top-20 right-4 flex flex-col items-end",
-    "top-left": "pointer-events-none top-20 left-4 flex flex-col items-start",
+    "top-right": "pointer-events-none top-4 right-4 flex flex-col items-end",
+    "top-left": "pointer-events-none top-4 left-4 flex flex-col items-start",
     "bottom-right": "pointer-events-none bottom-4 right-4 flex flex-col items-end",
     "bottom-left": "pointer-events-none bottom-4 left-4 flex flex-col items-start",
-    "top-center": "pointer-events-none top-20 left-1/2 -translate-x-1/2 flex flex-col items-center",
+    "top-center": "pointer-events-none top-4 left-1/2 -translate-x-1/2 flex flex-col items-center",
     "bottom-center": "pointer-events-none bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center",
   }
 

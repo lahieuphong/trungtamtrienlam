@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
+import { DEFAULT_TOAST_DURATION_MS } from '@/components/Toast/constants'
 
 export default function LoginPage() {
     const [credentials, setCredentials] = useState({ username: '', password: '' })
@@ -14,6 +16,14 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false)
     const router = useRouter()
     const { login } = useAuth()
+    const toast = useToast()
+
+    useEffect(() => {
+        if (sessionStorage.getItem('logoutSuccess') === 'true') {
+            sessionStorage.removeItem('logoutSuccess')
+            toast.success('Đăng xuất thành công!', { duration: DEFAULT_TOAST_DURATION_MS })
+        }
+    }, [toast])
 
     const handleChange = (e) => {
         const { name, value } = e.target
@@ -26,6 +36,7 @@ export default function LoginPage() {
         setError('')
         try {
             await login(credentials.username, credentials.password)
+            toast.success('Đăng nhập thành công!', { duration: DEFAULT_TOAST_DURATION_MS })
             router.push('/')
         } catch {
             setError('Tài khoản hoặc mật khẩu không chính xác')
