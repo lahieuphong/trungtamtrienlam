@@ -418,6 +418,29 @@ class StaffForgotPasswordView(APIView):
         return ResponseServer.success(message='Đã gửi đường dẫn đặt lại mật khẩu đến email người dùng')
 
 
+class StaffChangePasswordView(APIView):
+    """POST /api/accounts/staff/change-password/"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        staff_id = str(request.data.get('id') or request.data.get('staffID') or '').strip()
+        password = str(request.data.get('password') or request.data.get('newPassword') or '').strip()
+
+        if not password:
+            return ResponseServer.failure(message='Vui lòng nhập mật khẩu mới')
+        if len(password) < 6:
+            return ResponseServer.failure(message='Mật khẩu mới phải có ít nhất 6 ký tự')
+
+        staff = get_staff_by_identifier(staff_id)
+        if not staff or not staff.user:
+            return ResponseServer.not_found(message='Không tìm thấy tài khoản')
+
+        user = staff.user
+        user.set_password(password)
+        user.save(update_fields=['password', 'updated_at'])
+        return ResponseServer.success(message='Đổi mật khẩu thành công')
+
+
 class DropdownRolesView(APIView):
     """GET /api/accounts/dropdown/roles/"""
     permission_classes = [IsAuthenticated]

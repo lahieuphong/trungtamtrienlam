@@ -1,9 +1,9 @@
 "use client"
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import ToastContainer from "@/components/Toast/ToastContainer"
-import { TOAST_TYPES } from "@/components/Toast/constants"
+import { DEFAULT_TOAST_DURATION_MS, TOAST_TYPES } from "@/components/Toast/constants"
 
 const ToastActionsContext = createContext(null)
 const ToastStateContext = createContext(null)
@@ -24,10 +24,25 @@ export const useToastState = () => {
   return context
 }
 
+function isSameToast(toast, nextToast) {
+  return toast.type === nextToast.type
+    && toast.message === nextToast.message
+    && toast.position === nextToast.position
+}
+
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
+  const toastsRef = useRef([])
 
-  const addToast = useCallback(({ type = TOAST_TYPES.INFO, message, duration = 5000, position = "top-right" }) => {
+  const commitToasts = useCallback((nextToasts) => {
+    toastsRef.current = nextToasts
+    setToasts(nextToasts)
+  }, [])
+
+  const addToast = useCallback(({ type = TOAST_TYPES.INFO, message, duration = DEFAULT_TOAST_DURATION_MS, position = "top-right" }) => {
+    const duplicateToast = toastsRef.current.find((toast) => isSameToast(toast, { type, message, position }))
+    if (duplicateToast) return duplicateToast.id
+
     const id = uuidv4()
     const newToast = {
       id,
@@ -37,17 +52,17 @@ export function ToastProvider({ children }) {
       position,
     }
 
-    setToasts((prevToasts) => [...prevToasts, newToast])
+    commitToasts([...toastsRef.current, newToast])
     return id
-  }, [])
+  }, [commitToasts])
 
   const removeToast = useCallback((id) => {
-    setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id))
-  }, [])
+    commitToasts(toastsRef.current.filter((toast) => toast.id !== id))
+  }, [commitToasts])
 
   const updateToast = useCallback((id, newProps) => {
-    setToasts((prevToasts) => prevToasts.map((toast) => (toast.id === id ? { ...toast, ...newProps } : toast)))
-  }, [])
+    commitToasts(toastsRef.current.map((toast) => (toast.id === id ? { ...toast, ...newProps } : toast)))
+  }, [commitToasts])
 
   const success = useCallback(
     (message, options = {}) => addToast({ type: TOAST_TYPES.SUCCESS, message, ...options }),

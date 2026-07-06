@@ -1,12 +1,14 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { ConfigConstants } from '@/constants/configConstants'
 import apiClient from '@/utils/apiClient'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
+    const router = useRouter()
     const [user, setUser] = useState(null)
     const [token, setToken] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -54,7 +56,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('permissionInfo')
         setToken(null)
         setUser(null)
-        window.location.href = '/login'
+        router.replace('/login')
     }
 
     return (

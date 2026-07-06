@@ -74,6 +74,17 @@ function StatusBadge({ status, muted = false }) {
     )
 }
 
+function ForbiddenViewIcon({ title = 'Chưa tới lượt duyệt' }) {
+    return (
+        <span
+            className="relative inline-flex h-5 w-5 items-center justify-center"
+            aria-label={title}
+        >
+            <Eye size={16} className="text-[#BFBFBF]" />
+        </span>
+    )
+}
+
 function LevelFilterDropdown({ options, selectedValue, selectedSteps, open, onToggle, onSelect, dropdownRef }) {
     const primaryOptions = options.filter((filter) => filter.type === null)
     const levelOptions = options.filter((filter) => filter.type !== null)
@@ -552,8 +563,17 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         && !isCurrentReviewerPendingItem(item)
     )
 
-    const isLockedItem = (item) => isWorkflowItemInManagedListView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
+    const cannotViewItem = (item) => item.permission?.isView === false
+    const isReturnedToEmployee = (item) => Number(item.status) === MonumentProfileConstants.statuses.redo
+    const isReturnedToEmployeeForOtherUser = (item) => isReturnedToEmployee(item) && !isOwnMonument(item) && !isAdmin
+    const isForbiddenViewItem = (item) => cannotViewItem(item) || isReturnedToEmployeeForOtherUser(item)
+    const isLockedItem = (item) => isForbiddenViewItem(item) || isWorkflowItemInManagedListView(item) || isLockedDraft(item) || isWaitingOtherLevel(item)
     const isMutedItem = (item) => isLockedItem(item)
+
+    const openMonumentDetail = (item) => {
+        if (isLockedItem(item) || isForbiddenViewItem(item)) return
+        router.push('/monument-profile/view/' + item.id)
+    }
 
     const getPendingReviewerName = (item) => {
         if (Number(item.status) === MonumentProfileConstants.statuses.draft) return 'Nhân viên'
@@ -564,15 +584,30 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         if (pendingLevel === 1) return 'Giám đốc'
         return '-'
     }
-    const getLockedMessage = (item) => {
-        if (Number(item.status) === MonumentProfileConstants.statuses.draft) return 'Bản nháp chưa gửi'
-        return item.pendingLevelName ? `Đang chờ ${item.pendingLevelName}` : 'Chưa tới lượt duyệt'
+    const getLockedWorkflowText = (item, { draftText, waitingPrefix, fallbackText }) => {
+        const status = Number(item.status)
+
+        if (status === MonumentProfileConstants.statuses.draft) return draftText
+        if (status === MonumentProfileConstants.statuses.redo || status === MonumentProfileConstants.statuses.notApproved) return `${waitingPrefix} nhân viên`
+        if (status === MonumentProfileConstants.statuses.pendingApproval) {
+            const reviewerName = getPendingReviewerName(item)
+            if (reviewerName && reviewerName !== '-') return `${waitingPrefix} ${reviewerName}`
+        }
+
+        return fallbackText
     }
 
-    const getLockedActionText = (item) => {
-        if (Number(item.status) === MonumentProfileConstants.statuses.draft) return 'Chưa trình duyệt'
-        return item.pendingLevelName ? `Chờ ${item.pendingLevelName}` : 'Chưa tới lượt'
-    }
+    const getLockedMessage = (item) => getLockedWorkflowText(item, {
+        draftText: 'Bản nháp chưa gửi',
+        waitingPrefix: 'Đang chờ',
+        fallbackText: 'Chưa tới lượt duyệt',
+    })
+
+    const getLockedActionText = (item) => getLockedWorkflowText(item, {
+        draftText: 'Chưa trình duyệt',
+        waitingPrefix: 'Chờ',
+        fallbackText: 'Chưa tới lượt',
+    })
 
     const shouldHideTemporaryRows = ((isAllMode && (view === 0 || view === 2)) || mode === 'private') && selectedLevelFilter.hideTemporary === true
     const visibleItems = useMemo(() => (
@@ -655,15 +690,19 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
             render: (_, item) => {
                 if (isLockedItem(item)) {
                     return (
-                        <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]" title={getLockedMessage(item)}>
-                            <Eye size={16} className="text-[#BFBFBF]" />
+                        <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]">
+                            {isForbiddenViewItem(item) ? (
+                                <ForbiddenViewIcon title={getLockedMessage(item)} />
+                            ) : (
+                                <Eye size={16} className="text-[#BFBFBF]" />
+                            )}
                             <span>{getLockedActionText(item)}</span>
                         </div>
                     )
                 }
                 return (
                     <div className="flex items-center justify-center gap-3">
-                        <button type="button" onClick={() => router.push(`/monument-profile/view/${item.id}`)} aria-label="Xem hồ sơ">
+                        <button type="button" onClick={() => openMonumentDetail(item)} aria-label="Xem hồ sơ">
                             <Eye size={16} className="text-[#2F54EB]" />
                         </button>
                         {canEditDraft(item) && (
@@ -690,8 +729,12 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
         render: (_, item) => {
             if (isLockedItem(item)) {
                 return (
-                    <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]" title={getLockedMessage(item)}>
-                        <Eye size={16} className="text-[#BFBFBF]" />
+                    <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#8C8C8C]">
+                        {isForbiddenViewItem(item) ? (
+                            <ForbiddenViewIcon title={getLockedMessage(item)} />
+                        ) : (
+                            <Eye size={16} className="text-[#BFBFBF]" />
+                        )}
                         <span>{getLockedActionText(item)}</span>
                     </div>
                 )
@@ -699,7 +742,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
 
             return (
                 <div className="flex items-center justify-center gap-3">
-                    <button type="button" onClick={() => router.push(`/monument-profile/view/${item.id}`)} aria-label="Xem hồ sơ">
+                    <button type="button" onClick={() => openMonumentDetail(item)} aria-label="Xem hồ sơ">
                         <Eye size={16} className="text-[#2F54EB]" />
                     </button>
                     {canEditDraft(item) && (

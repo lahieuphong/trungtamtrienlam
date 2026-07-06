@@ -50,19 +50,33 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
     )
 }
 
-export function ConfirmModal({ open, onClose, onConfirm, title = 'Xác nhận', message, loading = false }) {
+export function ConfirmModal({
+    open,
+    onClose,
+    onConfirm,
+    title = 'Xác nhận',
+    message,
+    loading = false,
+    cancelIcon = null,
+    confirmIcon = null,
+}) {
     return (
         <Modal open={open} onClose={onClose} title={title} size="sm"
             footer={
                 <>
-                    <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <button
+                        onClick={onClose}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                        {cancelIcon}
                         Hủy
                     </button>
                     <button
                         onClick={onConfirm}
                         disabled={loading}
-                        className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
                     >
+                        {!loading && confirmIcon}
                         {loading ? 'Đang xử lý...' : 'Xác nhận'}
                     </button>
                 </>

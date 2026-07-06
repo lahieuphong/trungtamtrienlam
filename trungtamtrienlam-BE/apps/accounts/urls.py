@@ -9,6 +9,7 @@ urlpatterns = [
     path('staff/update/', views.StaffUpdateView.as_view(), name='staff-update'),
     path('staff/delete/', views.StaffDeleteView.as_view(), name='staff-delete'),
     path('staff/forgot-password/', views.StaffForgotPasswordView.as_view(), name='staff-forgot-password'),
+    path('staff/change-password/', views.StaffChangePasswordView.as_view(), name='staff-change-password'),
 
     # Dropdowns
     path('dropdown/roles/', views.DropdownRolesView.as_view(), name='dropdown-roles'),

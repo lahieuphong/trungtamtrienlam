@@ -286,7 +286,9 @@ export default function MonumentProfileView() {
             setFiles(data.monumentFiles || [])
             setPermission(data.permission || {})
         } catch (error) {
-            toast.error(error?.response?.data?.message || 'Không tải được hồ sơ di tích')
+            if (error?.response?.status !== 403) {
+                toast.error(error?.response?.data?.message || 'Không tải được hồ sơ di tích')
+            }
             router.replace('/monument-profile/all')
         } finally {
             setLoading(false)
