@@ -977,7 +977,11 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
                 <ConfirmModal
                     open={!!deleteItem}
                     title="Xóa hồ sơ di tích"
-                    message={`Bạn có chắc chắn muốn xóa hồ sơ ${deleteItem?.name || ''}?`}
+                    message={(
+                        <>
+                            Bạn có chắc chắn muốn xóa hồ sơ <strong className="font-semibold text-gray-800">{deleteItem?.name || ''}</strong>?
+                        </>
+                    )}
                     loading={deleteLoading}
                     onClose={() => setDeleteItem(null)}
                     onConfirm={confirmDelete}
