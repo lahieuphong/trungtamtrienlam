@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowRight, Boxes, Check, Download, FileText, Image as ImageIcon, Info, PenLine, RotateCcw, Video, X, ZoomIn, ZoomOut } from 'lucide-react'
 
@@ -146,6 +146,145 @@ function formatFileSize(size) {
     return `${displayValue}${units[unitIndex]}`
 }
 
+function getFileMetadataValue(file, ...keys) {
+    for (const key of keys) {
+        const value = file?.[key]
+        if (Array.isArray(value)) return value
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value
+    }
+
+    return ''
+}
+
+function formatFileMetadataDate(value) {
+    if (!value) return ''
+
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return String(value)
+
+    const pad = (number) => String(number).padStart(2, '0')
+    return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function getFileTopics(file) {
+    const topics = getFileMetadataValue(file, 'topics', 'topicNames', 'topicName')
+    if (Array.isArray(topics)) return topics.filter(Boolean)
+
+    return String(topics || '')
+        .split('|')
+        .map((topic) => topic.trim())
+        .filter(Boolean)
+}
+
+function FileMetadataRow({ label, children }) {
+    return (
+        <div className="grid min-h-9 grid-cols-[108px_minmax(0,1fr)] items-start gap-3 border-b border-[#F0F0F0] py-2 text-sm sm:grid-cols-[120px_minmax(0,1fr)]">
+            <span className="text-[#434547]">{label}</span>
+            <div className="min-w-0 font-semibold leading-5 text-[#1F1F1F]" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{children}</div>
+        </div>
+    )
+}
+
+function FileMetadataPanel({ file, onClose, anchorRef }) {
+    const fileName = file?.fileName || file?.name || 'Tệp đính kèm'
+    const topics = getFileTopics(file)
+    const fileType = Number(file?.type)
+    const timeLabel = fileType === 2 ? 'Thời gian quay' : 'Thời gian chụp'
+    const capturedAt = formatFileMetadataDate(getFileMetadataValue(file, 'capturedAt', 'takenAt', 'recordedAt', 'time', 'createdDate', 'createdAt'))
+    const [panelStyle, setPanelStyle] = useState({ left: 16, top: 16, width: 400, maxHeight: 420 })
+
+    useEffect(() => {
+        const updatePanelPosition = () => {
+            const viewportWidth = window.innerWidth || 1024
+            const viewportHeight = window.innerHeight || 768
+            const width = Math.min(400, viewportWidth - 32)
+            const anchorRect = anchorRef?.current?.getBoundingClientRect()
+
+            if (!anchorRect) {
+                const maxHeight = Math.min(520, viewportHeight - 32)
+                setPanelStyle({
+                    left: Math.max(16, (viewportWidth - width) / 2),
+                    top: Math.max(16, (viewportHeight - maxHeight) / 2),
+                    width,
+                    maxHeight,
+                })
+                return
+            }
+
+            const availableAbove = Math.max(220, anchorRect.top - 24)
+            const maxHeight = Math.min(520, availableAbove, viewportHeight - 32)
+            const top = Math.max(16, anchorRect.top - maxHeight - 12)
+            const left = Math.min(Math.max(16, anchorRect.left), viewportWidth - width - 16)
+
+            setPanelStyle({ left, top, width, maxHeight })
+        }
+
+        updatePanelPosition()
+        window.addEventListener('resize', updatePanelPosition)
+        window.addEventListener('scroll', updatePanelPosition, true)
+
+        return () => {
+            window.removeEventListener('resize', updatePanelPosition)
+            window.removeEventListener('scroll', updatePanelPosition, true)
+        }
+    }, [anchorRef])
+
+    const rows = [
+        ['Mã số tệp tin', getFileMetadataValue(file, 'code', 'fileCode', 'codeFile')],
+        ['Mã cơ quan lưu trữ', getFileMetadataValue(file, 'organizationCode', 'archiveAgencyCode')],
+        ['Số lưu trữ', getFileMetadataValue(file, 'storageNumber')],
+        ['Ký hiệu thông tin', getFileMetadataValue(file, 'informationSympol', 'informationSymbol')],
+        ['Tên sự kiện', getFileMetadataValue(file, 'eventName')],
+        ['Lĩnh vực', getFileMetadataValue(file, 'fieldName')],
+        ['Tiêu đề tập tin', getFileMetadataValue(file, 'title', 'fileTitle') || fileName],
+        ['Tác giả', getFileMetadataValue(file, 'author')],
+        ['Địa điểm', getFileMetadataValue(file, 'location')],
+        [timeLabel, capturedAt],
+        ['Ngôn ngữ', getFileMetadataValue(file, 'language')],
+        ['Chế độ sử dụng', getFileMetadataValue(file, 'usageMode')],
+        ['Chất lượng', getFileMetadataValue(file, 'quality')],
+        ['Tình trạng vật lý', getFileMetadataValue(file, 'physicalStatus')],
+        ['Từ khóa', getFileMetadataValue(file, 'hashTag', 'hashtag', 'keywords')],
+        ['Ghi chú', getFileMetadataValue(file, 'note')],
+        ['Người đăng', getFileMetadataValue(file, 'fullName', 'createdByName', 'createdBy', 'uploadedBy')],
+    ]
+
+    return (
+        <div
+            className="fixed z-[60] origin-bottom-left animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 overflow-visible rounded-md bg-white px-6 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.14)] duration-150"
+            style={{ left: panelStyle.left, top: panelStyle.top, width: panelStyle.width, maxHeight: panelStyle.maxHeight }}
+        >
+            <button
+                type="button"
+                onClick={onClose}
+                className="absolute -right-3 -top-3 z-[70] flex h-7 w-7 items-center justify-center rounded-full bg-white text-[#1F1F1F] shadow-[0_4px_18px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#EF4444] hover:text-white"
+                aria-label="Đóng thông tin file"
+            >
+                <X className="h-4 w-4" />
+            </button>
+            <div className="overflow-y-auto pr-1" style={{ maxHeight: Math.max(188, panelStyle.maxHeight - 32) }}>
+                {rows.slice(0, 6).map(([label, value]) => (
+                    <FileMetadataRow key={label} label={label}>{value}</FileMetadataRow>
+                ))}
+                <FileMetadataRow label="Chủ đề">
+                    {topics.length ? (
+                        <div className="flex flex-wrap gap-1">
+                            {topics.map((topic, index) => (
+                                <span key={`${topic}-${index}`} className="rounded-full border border-[#D9D9D9] bg-[#F5F5F5] px-2 py-0.5 text-xs font-semibold text-[#1F1F1F]">
+                                    {topic}
+                                </span>
+                            ))}
+                        </div>
+                    ) : null}
+                </FileMetadataRow>
+                {rows.slice(6).map(([label, value]) => (
+                    <FileMetadataRow key={label} label={label}>{value}</FileMetadataRow>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 function FileItem({ file, onPreview }) {
     const Icon = getFileIcon(file)
     const fileName = file.fileName || file.name || 'Tệp đính kèm'
@@ -190,14 +329,173 @@ function FileGroup({ title, files, onPreview, className = '' }) {
 
 function FilePreviewModal({ file, onClose }) {
     const [scale, setScale] = useState(1)
+    const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
+    const [isDraggingImage, setIsDraggingImage] = useState(false)
+    const [imageLoadProgress, setImageLoadProgress] = useState(1)
+    const [isImageLoaded, setIsImageLoaded] = useState(false)
     const [showInfo, setShowInfo] = useState(false)
+    const infoButtonRef = useRef(null)
+    const imageFrameRef = useRef(null)
+    const imageRef = useRef(null)
+    const imageDragRef = useRef(null)
+    const imageLoadFinishTimerRef = useRef(null)
+    const scaleRef = useRef(1)
+    const imagePositionRef = useRef({ x: 0, y: 0 })
+
+    const clampImagePosition = useCallback((position, scaleValue) => {
+        const frame = imageFrameRef.current
+        const image = imageRef.current
+
+        if (!frame || !image || scaleValue <= 0) return { x: 0, y: 0 }
+
+        const frameRect = frame.getBoundingClientRect()
+        const imageWidth = image.offsetWidth || image.naturalWidth || 0
+        const imageHeight = image.offsetHeight || image.naturalHeight || 0
+
+        if (!frameRect.width || !frameRect.height || !imageWidth || !imageHeight) return { x: 0, y: 0 }
+
+        const scaledImageWidth = imageWidth * scaleValue
+        const scaledImageHeight = imageHeight * scaleValue
+        const maxX = Math.abs(scaledImageWidth - frameRect.width) / 2
+        const maxY = Math.abs(scaledImageHeight - frameRect.height) / 2
+
+        return {
+            x: Math.min(Math.max(position.x, -maxX), maxX),
+            y: Math.min(Math.max(position.y, -maxY), maxY),
+        }
+    }, [])
+
+    const zoomImage = useCallback((getNextScale, anchor) => {
+        const currentScale = scaleRef.current
+        const rawNextScale = typeof getNextScale === 'function' ? getNextScale(currentScale) : getNextScale
+        const nextScale = Number(Math.min(Math.max(rawNextScale, 1), 5).toFixed(3))
+        const factor = currentScale > 0 ? nextScale / currentScale : 1
+        let nextPosition = imagePositionRef.current
+
+        if (anchor && factor !== 1) {
+            const frameRect = imageFrameRef.current?.getBoundingClientRect()
+
+            if (frameRect) {
+                const anchorX = anchor.clientX - frameRect.left - frameRect.width / 2
+                const anchorY = anchor.clientY - frameRect.top - frameRect.height / 2
+
+                nextPosition = {
+                    x: imagePositionRef.current.x * factor + anchorX * (1 - factor),
+                    y: imagePositionRef.current.y * factor + anchorY * (1 - factor),
+                }
+            }
+        }
+
+        const clampedPosition = clampImagePosition(nextPosition, nextScale)
+        scaleRef.current = nextScale
+        imagePositionRef.current = clampedPosition
+        setScale(nextScale)
+        setImagePosition(clampedPosition)
+    }, [clampImagePosition])
+
+    const handleImageWheel = useCallback((event) => {
+        event.preventDefault()
+        const wheelDelta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY
+        const zoomFactor = Math.exp(-wheelDelta * 0.0015)
+        zoomImage((currentScale) => currentScale * zoomFactor, { clientX: event.clientX, clientY: event.clientY })
+    }, [zoomImage])
+
+    const handleImagePointerDown = useCallback((event) => {
+        if (event.button !== 0) return
+
+        event.preventDefault()
+        event.currentTarget.setPointerCapture?.(event.pointerId)
+        imageDragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startPosition: imagePositionRef.current,
+        }
+        setIsDraggingImage(true)
+    }, [])
+
+    const handleImagePointerMove = useCallback((event) => {
+        const dragState = imageDragRef.current
+        if (!dragState || dragState.pointerId !== event.pointerId) return
+
+        event.preventDefault()
+        const clampedPosition = clampImagePosition({
+            x: dragState.startPosition.x + event.clientX - dragState.startX,
+            y: dragState.startPosition.y + event.clientY - dragState.startY,
+        }, scaleRef.current)
+        imagePositionRef.current = clampedPosition
+        setImagePosition(clampedPosition)
+    }, [clampImagePosition])
+
+    const stopImageDrag = useCallback((event) => {
+        const dragState = imageDragRef.current
+        if (!dragState || dragState.pointerId !== event.pointerId) return
+
+        if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId)
+        }
+
+        imageDragRef.current = null
+        setIsDraggingImage(false)
+    }, [])
 
     useEffect(() => {
+        if (imageLoadFinishTimerRef.current) {
+            clearTimeout(imageLoadFinishTimerRef.current)
+            imageLoadFinishTimerRef.current = null
+        }
+
         if (file) {
+            scaleRef.current = 1
+            imagePositionRef.current = { x: 0, y: 0 }
             setScale(1)
+            setImagePosition({ x: 0, y: 0 })
+            setIsDraggingImage(false)
+            setImageLoadProgress(1)
+            setIsImageLoaded(false)
+            imageDragRef.current = null
             setShowInfo(false)
         }
     }, [file])
+
+    useEffect(() => {
+        if (!file) return undefined
+
+        const extension = getFileExtension(file)
+        const fileType = Number(file?.type)
+        const nextIsImage = fileType === 0 || IMAGE_EXTENSIONS.has(extension)
+
+        if (!nextIsImage) {
+            setImageLoadProgress(100)
+            setIsImageLoaded(true)
+            return undefined
+        }
+
+        setImageLoadProgress(1)
+        setIsImageLoaded(false)
+
+        const progressTimer = window.setInterval(() => {
+            setImageLoadProgress((current) => {
+                if (current >= 95) return current
+
+                const step = Math.max(1, Math.round((95 - current) * 0.12))
+                return Math.min(95, current + step)
+            })
+        }, 120)
+
+        return () => window.clearInterval(progressTimer)
+    }, [file])
+
+    useEffect(() => {
+        const handleResize = () => {
+            const clampedPosition = clampImagePosition(imagePositionRef.current, scaleRef.current)
+            imagePositionRef.current = clampedPosition
+            setImagePosition(clampedPosition)
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [clampImagePosition])
 
     if (!file) return null
 
@@ -235,13 +533,63 @@ function FilePreviewModal({ file, onClose }) {
         }
 
         if (isImage) {
+            const imageCursorClass = isDraggingImage ? 'cursor-grabbing' : 'cursor-grab'
+
             return (
-                <div className="flex max-h-[58vh] min-h-[360px] select-none items-center justify-center overflow-hidden rounded-md bg-white">
+                <div
+                    ref={imageFrameRef}
+                    className={`relative flex max-h-[58vh] min-h-[360px] select-none items-center justify-center overflow-hidden rounded-md bg-white ${imageCursorClass}`}
+                    onWheel={handleImageWheel}
+                    onPointerDown={handleImagePointerDown}
+                    onPointerMove={handleImagePointerMove}
+                    onPointerUp={stopImageDrag}
+                    onPointerCancel={stopImageDrag}
+                    onLostPointerCapture={stopImageDrag}
+                    style={{ touchAction: 'none' }}
+                >
+                    {!isImageLoaded && (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white text-[#434343]">
+                            <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#D9D9D9] border-t-[#2F54EB]" />
+                            <div className="w-56 max-w-[70%] overflow-hidden rounded-full bg-[#F0F0F0]">
+                                <div
+                                    className="h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out"
+                                    style={{ width: `${imageLoadProgress}%` }}
+                                />
+                            </div>
+                            <p className="text-sm font-medium">Đang tải ảnh {imageLoadProgress}%</p>
+                        </div>
+                    )}
                     <img
+                        ref={imageRef}
                         src={previewUrl}
                         alt={fileName}
-                        className="max-h-[58vh] max-w-full select-none object-contain transition-transform"
-                        style={{ transform: `scale(${scale})` }}
+                        draggable={false}
+                        onLoad={() => {
+                            const clampedPosition = clampImagePosition(imagePositionRef.current, scaleRef.current)
+                            imagePositionRef.current = clampedPosition
+                            setImagePosition(clampedPosition)
+                            setImageLoadProgress(100)
+
+                            if (imageLoadFinishTimerRef.current) {
+                                clearTimeout(imageLoadFinishTimerRef.current)
+                            }
+
+                            imageLoadFinishTimerRef.current = window.setTimeout(() => {
+                                setIsImageLoaded(true)
+                                imageLoadFinishTimerRef.current = null
+                            }, 180)
+                        }}
+                        onError={() => {
+                            setImageLoadProgress(100)
+                            setIsImageLoaded(true)
+                        }}
+                        onDragStart={(event) => event.preventDefault()}
+                        className={`max-h-[58vh] max-w-full select-none object-contain transition-opacity duration-200 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                        style={{
+                            transform: `translate3d(${imagePosition.x}px, ${imagePosition.y}px, 0) scale(${scale})`,
+                            transition: isDraggingImage ? 'opacity 200ms ease-out' : 'opacity 200ms ease-out, transform 120ms ease-out',
+                            willChange: 'transform, opacity',
+                        }}
                     />
                 </div>
             )
@@ -286,6 +634,7 @@ function FilePreviewModal({ file, onClose }) {
                     <div className="mt-2 flex items-center justify-between gap-2">
                         <div className="relative flex flex-1 items-center gap-2">
                             <button
+                                ref={infoButtonRef}
                                 type="button"
                                 onClick={() => setShowInfo((current) => !current)}
                                 className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] text-[#1F1F1F] hover:bg-[#F5F5F5]"
@@ -293,37 +642,30 @@ function FilePreviewModal({ file, onClose }) {
                             >
                                 <Info className="h-4 w-4" />
                             </button>
-                            <button
-                                type="button"
-                                onClick={handleDownload}
-                                disabled={!previewUrl}
-                                className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] text-[#1F1F1F] hover:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:opacity-50"
-                                aria-label="Tải xuống"
-                            >
-                                <Download className="h-4 w-4" />
-                            </button>
+                            {!isModel3D && (
+                                <button
+                                    type="button"
+                                    onClick={handleDownload}
+                                    disabled={!previewUrl}
+                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] text-[#1F1F1F] hover:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:opacity-50"
+                                    aria-label="Tải xuống"
+                                >
+                                    <Download className="h-4 w-4" />
+                                </button>
+                            )}
                             {isImage && (
                                 <div className="flex h-8 items-center gap-2 rounded-full border border-[#D9D9D9] px-2 text-[#1F1F1F]">
-                                    <button type="button" onClick={() => setScale((current) => Math.max(current - 0.2, 1))} aria-label="Thu nhỏ">
+                                    <button type="button" onClick={() => zoomImage((current) => current - 0.2)} aria-label="Thu nhỏ">
                                         <ZoomOut className="h-4 w-4" />
                                     </button>
                                     <p className="min-w-10 text-center text-sm text-[#434343]">{Math.round(scale * 100)}%</p>
-                                    <button type="button" onClick={() => setScale((current) => Math.min(current + 0.2, 5))} aria-label="Phóng to">
+                                    <button type="button" onClick={() => zoomImage((current) => current + 0.2)} aria-label="Phóng to">
                                         <ZoomIn className="h-4 w-4" />
                                     </button>
                                 </div>
                             )}
                             {showInfo && (
-                                <div className="absolute bottom-11 left-0 z-10 max-h-[45vh] w-[320px] max-w-[calc(100vw-48px)] overflow-y-auto rounded-md border border-[#D9D9D9] bg-white p-3 shadow-lg sm:w-[360px]">
-                                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-start gap-x-3 gap-y-2 text-sm">
-                                        <span className="text-[#595959]">Tên file</span>
-                                        <span className="min-w-0 break-all font-semibold text-[#1F1F1F]">{fileName}</span>
-                                        <span className="text-[#595959]">Dung lượng</span>
-                                        <span className="min-w-0 font-semibold text-[#1F1F1F]">{fileSize || '-'}</span>
-                                        <span className="text-[#595959]">Định dạng</span>
-                                        <span className="min-w-0 break-all font-semibold uppercase text-[#1F1F1F]">{extension || '-'}</span>
-                                    </div>
-                                </div>
+                                <FileMetadataPanel file={file} onClose={() => setShowInfo(false)} anchorRef={infoButtonRef} />
                             )}
                         </div>
                         <Button variant="danger" onClick={onClose} className="!rounded-lg !bg-[#EF4444] hover:!bg-[#DC2626]">
