@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowRight, Check, FileText, PenLine, RotateCcw, X } from 'lucide-react'
+import { ArrowRight, Boxes, Check, Download, FileText, Image as ImageIcon, Info, PenLine, RotateCcw, Video, X, ZoomIn, ZoomOut } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
@@ -22,7 +22,7 @@ const LEVEL_NAMES = {
 const FILE_GROUPS_PUBLIC = [
     { title: 'Hình đại diện', mode: MonumentFileConstants.modes.imageAvatar },
     { title: 'Hình ảnh hiện vật', mode: MonumentFileConstants.modes.imageObject },
-    { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D },
+    { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D, className: 'md:col-span-2' },
     { title: 'Hình ảnh chi tiết', mode: MonumentFileConstants.modes.imageDetail },
     { title: 'Video', mode: MonumentFileConstants.modes.fileVideo },
 ]
@@ -30,9 +30,9 @@ const FILE_GROUPS_PUBLIC = [
 const FILE_GROUPS_PRIVATE = [
     { title: 'Hình đại diện', mode: MonumentFileConstants.modes.imageAvatar2 },
     { title: 'Kiến trúc', mode: MonumentFileConstants.modes.fileStructure },
+    { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D, className: 'md:col-span-2' },
     { title: 'Hình ảnh bản vẽ kỹ thuật', mode: MonumentFileConstants.modes.imageTech },
     { title: 'Bản đồ khoanh vùng', mode: MonumentFileConstants.modes.fileMap },
-    { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D },
 ]
 
 function normalizeRoleText(value) {
@@ -84,42 +84,255 @@ function StatusBadge({ status }) {
     )
 }
 
+function RequiredLabel({ label }) {
+    const labelText = String(label || '')
+    const isRequired = labelText.trim().endsWith('*')
+    const displayLabel = isRequired ? labelText.replace(/\s*\*$/, '') : labelText
+
+    return (
+        <>
+            {displayLabel}
+            {isRequired && <span className="ml-1 text-[#F5222D]">*</span>}
+        </>
+    )
+}
+
 function FieldValue({ label, value }) {
     return (
         <div className="flex flex-col gap-1">
-            <label className="text-sm font-semibold text-[#434547]">{label}</label>
+            <label className="text-sm font-semibold text-[#434547]"><RequiredLabel label={label} /></label>
             <p className="text-sm font-normal text-[#2F54EB]">{value || '-'}</p>
         </div>
     )
 }
 
-function FileItem({ file }) {
-    const href = buildMediaUrl(file.link || file.path)
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'])
+const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'webm', 'mkv'])
+const MODEL_3D_EXTENSIONS = new Set(['glb', 'gltf', 'obj', 'fbx', 'stl'])
+
+function getFileExtension(file) {
+    const extension = String(file?.extension || '').replace(/^\./, '').toLowerCase()
+    if (extension) return extension
+
+    const fileName = String(file?.fileName || file?.name || '')
+    return fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : ''
+}
+
+function getFileIcon(file) {
+    const extension = getFileExtension(file)
+    const fileType = Number(file?.type)
+
+    if (fileType === 4 || MODEL_3D_EXTENSIONS.has(extension)) return Boxes
+    if (fileType === 2 || VIDEO_EXTENSIONS.has(extension)) return Video
+    if (fileType === 0 || IMAGE_EXTENSIONS.has(extension)) return ImageIcon
+    return FileText
+}
+
+function formatFileSize(size) {
+    const numericSize = Number(size)
+    if (!Number.isFinite(numericSize) || numericSize <= 0) return ''
+
+    const units = ['KB', 'MB', 'GB', 'TB']
+    let value = numericSize < 1024 ? numericSize : numericSize / 1024
+    let unitIndex = 0
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024
+        unitIndex += 1
+    }
+
+    const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2
+    const displayValue = value.toFixed(precision).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
+    return `${displayValue}${units[unitIndex]}`
+}
+
+function FileItem({ file, onPreview }) {
+    const Icon = getFileIcon(file)
+    const fileName = file.fileName || file.name || 'Tệp đính kèm'
+    const fileSize = formatFileSize(file.size)
 
     return (
-        <a
-            href={href || undefined}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#434547] hover:border-[#597EF7] hover:text-[#2F54EB]"
+        <button
+            type="button"
+            onClick={() => onPreview?.(file)}
+            className="inline-flex w-full cursor-pointer justify-between gap-2 rounded-md border border-[#D9D9D9] bg-white p-2 text-left text-sm transition-colors hover:bg-[#E6E6E6]"
         >
-            <FileText className="h-4 w-4 flex-shrink-0 text-[#597EF7]" />
-            <span className="truncate">{file.fileName || file.name || 'Tệp đính kèm'}</span>
-        </a>
+            <div className="flex min-w-0 items-center gap-3">
+                <Icon className="h-[30px] w-[30px] flex-shrink-0 text-[#1F1F1F]" />
+                <div className="min-w-0">
+                    <p className="w-full break-words text-sm text-[#1F1F1F]">{fileName}</p>
+                    {fileSize && (
+                        <div className="mt-1 flex items-center gap-2">
+                            <p className="break-words text-sm text-[#8C8C8C]">{fileSize}</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+            <div className="flex items-center gap-1" />
+        </button>
     )
 }
 
-function FileGroup({ title, files }) {
+function FileGroup({ title, files, onPreview, className = '' }) {
     return (
-        <div className="flex flex-col gap-2">
+        <div className={`flex flex-col gap-2 ${className}`}>
             <label className="text-sm font-semibold text-[#434547]">{title}</label>
             {files.length ? (
                 <div className="flex flex-col gap-2">
-                    {files.map((file, index) => <FileItem key={`${file.id || file.fileName}-${index}`} file={file} />)}
+                    {files.map((file, index) => <FileItem key={`${file.id || file.fileName}-${index}`} file={file} onPreview={onPreview} />)}
                 </div>
             ) : (
                 <p className="text-sm text-[#8C8C8C]">Chưa có dữ liệu</p>
             )}
+        </div>
+    )
+}
+
+function FilePreviewModal({ file, onClose }) {
+    const [scale, setScale] = useState(1)
+    const [showInfo, setShowInfo] = useState(false)
+
+    useEffect(() => {
+        if (file) {
+            setScale(1)
+            setShowInfo(false)
+        }
+    }, [file])
+
+    if (!file) return null
+
+    const previewUrl = buildMediaUrl(file.link || file.path || file.file || file.File)
+    const fileName = file.fileName || file.name || 'Tệp đính kèm'
+    const fileSize = formatFileSize(file.size)
+    const extension = getFileExtension(file)
+    const fileType = Number(file?.type)
+    const isImage = fileType === 0 || IMAGE_EXTENSIONS.has(extension)
+    const isVideo = fileType === 2 || VIDEO_EXTENSIONS.has(extension)
+    const isModel3D = fileType === 4 || MODEL_3D_EXTENSIONS.has(extension)
+    const isPdf = extension === 'pdf'
+    const Icon = getFileIcon(file)
+
+    const handleDownload = () => {
+        if (!previewUrl) return
+
+        const link = document.createElement('a')
+        link.href = previewUrl
+        link.download = fileName
+        link.target = '_blank'
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+    }
+
+    const renderPreview = () => {
+        if (!previewUrl) {
+            return (
+                <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-md bg-[#F5F5F5] text-center text-sm text-[#595959]">
+                    <Icon className="h-12 w-12 text-[#8C8C8C]" />
+                    <p>Không tìm thấy đường dẫn tệp tin</p>
+                </div>
+            )
+        }
+
+        if (isImage) {
+            return (
+                <div className="flex max-h-[58vh] min-h-[360px] select-none items-center justify-center overflow-hidden rounded-md bg-white">
+                    <img
+                        src={previewUrl}
+                        alt={fileName}
+                        className="max-h-[58vh] max-w-full select-none object-contain transition-transform"
+                        style={{ transform: `scale(${scale})` }}
+                    />
+                </div>
+            )
+        }
+
+        if (isVideo) {
+            return (
+                <div className="rounded-md bg-[#F5F5F5] p-2">
+                    <video src={previewUrl} controls className="max-h-[58vh] w-full rounded-md bg-black" />
+                </div>
+            )
+        }
+
+        if (isPdf) {
+            return (
+                <iframe
+                    title={fileName}
+                    src={`${previewUrl}#toolbar=0&navpanes=0`}
+                    className="h-[58vh] w-full rounded-md border border-[#D9D9D9]"
+                />
+            )
+        }
+
+        return (
+            <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-md bg-[#F5F5F5] text-center text-sm text-[#595959]">
+                <Icon className="h-12 w-12 text-[#8C8C8C]" />
+                <p>{isModel3D ? 'Tệp 3D chưa hỗ trợ xem trực tiếp tại đây' : 'Tệp này chưa hỗ trợ xem trực tiếp tại đây'}</p>
+                <a href={previewUrl} target="_blank" rel="noreferrer" className="rounded-md bg-[#597EF7] px-3 py-2 text-sm font-medium text-white hover:bg-[#2F54EB]">
+                    Mở tệp
+                </a>
+            </div>
+        )
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/45" onClick={onClose} />
+            <div className="relative w-full max-w-[768px] rounded-md bg-white p-4 shadow-xl">
+                {renderPreview()}
+                <div className="mt-4">
+                    <p className="break-words text-sm text-[#1F1F1F]">{fileName}</p>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="relative flex flex-1 items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowInfo((current) => !current)}
+                                className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] text-[#1F1F1F] hover:bg-[#F5F5F5]"
+                                aria-label="Thông tin file"
+                            >
+                                <Info className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDownload}
+                                disabled={!previewUrl}
+                                className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] text-[#1F1F1F] hover:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:opacity-50"
+                                aria-label="Tải xuống"
+                            >
+                                <Download className="h-4 w-4" />
+                            </button>
+                            {isImage && (
+                                <div className="flex h-8 items-center gap-2 rounded-full border border-[#D9D9D9] px-2 text-[#1F1F1F]">
+                                    <button type="button" onClick={() => setScale((current) => Math.max(current - 0.2, 1))} aria-label="Thu nhỏ">
+                                        <ZoomOut className="h-4 w-4" />
+                                    </button>
+                                    <p className="min-w-10 text-center text-sm text-[#434343]">{Math.round(scale * 100)}%</p>
+                                    <button type="button" onClick={() => setScale((current) => Math.min(current + 0.2, 5))} aria-label="Phóng to">
+                                        <ZoomIn className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            )}
+                            {showInfo && (
+                                <div className="absolute bottom-11 left-0 z-10 max-h-[45vh] w-[320px] max-w-[calc(100vw-48px)] overflow-y-auto rounded-md border border-[#D9D9D9] bg-white p-3 shadow-lg sm:w-[360px]">
+                                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-start gap-x-3 gap-y-2 text-sm">
+                                        <span className="text-[#595959]">Tên file</span>
+                                        <span className="min-w-0 break-all font-semibold text-[#1F1F1F]">{fileName}</span>
+                                        <span className="text-[#595959]">Dung lượng</span>
+                                        <span className="min-w-0 font-semibold text-[#1F1F1F]">{fileSize || '-'}</span>
+                                        <span className="text-[#595959]">Định dạng</span>
+                                        <span className="min-w-0 break-all font-semibold uppercase text-[#1F1F1F]">{extension || '-'}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <Button variant="danger" onClick={onClose} className="!rounded-lg !bg-[#EF4444] hover:!bg-[#DC2626]">
+                            <X className="h-4 w-4" />
+                            Đóng
+                        </Button>
+                    </div>
+                </div>
+            </div>
         </div>
     )
 }
@@ -260,6 +473,7 @@ export default function MonumentProfileView() {
     const [approvalOpen, setApprovalOpen] = useState(false)
     const [requestApprovalOpen, setRequestApprovalOpen] = useState(false)
     const [publishOpen, setPublishOpen] = useState(false)
+    const [previewFile, setPreviewFile] = useState(null)
     const currentUserId = useMemo(() => user?.id || user?.userID || user?.userId || user?.ID || null, [user])
     const isAdmin = useMemo(() => isAdminAccount(user), [user])
     const getMonumentListPath = useCallback((nextMonument = monument) => (
@@ -554,7 +768,7 @@ export default function MonumentProfileView() {
                     <>
                         <div className="h-px bg-[#F0F0F0]" />
                         <div className="flex flex-col gap-3">
-                            <label className="text-sm font-semibold text-[#434547]">Nội dung *</label>
+                            <label className="text-sm font-semibold text-[#434547]"><RequiredLabel label="Nội dung *" /></label>
                             {sections.length ? sections.map((section, index) => <SectionView key={`${section.id || index}`} section={section} />) : <p className="text-sm text-[#8C8C8C]">Chưa có dữ liệu</p>}
                         </div>
                     </>
@@ -562,7 +776,7 @@ export default function MonumentProfileView() {
 
                 <div className="h-px bg-[#F0F0F0]" />
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    {fileGroups.map((group) => <FileGroup key={group.title} title={group.title} files={group.files} />)}
+                    {fileGroups.map((group) => <FileGroup key={group.title} title={group.title} files={group.files} onPreview={setPreviewFile} className={group.className} />)}
                 </div>
             </div>
 
@@ -593,6 +807,7 @@ export default function MonumentProfileView() {
                 onConfirm={confirmReasonAction}
                 loading={actionLoading}
             />
+            <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
             <MonumentCreateModal
                 open={editOpen}
                 itemId={monument.id}
