@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowRight, Boxes, Check, Download, FileText, Image as ImageIcon, Info, PenLine, RotateCcw, Video, X, ZoomIn, ZoomOut } from 'lucide-react'
 
@@ -13,6 +14,21 @@ import { buildMediaUrl } from '@/lib/mediaUrl'
 import { notifyMonumentProfileUpdated } from '@/lib/monumentRealtime'
 import * as monumentApi from '@/lib/api/monumentsApi'
 
+const GlbViewer = dynamic(() => import('@/components/monuments/GlbViewer'), {
+    ssr: false,
+    loading: () => (
+        <div className="flex h-[58vh] min-h-[360px] flex-col items-center justify-center gap-3 rounded-md bg-[#F5F5F5] text-[#434343]">
+            <Boxes className="h-11 w-11 text-[#8C8C8C]" />
+            <div className="w-60 max-w-[72%] overflow-hidden rounded-full bg-[#E5E7EB]">
+                <div className="h-2 w-1/2 animate-pulse rounded-full bg-[#2F54EB]" />
+            </div>
+            <p className="text-sm font-medium">Đang chuẩn bị mô hình 3D</p>
+        </div>
+    ),
+})
+
+const RICH_TEXT_CONTENT_CLASS_NAME = '[&_p]:my-2 [&_div]:my-2 [&_h1]:my-3 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h5]:my-2 [&_h5]:text-sm [&_h5]:font-semibold [&_a]:text-[#2F54EB] [&_a]:underline [&_a]:break-words [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1'
+
 const LEVEL_NAMES = {
     [MonumentProfileConstants.levelObjects.specialNation]: 'Cấp quốc gia đặc biệt',
     [MonumentProfileConstants.levelObjects.nation]: 'Cấp quốc gia',
@@ -20,6 +36,8 @@ const LEVEL_NAMES = {
 }
 
 const FILE_GROUPS_PUBLIC = [
+    { title: 'Quyết định công nhận', mode: MonumentFileConstants.modes.fileRecognitionDecision },
+    { title: 'Xếp hạng', mode: MonumentFileConstants.modes.fileRating },
     { title: 'Hình đại diện', mode: MonumentFileConstants.modes.imageAvatar },
     { title: 'Hình ảnh hiện vật', mode: MonumentFileConstants.modes.imageObject },
     { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D, className: 'md:col-span-2' },
@@ -28,6 +46,8 @@ const FILE_GROUPS_PUBLIC = [
 ]
 
 const FILE_GROUPS_PRIVATE = [
+    { title: 'Quyết định công nhận', mode: MonumentFileConstants.modes.fileRecognitionDecision },
+    { title: 'Xếp hạng', mode: MonumentFileConstants.modes.fileRating },
     { title: 'Hình đại diện', mode: MonumentFileConstants.modes.imageAvatar2 },
     { title: 'Kiến trúc', mode: MonumentFileConstants.modes.fileStructure },
     { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D, className: 'md:col-span-2' },
@@ -327,6 +347,121 @@ function FileGroup({ title, files, onPreview, className = '' }) {
     )
 }
 
+function VideoPreview({ src, fileName }) {
+    const videoRef = useRef(null)
+    const progressValueRef = useRef(1)
+    const progressTargetRef = useRef(1)
+    const revealTimerRef = useRef(null)
+    const [progress, setProgress] = useState(1)
+    const [isVideoReady, setIsVideoReady] = useState(false)
+    const [hasVideoError, setHasVideoError] = useState(false)
+
+    const updateProgressTarget = useCallback((target) => {
+        progressTargetRef.current = Math.max(progressTargetRef.current, target)
+    }, [])
+
+    const revealVideo = useCallback(() => {
+        updateProgressTarget(100)
+
+        if (revealTimerRef.current) {
+            window.clearInterval(revealTimerRef.current)
+        }
+
+        revealTimerRef.current = window.setInterval(() => {
+            if (progressValueRef.current < 99.5) return
+
+            progressValueRef.current = 100
+            setProgress(100)
+            setIsVideoReady(true)
+            window.clearInterval(revealTimerRef.current)
+            revealTimerRef.current = null
+        }, 40)
+    }, [updateProgressTarget])
+
+    useEffect(() => {
+        progressValueRef.current = 1
+        progressTargetRef.current = 1
+        setProgress(1)
+        setIsVideoReady(false)
+        setHasVideoError(false)
+
+        const progressTimer = window.setInterval(() => {
+            if (progressTargetRef.current < 92) {
+                progressTargetRef.current = Math.min(92, progressTargetRef.current + 0.6)
+            }
+
+            const current = progressValueRef.current
+            const target = progressTargetRef.current
+            if (current >= target) return
+
+            const distance = target - current
+            const step = Math.max(target >= 100 ? 2.6 : 0.8, distance * (target >= 100 ? 0.22 : 0.08))
+            const nextProgress = Math.min(target, current + step)
+
+            progressValueRef.current = nextProgress
+            setProgress(Math.max(1, Math.min(100, Math.round(nextProgress))))
+        }, 90)
+
+        return () => {
+            window.clearInterval(progressTimer)
+            if (revealTimerRef.current) {
+                window.clearInterval(revealTimerRef.current)
+                revealTimerRef.current = null
+            }
+        }
+    }, [src])
+
+    const handleVideoProgress = useCallback(() => {
+        const video = videoRef.current
+        if (!video || !Number.isFinite(video.duration) || video.duration <= 0 || !video.buffered?.length) return
+
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1)
+        const bufferedPercent = Math.min(1, Math.max(0, bufferedEnd / video.duration))
+        updateProgressTarget(Math.min(96, 8 + bufferedPercent * 88))
+    }, [updateProgressTarget])
+
+    return (
+        <div className="relative overflow-hidden rounded-md bg-black">
+            {!isVideoReady && !hasVideoError && (
+                <div className="absolute inset-0 z-10 flex min-h-[360px] flex-col items-center justify-center gap-3 bg-[#F5F5F5] text-[#434343]">
+                    <Video className="h-11 w-11 text-[#8C8C8C]" />
+                    <div className="w-60 max-w-[72%] overflow-hidden rounded-full bg-[#E5E7EB]">
+                        <div
+                            className="h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out"
+                            style={{ width: `${progress}%` }}
+                        />
+                    </div>
+                    <p className="text-sm font-medium">Đang tải video {progress}%</p>
+                </div>
+            )}
+
+            {hasVideoError && (
+                <div className="absolute inset-0 z-10 flex min-h-[360px] flex-col items-center justify-center gap-3 bg-[#F5F5F5] text-center text-sm text-[#595959]">
+                    <Video className="h-12 w-12 text-[#8C8C8C]" />
+                    <p>Không thể tải video này.</p>
+                </div>
+            )}
+
+            <video
+                ref={videoRef}
+                src={src}
+                controls
+                preload="auto"
+                playsInline
+                title={fileName}
+                onLoadedMetadata={() => updateProgressTarget(42)}
+                onLoadedData={() => updateProgressTarget(72)}
+                onProgress={handleVideoProgress}
+                onCanPlay={revealVideo}
+                onError={() => {
+                    setHasVideoError(true)
+                    setProgress(100)
+                }}
+                className={`max-h-[58vh] w-full rounded-md bg-black transition-opacity duration-200 ${isVideoReady && !hasVideoError ? 'opacity-100' : 'opacity-0'}`}
+            />
+        </div>
+    )
+}
 function FilePreviewModal({ file, onClose }) {
     const [scale, setScale] = useState(1)
     const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
@@ -595,12 +730,12 @@ function FilePreviewModal({ file, onClose }) {
             )
         }
 
+        if (isModel3D && ['glb', 'gltf'].includes(extension)) {
+            return <GlbViewer src={previewUrl} fileName={fileName} />
+        }
+
         if (isVideo) {
-            return (
-                <div className="rounded-md bg-[#F5F5F5] p-2">
-                    <video src={previewUrl} controls className="max-h-[58vh] w-full rounded-md bg-black" />
-                </div>
-            )
+            return <VideoPreview src={previewUrl} fileName={fileName} />
         }
 
         if (isPdf) {
@@ -776,29 +911,67 @@ function PublishConfirmModal({ open, onClose, onConfirm, loading }) {
         </div>
     )
 }
+function SectionImage({ section, imageUrl }) {
+    if (!imageUrl) return null
+
+    return (
+        <img
+            src={imageUrl}
+            alt={section.fileName || 'Section'}
+            className="h-full min-h-[220px] w-full rounded-md object-cover"
+        />
+    )
+}
+
+function SectionContent({ content }) {
+    if (!content) return null
+
+    return (
+        <div
+            className={`max-w-none rounded-md bg-white text-sm leading-6 text-[#1F2937] ${RICH_TEXT_CONTENT_CLASS_NAME}`}
+            dangerouslySetInnerHTML={{ __html: content }}
+        />
+    )
+}
+
 function SectionView({ section }) {
+    const type = Number(section.type)
     const imageUrl = buildMediaUrl(section.fileLink)
-    const hasImage = [
-        MonumentSectionConstants.types.image,
-        MonumentSectionConstants.types.imageContent,
-        MonumentSectionConstants.types.contentImage,
-    ].includes(Number(section.type))
-    const hasContent = [
-        MonumentSectionConstants.types.content,
-        MonumentSectionConstants.types.imageContent,
-        MonumentSectionConstants.types.contentImage,
-    ].includes(Number(section.type))
+    const image = <SectionImage section={section} imageUrl={imageUrl} />
+    const content = <SectionContent content={section.content || ''} />
+
+    if (type === MonumentSectionConstants.types.image) {
+        return (
+            <div className="rounded-md border border-[#E5E7EB] p-3">
+                {image || <p className="text-sm text-[#8C8C8C]">Chưa có hình ảnh</p>}
+            </div>
+        )
+    }
+
+    if (type === MonumentSectionConstants.types.content) {
+        return (
+            <div className="rounded-md border border-[#E5E7EB] p-3">
+                {content || <p className="text-sm text-[#8C8C8C]">Chưa có nội dung</p>}
+            </div>
+        )
+    }
+
+    const slots = type === MonumentSectionConstants.types.contentImage
+        ? [content, image]
+        : [image, content]
 
     return (
         <div className="rounded-md border border-[#E5E7EB] p-3">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {hasImage && imageUrl && <img src={imageUrl} alt={section.fileName || 'Section'} className="w-full rounded-md object-cover" />}
-                {hasContent && <div className="text-sm leading-6 text-[#434547]" dangerouslySetInnerHTML={{ __html: section.content || '' }} />}
+            <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
+                {slots.map((slot, index) => (
+                    <div key={index} className="min-h-[220px]">
+                        {slot || <p className="text-sm text-[#8C8C8C]">Chưa có dữ liệu</p>}
+                    </div>
+                ))}
             </div>
         </div>
     )
 }
-
 export default function MonumentProfileView() {
     const params = useParams()
     const router = useRouter()

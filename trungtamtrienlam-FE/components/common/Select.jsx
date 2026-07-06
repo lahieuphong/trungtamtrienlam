@@ -28,6 +28,7 @@ export function Select({
     error = false,
     errorMessage = '',
     searchable = true,
+    showPlaceholderOption = true,
 }) {
     const wrapperRef = useRef(null)
     const searchRef = useRef(null)
@@ -122,7 +123,7 @@ export function Select({
                     )}
 
                     <div className="max-h-64 overflow-y-auto py-1" role="listbox">
-                        {placeholder && !query && (
+                        {showPlaceholderOption && placeholder && !query && (
                             <button
                                 type="button"
                                 className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50"
