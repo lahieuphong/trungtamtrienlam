@@ -24,6 +24,14 @@ export const updatePermission = async (payload = { departmentID: '', roleID: '',
     }
 }
 
+export const setAllPermissions = async (payload = { departmentID: '', roleID: '', enabled: true }) => {
+    try {
+        return (await apiClient.post('/auth/permissions/set-all/', payload)).data
+    } catch (error) {
+        throw error
+    }
+}
+
 export const clonePermission = async (payload = {
     newDepartmentID: '',
     newRoleID: '',

@@ -20,6 +20,7 @@ urlpatterns = [
     path('permissions/by-user/', views.UserMenuPermissionsView.as_view(), name='user-menu-permissions'),
     path('permissions/matrix/', views.PermissionMatrixView.as_view(), name='permission-matrix'),
     path('permissions/toggle/', views.PermissionToggleView.as_view(), name='permission-toggle'),
+    path('permissions/set-all/', views.PermissionSetAllView.as_view(), name='permission-set-all'),
     path('permissions/clone/', views.PermissionCloneView.as_view(), name='permission-clone'),
     path('', include(router.urls)),
 ]

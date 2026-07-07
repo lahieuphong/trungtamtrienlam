@@ -40,7 +40,7 @@ class HasModulePermission(BasePermission):
 
 def user_has_permission(user, function_key, action_code):
     from apps.accounts.models import UserConcurrently
-    from apps.authentication.models import Function, Permission
+    from apps.authentication.models import Function, Permission, Role
 
     role_ids = set(user.user_roles.values_list('role_id', flat=True))
     scoped_permission_q = Q(pk__isnull=True)
@@ -68,7 +68,11 @@ def user_has_permission(user, function_key, action_code):
         pass
     function_ids = Function.objects.filter(function_q, is_deleted=False).values_list('id', flat=True)
 
-    permission_q = Q(role_id__in=list(role_ids), department__isnull=True)
+    global_role_ids = set(Role.objects.filter(
+        id__in=list(role_ids),
+        is_deleted=False,
+    ).filter(Q(is_admin=True) | Q(is_director=True)).values_list('id', flat=True))
+    permission_q = Q(role_id__in=list(global_role_ids), department__isnull=True)
     if has_scoped_permissions:
         permission_q |= scoped_permission_q
 

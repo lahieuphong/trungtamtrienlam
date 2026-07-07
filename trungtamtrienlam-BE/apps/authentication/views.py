@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q
 from core.response import ResponseServer
 from core.permissions import HasModulePermission
@@ -34,7 +35,7 @@ def is_uuid(value):
 
 
 def role_uses_global_permission_scope(role):
-    return bool(role.is_admin or role.is_director or role.is_vice_director)
+    return bool(role.is_admin or role.is_director)
 
 
 def get_permission_department_scope(role, raw_department_id):
@@ -305,6 +306,75 @@ class PermissionToggleView(APIView):
             return ResponseServer.success(message='Đã thu hồi quyền')
         return ResponseServer.success(message='Đã cấp quyền')
 
+class PermissionSetAllView(APIView):
+    """POST /api/auth/permissions/set-all/"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        role_id = str(request.data.get('roleID', '')).strip()
+        raw_department_id = str(request.data.get('departmentID', '') or '').strip()
+        raw_enabled = request.data.get('enabled', True)
+
+        if not role_id:
+            return ResponseServer.failure(message='Thiếu roleID')
+
+        try:
+            role = Role.objects.get(id=role_id, is_deleted=False)
+        except Role.DoesNotExist:
+            return ResponseServer.not_found(message='Không tìm thấy vai trò')
+
+        department_id, scope_error = get_permission_department_scope(role, raw_department_id)
+        if scope_error:
+            return ResponseServer.failure(message=scope_error)
+
+        if isinstance(raw_enabled, str):
+            enabled = raw_enabled.strip().lower() in {'1', 'true', 'yes', 'on'}
+        else:
+            enabled = bool(raw_enabled)
+
+        with transaction.atomic():
+            scope_permissions = Permission.objects.filter(role=role, department_id=department_id)
+            if not enabled:
+                deleted_count, _ = scope_permissions.delete()
+                return ResponseServer.success(
+                    message='Đã thu hồi tất cả quyền',
+                    data={'enabled': False, 'changed': deleted_count},
+                )
+
+            actions_by_code = {
+                action.code: action
+                for action in Action.objects.filter(code__in=ACTION_CODES)
+            }
+            existing_permissions = set(
+                scope_permissions.values_list('function_id', 'action__code')
+            )
+            permissions_to_create = []
+            functions = (
+                Function.objects.filter(is_deleted=False)
+                .prefetch_related('function_actions__action')
+                .order_by('sort_order')
+            )
+
+            for function in functions:
+                for action_code in get_allowed_actions_for_function(function):
+                    action = actions_by_code.get(action_code)
+                    if not action or (function.id, action_code) in existing_permissions:
+                        continue
+                    permissions_to_create.append(Permission(
+                        role=role,
+                        department_id=department_id,
+                        function=function,
+                        action=action,
+                    ))
+
+            Permission.objects.bulk_create(permissions_to_create, ignore_conflicts=True)
+
+        return ResponseServer.success(
+            message='Đã cấp tất cả quyền',
+            data={'enabled': True, 'changed': len(permissions_to_create)},
+        )
+
+
 class PermissionCloneView(APIView):
     """POST /api/auth/permissions/clone/ or GET /api/Permissions/Clone"""
     permission_classes = [IsAuthenticated]
@@ -393,7 +463,11 @@ class UserMenuPermissionsView(APIView):
             if not role_ids:
                 functions = Function.objects.none()
             else:
-                permission_q = Q(role_id__in=list(role_ids), department__isnull=True)
+                global_role_ids = set(Role.objects.filter(
+                    id__in=list(role_ids),
+                    is_deleted=False,
+                ).filter(Q(is_admin=True) | Q(is_director=True)).values_list('id', flat=True))
+                permission_q = Q(role_id__in=list(global_role_ids), department__isnull=True)
                 if has_scoped_permissions:
                     permission_q |= scoped_permission_q
 

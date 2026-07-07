@@ -10,7 +10,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
-from apps.authentication.models import Role, UserRole
+from apps.authentication.models import Role
 from core.response import ResponseServer
 
 from .models import Monument, MonumentFile, MonumentHistory, MonumentSection
@@ -66,6 +66,13 @@ REQUIRED_COMMON_FIELDS = {
     'location': 'Vui lòng nhập vị trí',
 }
 
+
+REVIEW_ROLE_FILTER = (
+    Q(is_director=True)
+    | Q(is_vice_director=True)
+    | Q(can_assign_task=True)
+    | Q(can_see_department_tasks=True)
+)
 
 def _as_int(value, default=None):
     if value in (None, ''):
@@ -190,7 +197,7 @@ def _normalize_role_text(value):
 
 def _role_level_aliases(user, roles):
     levels = set()
-    role_text = ' '.join([getattr(user, 'position', '') or '', *[role.name or '' for role in roles]])
+    role_text = ' '.join(role.name or '' for role in roles)
     normalized = _normalize_role_text(role_text)
 
     if any(role.is_vice_director for role in roles) or 'pho giam doc' in normalized:
@@ -209,7 +216,7 @@ def _user_roles(user):
     if not user or not user.is_authenticated:
         return Role.objects.none()
     return Role.objects.filter(
-        role_users__user=user,
+        Q(role_users__user=user) | Q(user_concurrentlies__user=user, user_concurrentlies__is_deleted=False),
         is_deleted=False,
         is_disabled=False,
     ).distinct()
@@ -247,39 +254,35 @@ def _permission_for(user, monument):
     flags = _role_flags(user)
     is_owner = monument.user_id == user.id
     is_admin = flags['is_admin']
-    can_current_level = _can_act_at_level(user, monument.pending_level)
-    can_request_from_owner = is_owner and monument.status in (
-        Monument.Status.DRAFT,
-        Monument.Status.REDO,
-        Monument.Status.NOT_APPROVED,
-    )
-    can_forward = (
-        monument.status == Monument.Status.PENDING_APPROVAL
-        and monument.pending_level in (3, 2)
-        and can_current_level
-    )
-    can_final_approve = (
-        monument.status == Monument.Status.PENDING_APPROVAL
-        and monument.pending_level == 1
-        and can_current_level
-    )
     is_pending_approval = monument.status == Monument.Status.PENDING_APPROVAL
+    can_current_level = _can_act_at_level(user, monument.pending_level)
+    final_level = _final_review_level()
+    next_level = _next_active_review_level(monument.pending_level) if is_pending_approval else None
+    owner_next_level = _next_active_review_level(_current_user_level(user))
+    can_final_level = final_level is not None and final_level in flags['levels']
+    can_request_from_owner = (
+        is_owner
+        and monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED)
+        and owner_next_level is not None
+    )
+    can_forward = is_pending_approval and next_level is not None and can_current_level
+    can_final_approve = is_pending_approval and monument.pending_level == final_level and can_current_level
     can_admin_request = is_admin and (
         monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED)
-        or (is_pending_approval and monument.pending_level in (3, 2))
+        or (is_pending_approval and next_level is not None)
     )
     can_review_current_step = is_pending_approval and (can_current_level or is_admin)
-    can_manage_after_approval = monument.status == Monument.Status.APPROVED and (flags['is_director'] or is_admin)
+    can_manage_after_approval = monument.status == Monument.Status.APPROVED and (is_admin or can_final_level)
 
     return {
         'isView': _can_view(user, monument),
         'isDelete': is_admin or (is_owner and monument.status in (Monument.Status.DRAFT, Monument.Status.NOT_APPROVED)),
         'isUpdate': is_admin or (is_owner and monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED)),
-        'isApprove': can_final_approve or (is_admin and is_pending_approval and monument.pending_level == 1),
+        'isApprove': can_final_approve or (is_admin and is_pending_approval and monument.pending_level == final_level),
         'isNotApprove': can_review_current_step or can_manage_after_approval,
         'isRedo': can_review_current_step or can_manage_after_approval,
         'isPublic': can_manage_after_approval,
-        'isDirector': flags['is_director'] or is_admin,
+        'isDirector': flags['is_director'] or is_admin or can_final_level,
         'isRequestApproval': can_request_from_owner or can_forward or can_admin_request,
     }
 
@@ -446,13 +449,44 @@ def _confirm_pending_history(monument, user):
         pending.save(update_fields=['confirmed_by', 'confirmed_date', 'updated_by', 'updated_at'])
 
 
+def _active_review_levels():
+    return list(
+        Role.objects.filter(
+            REVIEW_ROLE_FILTER,
+            is_deleted=False,
+            is_disabled=False,
+            is_admin=False,
+        )
+        .order_by('-level')
+        .values_list('level', flat=True)
+        .distinct()
+    )
+
+
+def _final_review_level():
+    active_levels = _active_review_levels()
+    return active_levels[-1] if active_levels else None
+
+
+def _current_user_level(user):
+    flags = _role_flags(user)
+    levels = [level for level in flags['levels'] if isinstance(level, int) and level > 0]
+    return max(levels) if levels else None
+
+
+def _next_active_review_level(current_level=None):
+    active_levels = _active_review_levels()
+    if current_level is None:
+        return active_levels[0] if active_levels else None
+
+    return next((level for level in active_levels if level < current_level), None)
+
+
 def _next_level_for_request(monument, user):
     if monument.status in (Monument.Status.DRAFT, Monument.Status.REDO, Monument.Status.NOT_APPROVED):
-        return 3
-    if monument.status == Monument.Status.PENDING_APPROVAL and monument.pending_level == 3:
-        return 2
-    if monument.status == Monument.Status.PENDING_APPROVAL and monument.pending_level == 2:
-        return 1
+        return _next_active_review_level(_current_user_level(user))
+    if monument.status == Monument.Status.PENDING_APPROVAL:
+        return _next_active_review_level(monument.pending_level)
     return None
 
 

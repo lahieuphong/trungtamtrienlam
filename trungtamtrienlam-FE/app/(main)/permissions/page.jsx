@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, Copy, RefreshCw } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, RefreshCw, SquareCheckBig, SquareMinus } from 'lucide-react'
 import { Breadcrumb } from '@/components/common/Breadcrumb'
 import { Button } from '@/components/common/Button'
 import { FormGroup } from '@/components/common/FormGroup'
@@ -17,6 +17,7 @@ import {
 import {
     clonePermission,
     fetchPermission,
+    setAllPermissions,
     updatePermission,
 } from '@/lib/api/permissionApi'
 
@@ -40,8 +41,8 @@ const EMPTY_CLONE_FORM = {
 
 function isPrivilegedRole(role) {
     return Boolean(
-        role?.isAdmin || role?.isDirector || role?.isViceDirector
-        || role?.is_admin || role?.is_director || role?.is_vice_director
+        role?.isAdmin || role?.isDirector
+        || role?.is_admin || role?.is_director
     )
 }
 
@@ -126,14 +127,40 @@ export default function PermissionsPage() {
     const [cloneOpen, setCloneOpen] = useState(false)
     const [cloneForm, setCloneForm] = useState(EMPTY_CLONE_FORM)
     const [cloneLoading, setCloneLoading] = useState(false)
+    const [bulkSaving, setBulkSaving] = useState(false)
 
     const selectedRole = useMemo(
         () => roleOptions.find((role) => role.value === roleID),
         [roleOptions, roleID]
     )
+    const selectedOldCloneRole = useMemo(
+        () => roleOptions.find((role) => role.value === cloneForm.oldRoleID),
+        [cloneForm.oldRoleID, roleOptions]
+    )
+    const selectedNewCloneRole = useMemo(
+        () => roleOptions.find((role) => role.value === cloneForm.newRoleID),
+        [cloneForm.newRoleID, roleOptions]
+    )
     const needsDepartment = Boolean(roleID && !isPrivilegedRole(selectedRole))
+    const oldCloneNeedsDepartment = Boolean(cloneForm.oldRoleID && !isPrivilegedRole(selectedOldCloneRole))
+    const newCloneNeedsDepartment = Boolean(cloneForm.newRoleID && !isPrivilegedRole(selectedNewCloneRole))
     const tableData = useMemo(() => flattenPermissionRows(permissions, expandedRowIds), [expandedRowIds, permissions])
+    const permissionCellStats = useMemo(() => {
+        let total = 0
+        let checked = 0
 
+        permissions.forEach((permission) => {
+            ACTION_COLUMNS.forEach((action) => {
+                if (permission[action.key] == null) return
+                total += 1
+                if (permission[action.key]) checked += 1
+            })
+        })
+
+        return { total, checked }
+    }, [permissions])
+    const hasPermissionCells = permissionCellStats.total > 0
+    const allPermissionsGranted = hasPermissionCells && permissionCellStats.checked === permissionCellStats.total
     const loadDropdowns = useCallback(async () => {
         setLoading(true)
         setError('')
@@ -222,14 +249,66 @@ export default function PermissionsPage() {
         }
     }
 
-    const broadcastPermissionChange = () => {
+    const broadcastPermissionChange = useCallback(() => {
         if (typeof window === 'undefined') return
         const payload = Date.now().toString()
         localStorage.setItem('permissionUpdateTrigger', payload)
         window.dispatchEvent(new CustomEvent('permissionUpdated', { detail: { timestamp: payload } }))
         setTimeout(() => localStorage.removeItem('permissionUpdateTrigger'), 1000)
-    }
+    }, [])
 
+    const handleToggleAllPermissions = useCallback(async () => {
+        if (!roleID || (needsDepartment && !departmentID) || !hasPermissionCells || bulkSaving) return
+
+        const nextEnabled = !allPermissionsGranted
+        const previousPermissions = permissions
+        setBulkSaving(true)
+        setSavingKey('__bulk__')
+        setPermissions((current) => current.map((permission) => {
+            const nextPermission = { ...permission }
+            ACTION_COLUMNS.forEach((action) => {
+                if (nextPermission[action.key] != null) {
+                    nextPermission[action.key] = nextEnabled
+                }
+            })
+            return nextPermission
+        }))
+
+        try {
+            const response = await setAllPermissions({
+                roleID,
+                departmentID: needsDepartment ? departmentID : '',
+                enabled: nextEnabled,
+            })
+
+            if (response?.status === 200) {
+                toast.success(response.message || (nextEnabled ? 'Đã cấp tất cả quyền' : 'Đã thu hồi tất cả quyền'))
+                broadcastPermissionChange()
+                await loadPermissions({ silent: true, preserveExpandedRows: true })
+            } else {
+                setPermissions(previousPermissions)
+                toast.error(response?.message || 'Cập nhật quyền thất bại!')
+            }
+        } catch (err) {
+            setPermissions(previousPermissions)
+            console.error('Error bulk updating permissions:', err)
+            toast.error('Có lỗi xảy ra khi cập nhật quyền!')
+        } finally {
+            setBulkSaving(false)
+            setSavingKey('')
+        }
+    }, [
+        allPermissionsGranted,
+        broadcastPermissionChange,
+        bulkSaving,
+        departmentID,
+        hasPermissionCells,
+        loadPermissions,
+        needsDepartment,
+        permissions,
+        roleID,
+        toast,
+    ])
     const handleTogglePermission = useCallback(async (row, action, nextChecked) => {
         if (row[action] == null) return
         const key = `${row.functionID}-${action}`
@@ -272,7 +351,7 @@ export default function PermissionsPage() {
         } finally {
             setSavingKey('')
         }
-    }, [departmentID, loadPermissions, needsDepartment, roleID, toast])
+    }, [broadcastPermissionChange, departmentID, loadPermissions, needsDepartment, roleID, toast])
 
     const toggleExpandedRow = useCallback((functionID) => {
         setExpandedRowIds((current) => {
@@ -351,14 +430,14 @@ export default function PermissionsPage() {
                 return (
                     <PermissionCheckbox
                         checked={value}
-                        disabled={!roleID || (needsDepartment && !departmentID)}
-                        loading={savingKey === key}
+                        disabled={!roleID || (needsDepartment && !departmentID) || bulkSaving}
+                        loading={savingKey === key || bulkSaving}
                         onCheckedChange={(checked) => handleTogglePermission(row, action.key, checked)}
                     />
                 )
             },
         })),
-    ], [departmentID, handleTogglePermission, needsDepartment, roleID, savingKey, toggleExpandedRow])
+    ], [bulkSaving, departmentID, handleTogglePermission, needsDepartment, roleID, savingKey, toggleExpandedRow])
 
     const updateCloneField = (field, value) => {
         setCloneForm((current) => ({ ...current, [field]: value }))
@@ -367,6 +446,14 @@ export default function PermissionsPage() {
     const handleCloneSubmit = async () => {
         if (!cloneForm.oldRoleID || !cloneForm.newRoleID) {
             toast.warning('Vui lòng chọn chức vụ nguồn và chức vụ đích')
+            return
+        }
+        if (oldCloneNeedsDepartment && !cloneForm.oldDepartmentID) {
+            toast.warning('Vui lòng chọn phòng ban nguồn')
+            return
+        }
+        if (newCloneNeedsDepartment && !cloneForm.newDepartmentID) {
+            toast.warning('Vui lòng chọn phòng ban đích')
             return
         }
 
@@ -426,11 +513,19 @@ export default function PermissionsPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" onClick={loadPermissions} disabled={!roleID || loading}>
+                    <Button
+                        variant="outline"
+                        onClick={handleToggleAllPermissions}
+                        disabled={!roleID || (needsDepartment && !departmentID) || loading || bulkSaving || !hasPermissionCells}
+                    >
+                        {allPermissionsGranted ? <SquareMinus className="h-4 w-4" /> : <SquareCheckBig className="h-4 w-4" />}
+                        {allPermissionsGranted ? 'Thu hồi tất cả' : 'Chọn tất cả'}
+                    </Button>
+                    <Button variant="outline" onClick={loadPermissions} disabled={!roleID || loading || bulkSaving}>
                         <RefreshCw className="h-4 w-4" />
                         Tải lại
                     </Button>
-                    <Button onClick={() => setCloneOpen(true)} disabled={!roleOptions.length}>
+                    <Button onClick={() => setCloneOpen(true)} disabled={!roleOptions.length || bulkSaving}>
                         <Copy className="h-4 w-4" />
                         Sao chép quyền
                     </Button>
@@ -475,15 +570,17 @@ export default function PermissionsPage() {
                             onChange={(event) => updateCloneField('oldRoleID', event.target.value)}
                             placeholder="-- Chọn chức vụ nguồn --"
                             showPlaceholderOption={false}
+                            portal
                         />
                     </FormGroup>
-                    <FormGroup label="Phòng ban nguồn" htmlFor="oldDepartmentID">
+                    <FormGroup label="Phòng ban nguồn" required={oldCloneNeedsDepartment} htmlFor="oldDepartmentID">
                         <Select
                             id="oldDepartmentID"
                             value={cloneForm.oldDepartmentID}
                             options={departmentOptions}
                             onChange={(event) => updateCloneField('oldDepartmentID', event.target.value)}
                             placeholder="-- Không áp dụng --"
+                            portal
                         />
                     </FormGroup>
                     <FormGroup label="Chức vụ đích" required htmlFor="newRoleID">
@@ -494,15 +591,17 @@ export default function PermissionsPage() {
                             onChange={(event) => updateCloneField('newRoleID', event.target.value)}
                             placeholder="-- Chọn chức vụ đích --"
                             showPlaceholderOption={false}
+                            portal
                         />
                     </FormGroup>
-                    <FormGroup label="Phòng ban đích" htmlFor="newDepartmentID">
+                    <FormGroup label="Phòng ban đích" required={newCloneNeedsDepartment} htmlFor="newDepartmentID">
                         <Select
                             id="newDepartmentID"
                             value={cloneForm.newDepartmentID}
                             options={departmentOptions}
                             onChange={(event) => updateCloneField('newDepartmentID', event.target.value)}
                             placeholder="-- Không áp dụng --"
+                            portal
                         />
                     </FormGroup>
                 </div>

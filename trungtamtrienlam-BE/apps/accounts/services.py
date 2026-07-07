@@ -122,7 +122,7 @@ def validate_positions(positions):
 
         check_is_director = check_is_director or role.is_director
         check_is_admin = check_is_admin or role.is_admin
-        can_skip_department = role.is_director or role.is_admin or role.is_vice_director
+        can_skip_department = role.is_director or role.is_admin
         if not can_skip_department:
             if not department_id:
                 return False, 'Vui lòng chọn bộ phận', False, False
@@ -220,6 +220,7 @@ def clean_staff_files_for_type(staff, type_files):
     files = list(StaffFile.objects.filter(owner_filter, type_file__in=type_files).distinct())
     for staff_file in files:
         delete_staff_file_record(staff_file)
+
 
 def save_staff_file(uploaded_file, staff, type_file, subfolder, created_by=None):
     ext = os.path.splitext(uploaded_file.name)[1].lower()

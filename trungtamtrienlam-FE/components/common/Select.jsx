@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { sortBySearchScore } from '@/lib/search'
 
@@ -29,11 +30,14 @@ export function Select({
     errorMessage = '',
     searchable = true,
     showPlaceholderOption = true,
+    portal = false,
 }) {
     const wrapperRef = useRef(null)
+    const dropdownRef = useRef(null)
     const searchRef = useRef(null)
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState('')
+    const [dropdownStyle, setDropdownStyle] = useState(null)
 
     const selectedOption = useMemo(
         () => options.find((option) => String(option.value) === String(value)),
@@ -45,12 +49,33 @@ export function Select({
         return sortBySearchScore(options, query, getOptionSearchText)
     }, [options, query])
 
+    const updateDropdownPosition = useCallback(() => {
+        if (!portal || !wrapperRef.current) return
+
+        const rect = wrapperRef.current.getBoundingClientRect()
+        const viewportGap = 12
+        const belowSpace = window.innerHeight - rect.bottom - viewportGap
+        const aboveSpace = rect.top - viewportGap
+        const openUp = belowSpace < 280 && aboveSpace > belowSpace
+        const availableHeight = openUp ? aboveSpace - 8 : belowSpace - 8
+        const maxHeight = Math.max(180, Math.min(340, availableHeight))
+
+        setDropdownStyle({
+            left: rect.left,
+            top: openUp ? undefined : rect.bottom + 6,
+            bottom: openUp ? window.innerHeight - rect.top + 6 : undefined,
+            width: rect.width,
+            maxHeight,
+        })
+    }, [portal])
+
     useEffect(() => {
         const handleOutsideClick = (event) => {
-            if (!wrapperRef.current?.contains(event.target)) {
-                setOpen(false)
-                setQuery('')
-            }
+            const target = event.target
+            if (wrapperRef.current?.contains(target) || dropdownRef.current?.contains(target)) return
+
+            setOpen(false)
+            setQuery('')
         }
 
         document.addEventListener('mousedown', handleOutsideClick)
@@ -62,6 +87,19 @@ export function Select({
             setTimeout(() => searchRef.current?.focus(), 0)
         }
     }, [open, searchable])
+
+    useEffect(() => {
+        if (!open || !portal) return undefined
+
+        updateDropdownPosition()
+        window.addEventListener('resize', updateDropdownPosition)
+        window.addEventListener('scroll', updateDropdownPosition, true)
+
+        return () => {
+            window.removeEventListener('resize', updateDropdownPosition)
+            window.removeEventListener('scroll', updateDropdownPosition, true)
+        }
+    }, [open, portal, updateDropdownPosition])
 
     const emitChange = (nextValue) => {
         onChange?.({
@@ -86,6 +124,64 @@ export function Select({
         className,
     ].join(' ')
 
+    const listMaxHeight = Math.max(120, (dropdownStyle?.maxHeight ?? 320) - (searchable ? 58 : 0))
+    const dropdown = open ? (
+        <div
+            ref={dropdownRef}
+            className={`${portal ? 'fixed z-[100]' : 'absolute left-0 right-0 top-full z-50 mt-1'} overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg`}
+            style={portal ? { ...dropdownStyle, visibility: dropdownStyle ? 'visible' : 'hidden' } : undefined}
+        >
+            {searchable && (
+                <div className="p-2">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <input
+                            ref={searchRef}
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}
+                            placeholder="Tìm kiếm..."
+                            className="h-10 w-full rounded-md border border-blue-500 pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
+            )}
+
+            <div className="overflow-y-auto py-1" role="listbox" style={{ maxHeight: listMaxHeight }}>
+                {showPlaceholderOption && placeholder && !query && (
+                    <button
+                        type="button"
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50"
+                        onClick={() => handleSelect('')}
+                    >
+                        <span>{placeholder}</span>
+                    </button>
+                )}
+
+                {filteredOptions.length > 0 ? (
+                    filteredOptions.map((option) => {
+                        const isSelected = String(option.value) === String(value)
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors ${isSelected ? 'bg-blue-50 text-blue-600' : 'text-gray-900 hover:bg-gray-50'}`}
+                                onClick={() => handleSelect(option.value)}
+                                role="option"
+                                aria-selected={isSelected}
+                            >
+                                <span className="truncate">{option.label}</span>
+                                {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-blue-600" />}
+                            </button>
+                        )
+                    })
+                ) : (
+                    <div className="px-3 py-3 text-sm text-gray-500">Không có dữ liệu</div>
+                )}
+            </div>
+        </div>
+    ) : null
+
     return (
         <div ref={wrapperRef} className="relative">
             <button
@@ -96,7 +192,10 @@ export function Select({
                 className={triggerClasses}
                 aria-haspopup="listbox"
                 aria-expanded={open}
-                onClick={() => !disabled && setOpen((current) => !current)}
+                onClick={() => {
+                    if (disabled) return
+                    setOpen((current) => !current)
+                }}
             >
                 <span className={selectedOption ? 'truncate' : 'truncate text-gray-500'}>
                     {selectedOption?.label || placeholder}
@@ -104,58 +203,7 @@ export function Select({
                 <ChevronDown className={`h-4 w-4 flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
             </button>
 
-            {open && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
-                    {searchable && (
-                        <div className="p-2">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    ref={searchRef}
-                                    value={query}
-                                    onChange={(event) => setQuery(event.target.value)}
-                                    onKeyDown={(event) => event.key === 'Enter' && event.preventDefault()}
-                                    placeholder="Tìm kiếm..."
-                                    className="h-10 w-full rounded-md border border-blue-500 pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="max-h-64 overflow-y-auto py-1" role="listbox">
-                        {showPlaceholderOption && placeholder && !query && (
-                            <button
-                                type="button"
-                                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-500 hover:bg-gray-50"
-                                onClick={() => handleSelect('')}
-                            >
-                                <span>{placeholder}</span>
-                            </button>
-                        )}
-
-                        {filteredOptions.length > 0 ? (
-                            filteredOptions.map((option) => {
-                                const isSelected = String(option.value) === String(value)
-                                return (
-                                    <button
-                                        key={option.value}
-                                        type="button"
-                                        className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors ${isSelected ? 'bg-blue-50 text-blue-600' : 'text-gray-900 hover:bg-gray-50'}`}
-                                        onClick={() => handleSelect(option.value)}
-                                        role="option"
-                                        aria-selected={isSelected}
-                                    >
-                                        <span className="truncate">{option.label}</span>
-                                        {isSelected && <Check className="h-4 w-4 flex-shrink-0 text-blue-600" />}
-                                    </button>
-                                )
-                            })
-                        ) : (
-                            <div className="px-3 py-3 text-sm text-gray-500">Không có dữ liệu</div>
-                        )}
-                    </div>
-                </div>
-            )}
+            {portal && typeof document !== 'undefined' ? createPortal(dropdown, document.body) : dropdown}
 
             {error && errorMessage && (
                 <p className="mt-1 text-xs text-red-500">{errorMessage}</p>

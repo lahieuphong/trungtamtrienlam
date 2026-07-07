@@ -129,7 +129,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
 
         setAdditionalRoles(prev => prev.map((role) => {
             const selectedRole = positionOptions.find(position => position.value === role.roleID)
-            const skipsRowDepartment = selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector
+            const skipsRowDepartment = selectedRole?.isDirector || selectedRole?.isAdmin
             const shouldDefaultDepartment = Boolean(role.roleID && !skipsRowDepartment)
             const nextDepartmentID = role.departmentID || (shouldDefaultDepartment ? departmentOptions[0]?.value || '' : '')
 
@@ -205,7 +205,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
 
     const roleSkipsDepartment = useCallback((roleID) => {
         const selectedRole = positionOptions.find(p => p.value === roleID)
-        return Boolean(selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector)
+        return Boolean(selectedRole?.isDirector || selectedRole?.isAdmin)
     }, [positionOptions])
 
     const handleChange = useCallback((e) => {
@@ -231,7 +231,7 @@ export default function AccountForm({ mode = 'create', id = null }) {
             if (field === 'roleID') {
                 nextRole.organizationID = nextRole.organizationID || organizationOptions[0]?.value || ''
                 const selectedRole = positionOptions.find(p => p.value === value)
-                if (selectedRole?.isDirector || selectedRole?.isAdmin || selectedRole?.isViceDirector) {
+                if (selectedRole?.isDirector || selectedRole?.isAdmin) {
                     nextRole.departmentID = ''
                 } else if (!nextRole.departmentID) {
                     nextRole.departmentID = departmentOptions[0]?.value || ''
