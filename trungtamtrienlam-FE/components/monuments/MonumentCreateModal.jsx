@@ -2051,7 +2051,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                     <Field label="Hình ảnh chi tiết" required error={errors.fileImageDetails}>
                                         <UploadBucket id="fileImageDetails" files={form.fileImageDetails} onChange={setFiles('fileImageDetails')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageDetails} />
                                     </Field>
-                                    <Field label="Video mp4" required error={errors.fileVideos}>
+                                    <Field label="Video" required error={errors.fileVideos}>
                                         <UploadBucket id="fileVideos" files={form.fileVideos} onChange={setFiles('fileVideos')} accept={ACCEPTS.video} error={errors.fileVideos} />
                                     </Field>
                                 </div>
