@@ -28,6 +28,7 @@ const GlbViewer = dynamic(() => import('@/components/monuments/GlbViewer'), {
 })
 
 const RICH_TEXT_CONTENT_CLASS_NAME = 'break-words [overflow-wrap:anywhere] [word-break:break-word] [&_*]:max-w-full [&_*]:break-words [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] [&_p]:my-0 [&_div]:my-0 [&_h1]:my-3 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h5]:my-2 [&_h5]:text-sm [&_h5]:font-semibold [&_a]:cursor-pointer [&_a]:text-[#2F54EB] [&_a]:underline [&_a]:break-words [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1'
+const SECTION_RICH_TEXT_CLASS_NAME = 'break-words [overflow-wrap:anywhere] [word-break:break-word] [&_*]:max-w-full [&_*]:break-words [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] [&_p]:my-0 [&_p]:leading-6 [&_div]:my-0 [&_div]:leading-6 [&_h1]:my-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h4]:my-1.5 [&_h4]:text-sm [&_h4]:font-semibold [&_h5]:my-1 [&_h5]:text-sm [&_h5]:font-medium [&_a]:cursor-pointer [&_a]:text-[#2F54EB] [&_a]:underline [&_a]:break-words [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1'
 
 const LEVEL_NAMES = {
     [MonumentProfileConstants.levelObjects.specialNation]: 'Cấp quốc gia đặc biệt',
@@ -927,24 +928,31 @@ function PublishConfirmModal({ open, onClose, onConfirm, loading }) {
         </div>
     )
 }
-function SectionImage({ section, imageUrl }) {
+function SectionImage({ section, imageUrl, compact = false }) {
     if (!imageUrl) return null
 
+    const maxHeight = compact ? 'clamp(220px, 32vw, 420px)' : 'clamp(280px, 54vw, 620px)'
+
     return (
-        <img
-            src={imageUrl}
-            alt={section.fileName || 'Section'}
-            className="h-full min-h-[220px] w-full rounded-md object-cover"
-        />
+        <figure className={`flex w-full overflow-hidden rounded-md bg-white ${compact ? 'items-start justify-start' : 'items-center justify-center'}`}>
+            <img
+                src={imageUrl}
+                alt={section.fileName || 'Section'}
+                loading="lazy"
+                className={`${compact ? 'w-full' : 'w-auto'} h-auto max-w-full rounded-md object-contain shadow-sm`}
+                style={{ maxHeight }}
+            />
+        </figure>
     )
 }
 
-function SectionContent({ content }) {
+function SectionContent({ content, compact = false }) {
     if (!content) return null
 
     return (
         <div
-            className={`max-w-none rounded-md bg-white text-sm leading-6 text-[#1F2937] ${RICH_TEXT_CONTENT_CLASS_NAME}`}
+            className={`max-w-none text-sm leading-7 text-[#1F2937] ${compact ? 'overflow-y-auto pr-1 md:pt-0.5 [scrollbar-width:thin]' : 'rounded-md border border-[#F0F0F0] bg-white px-3 py-2.5'} ${SECTION_RICH_TEXT_CLASS_NAME}`}
+            style={compact ? { maxHeight: 'clamp(220px, 32vw, 420px)' } : undefined}
             dangerouslySetInnerHTML={{ __html: content }}
         />
     )
@@ -953,37 +961,53 @@ function SectionContent({ content }) {
 function SectionView({ section }) {
     const type = Number(section.type)
     const imageUrl = buildMediaUrl(section.fileLink)
-    const image = <SectionImage section={section} imageUrl={imageUrl} />
-    const content = <SectionContent content={section.content || ''} />
+    const isImageOnly = type === MonumentSectionConstants.types.image
+    const isContentOnly = type === MonumentSectionConstants.types.content
+    const isContentImage = type === MonumentSectionConstants.types.contentImage
+    const image = <SectionImage section={section} imageUrl={imageUrl} compact={!isImageOnly} />
+    const content = <SectionContent content={section.content || ''} compact={!isContentOnly} />
 
-    if (type === MonumentSectionConstants.types.image) {
+    if (isImageOnly) {
         return (
-            <div className="rounded-md border border-[#E5E7EB] p-3">
+            <div className="rounded-md border border-[#E5E7EB] bg-white p-3">
                 {image || <p className="text-sm text-[#8C8C8C]">Chưa có hình ảnh</p>}
             </div>
         )
     }
 
-    if (type === MonumentSectionConstants.types.content) {
+    if (isContentOnly) {
         return (
-            <div className="rounded-md border border-[#E5E7EB] p-3">
+            <div className="rounded-md border border-[#E5E7EB] bg-white p-3">
                 {content || <p className="text-sm text-[#8C8C8C]">Chưa có nội dung</p>}
             </div>
         )
     }
 
-    const slots = type === MonumentSectionConstants.types.contentImage
-        ? [content, image]
-        : [image, content]
+    const imageColumn = (
+        <div className={`min-w-0 ${isContentImage ? 'md:col-span-5' : 'md:col-span-5'}`}>
+            {image || <p className="text-sm text-[#8C8C8C]">Chưa có hình ảnh</p>}
+        </div>
+    )
+    const contentColumn = (
+        <div className="min-w-0 md:col-span-7">
+            {content || <p className="text-sm text-[#8C8C8C]">Chưa có nội dung</p>}
+        </div>
+    )
 
     return (
-        <div className="rounded-md border border-[#E5E7EB] p-3">
-            <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
-                {slots.map((slot, index) => (
-                    <div key={index} className="min-h-[220px]">
-                        {slot || <p className="text-sm text-[#8C8C8C]">Chưa có dữ liệu</p>}
-                    </div>
-                ))}
+        <div className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-12">
+                {isContentImage ? (
+                    <>
+                        {contentColumn}
+                        {imageColumn}
+                    </>
+                ) : (
+                    <>
+                        {imageColumn}
+                        {contentColumn}
+                    </>
+                )}
             </div>
         </div>
     )

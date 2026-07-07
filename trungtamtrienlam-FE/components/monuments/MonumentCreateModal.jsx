@@ -954,7 +954,7 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
                                     <div className="min-w-0">
                                         <p className="w-full break-words text-sm text-[#1F1F1F]">{fileName}</p>
                                         {fileSize && <p className="mt-1 break-words text-sm text-[#8C8C8C]">{fileSize}</p>}
-                                        {file.isExisting && <span className="mt-1 inline-flex rounded bg-[#F0F5FF] px-2 py-0.5 text-xs text-[#597EF7]">Đã tải lên</span>}
+                                        {file.isExisting && <span className="mt-1 inline-flex rounded bg-[#F6FFED] px-2 py-0.5 text-xs font-medium text-[#389E0D]">Đã tải lên</span>}
                                     </div>
                                 </div>
                                 <button type="button" onClick={(event) => { event.stopPropagation(); removeFile(index) }} className="flex-shrink-0 rounded p-1 text-[#8C8C8C] transition hover:bg-red-50 hover:text-red-500" aria-label="Xóa tệp">

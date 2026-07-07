@@ -7,11 +7,40 @@ from django.db import models
 from core.models import BaseModel
 
 
+MONUMENT_FILE_MODE_FOLDERS = {
+    0: 'hinh-dai-dien',
+    1: 'hinh-dai-dien-khong-cong-khai',
+    2: 'hinh-anh-hien-vat',
+    3: 'hinh-anh-chi-tiet',
+    4: 'video',
+    5: 'dinh-dang-3d',
+    6: 'kien-truc',
+    7: 'hinh-anh-ban-ve-ky-thuat',
+    8: 'ban-do-khoanh-vung',
+    9: 'quyet-dinh-cong-nhan',
+    10: 'xep-hang',
+}
+
+
+def _monument_file_mode_folder(mode):
+    try:
+        mode_key = int(mode)
+    except (TypeError, ValueError):
+        mode_key = None
+
+    if mode_key in MONUMENT_FILE_MODE_FOLDERS:
+        return MONUMENT_FILE_MODE_FOLDERS[mode_key]
+
+    if mode in (None, ''):
+        return 'khac'
+    return f'khac-{mode}'
+
+
 def monument_upload_to(instance, filename):
     _, extension = os.path.splitext(filename or '')
     safe_name = f'{uuid.uuid4()}{extension.lower()}'
     monument_id = instance.monument_id or 'pending'
-    return f'monuments/{monument_id}/{instance.mode}/{safe_name}'
+    return f'monuments/{monument_id}/{_monument_file_mode_folder(instance.mode)}/{safe_name}'
 
 
 def monument_section_upload_to(instance, filename):
