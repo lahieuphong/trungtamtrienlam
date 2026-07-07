@@ -30,6 +30,8 @@ db.sqlite3
 # Django
 staticfiles/
 media/
+!/trungtamtrienlam-BE/media/
+!/trungtamtrienlam-BE/media/**
 /trungtamtrienlam-BE/logs/
 
 # Migrations (bỏ comment nếu muốn commit migrations)
