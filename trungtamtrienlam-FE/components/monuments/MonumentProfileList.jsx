@@ -872,7 +872,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
     if (isAllMode || mode === 'review' || mode === 'private') {
         return (
             <div className="p-6">
-                <h1 className="text-lg font-medium text-[#1F1F1F]">{mode === 'private' ? title : 'Toàn bộ hồ sơ'}</h1>
+                <h1 className="text-lg font-medium text-[#1F1F1F]">{title}</h1>
 
                 <div className="mt-3 inline-flex items-center gap-1 rounded-lg border border-[#ADC6FF] p-1">
                     {mode === 'review' ? (
@@ -913,7 +913,7 @@ export default function MonumentProfileList({ mode = 'review', initialTab }) {
                     <div className="flex min-w-0 flex-col gap-1">
                         <label className="text-sm font-semibold text-[#393B3D]">Sắp xếp theo</label>
                         <div className="w-full">
-                            <Select value={sort} options={SORT_OPTIONS} onChange={onChangeSort} placeholder="Chọn..." />
+                            <Select value={sort} options={SORT_OPTIONS} onChange={onChangeSort} placeholder="Chọn..." showPlaceholderOption={false} />
                         </div>
                     </div>
 
