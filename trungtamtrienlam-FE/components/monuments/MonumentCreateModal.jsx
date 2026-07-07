@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AlignCenter, AlignLeft, AlignRight, Bold, ChevronDown, FileText, Italic, Link2, List, ListOrdered, Plus, Redo2, Save, Trash2, Type, Underline, Undo2, Upload, X } from 'lucide-react'
+import { AlignCenter, AlignLeft, AlignRight, Bold, Check, ChevronDown, Crop, FileText, Italic, Link2, List, ListOrdered, MoreHorizontal, Pencil, Plus, Redo2, RotateCcw, Save, Trash2, Type, Underline, Undo2, Upload, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { Button } from '@/components/common/Button'
@@ -119,9 +119,201 @@ function RadioOption({ name, value, checked, onChange, label }) {
     )
 }
 
-function UploadBucket({ id, files, onChange, title, accept, multiple = true, error, validateFile, bucketClassName = "", bodyClassName = "" }) {
+const DEFAULT_IMAGE_CROP_BOX = { x: 15, y: 15, width: 70, height: 70 }
+const IMAGE_EDIT_MAX_ZOOM_STEP = 120
+const IMAGE_EDIT_ZOOM_RATIO = 1.12
+
+function getImageEditZoom(step) {
+    const safeStep = Math.min(Math.max(Number(step) || 0, 0), IMAGE_EDIT_MAX_ZOOM_STEP)
+    return Number(Math.pow(IMAGE_EDIT_ZOOM_RATIO, safeStep).toFixed(4))
+}
+
+function cropImageFile(file, cropBox, imageZoom = 1, frameSize = null) {
+    return new Promise((resolve, reject) => {
+        if (!isNativeFile(file) || typeof document === 'undefined' || typeof URL === 'undefined') {
+            reject(new Error('Cannot crop this image'))
+            return
+        }
+
+        const image = new Image()
+        const objectUrl = URL.createObjectURL(file)
+        image.onload = () => {
+            try {
+                const frameWidth = Math.max(1, Number(frameSize?.width) || image.naturalWidth)
+                const frameHeight = Math.max(1, Number(frameSize?.height) || image.naturalHeight)
+                const containScale = Math.min(frameWidth / image.naturalWidth, frameHeight / image.naturalHeight)
+                const displayScale = containScale * Math.max(1, imageZoom)
+                const displayWidth = image.naturalWidth * displayScale
+                const displayHeight = image.naturalHeight * displayScale
+                const displayLeft = (frameWidth - displayWidth) / 2
+                const displayTop = (frameHeight - displayHeight) / 2
+                const cropLeft = (cropBox.x / 100) * frameWidth
+                const cropTop = (cropBox.y / 100) * frameHeight
+                const cropWidth = (cropBox.width / 100) * frameWidth
+                const cropHeight = (cropBox.height / 100) * frameHeight
+
+                const rawSourceX = (cropLeft - displayLeft) / displayScale
+                const rawSourceY = (cropTop - displayTop) / displayScale
+                const rawSourceWidth = cropWidth / displayScale
+                const rawSourceHeight = cropHeight / displayScale
+                const sourceX = Math.min(Math.max(0, rawSourceX), image.naturalWidth - 1)
+                const sourceY = Math.min(Math.max(0, rawSourceY), image.naturalHeight - 1)
+                const sourceWidth = Math.max(1, Math.min(rawSourceWidth, image.naturalWidth - sourceX))
+                const sourceHeight = Math.max(1, Math.min(rawSourceHeight, image.naturalHeight - sourceY))
+                const canvas = document.createElement('canvas')
+                canvas.width = Math.round(sourceWidth)
+                canvas.height = Math.round(sourceHeight)
+                const context = canvas.getContext('2d')
+                context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height)
+                const outputType = file.type && file.type !== 'image/svg+xml' ? file.type : 'image/png'
+                const outputName = outputType === 'image/png' ? file.name.replace(/\.[^.]+$/, '.png') : file.name
+
+                canvas.toBlob((blob) => {
+                    URL.revokeObjectURL(objectUrl)
+                    if (!blob) {
+                        reject(new Error('Cannot export cropped image'))
+                        return
+                    }
+
+                    const nextFile = typeof File !== 'undefined'
+                        ? new File([blob], outputName || 'image.png', { type: outputType, lastModified: Date.now() })
+                        : blob
+                    resolve(nextFile)
+                }, outputType, 0.95)
+            } catch (error) {
+                URL.revokeObjectURL(objectUrl)
+                reject(error)
+            }
+        }
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl)
+            reject(new Error('Cannot load image'))
+        }
+        image.src = objectUrl
+    })
+}
+function UploadBucket({ id, files, onChange, title, accept, multiple = true, error, validateFile, bucketClassName = "", bodyClassName = "", showImagePreview = false }) {
     const inputRef = useRef(null)
+    const previewFrameRef = useRef(null)
+    const cropImageRef = useRef(null)
+    const imagePreviewFrameRef = useRef(null)
+    const imagePreviewRef = useRef(null)
+    const imagePreviewDragRef = useRef(null)
+    const imagePreviewLoadTimerRef = useRef(null)
+    const imagePreviewScaleRef = useRef(1)
+    const imagePreviewPositionRef = useRef({ x: 0, y: 0 })
+    const cropDragRef = useRef(null)
     const [dragOver, setDragOver] = useState(false)
+    const [previewUrl, setPreviewUrl] = useState('')
+    const [imageMenuOpen, setImageMenuOpen] = useState(false)
+    const [isEditingImage, setIsEditingImage] = useState(false)
+    const [cropBox, setCropBox] = useState(DEFAULT_IMAGE_CROP_BOX)
+    const [imageEditBaselineBox, setImageEditBaselineBox] = useState(DEFAULT_IMAGE_CROP_BOX)
+    const [imageZoomStep, setImageZoomStep] = useState(0)
+    const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false)
+    const [imagePreviewScale, setImagePreviewScale] = useState(1)
+    const [imagePreviewPosition, setImagePreviewPosition] = useState({ x: 0, y: 0 })
+    const [isDraggingImagePreview, setIsDraggingImagePreview] = useState(false)
+    const [imagePreviewLoadProgress, setImagePreviewLoadProgress] = useState(1)
+    const [isImagePreviewLoaded, setIsImagePreviewLoaded] = useState(false)
+    const [imagePreviewFitSize, setImagePreviewFitSize] = useState({ width: 0, height: 0 })
+
+    useEffect(() => {
+        if (!showImagePreview) {
+            setPreviewUrl('')
+            return undefined
+        }
+
+        const file = files[0]
+        if (!file) {
+            setPreviewUrl('')
+            return undefined
+        }
+
+        if (file.path) {
+            setPreviewUrl(file.path)
+            return undefined
+        }
+
+        if (isNativeFile(file) && file.type?.startsWith('image/')) {
+            const objectUrl = URL.createObjectURL(file)
+            setPreviewUrl(objectUrl)
+            return () => URL.revokeObjectURL(objectUrl)
+        }
+
+        setPreviewUrl('')
+        return undefined
+    }, [files, showImagePreview])
+
+    useEffect(() => {
+        setImageMenuOpen(false)
+        setIsEditingImage(false)
+        setCropBox(DEFAULT_IMAGE_CROP_BOX)
+        setImageEditBaselineBox(DEFAULT_IMAGE_CROP_BOX)
+        setImageZoomStep(0)
+        setIsImagePreviewOpen(false)
+        setImagePreviewScale(1)
+        setImagePreviewPosition({ x: 0, y: 0 })
+        setIsDraggingImagePreview(false)
+        setImagePreviewFitSize({ width: 0, height: 0 })
+        imagePreviewScaleRef.current = 1
+        imagePreviewPositionRef.current = { x: 0, y: 0 }
+        imagePreviewDragRef.current = null
+        cropDragRef.current = null
+    }, [files[0]?.name, files[0]?.path, files[0]?.size])
+
+    const hasImagePreview = showImagePreview && !!previewUrl
+    const imagePreviewFileName = files[0]?.fileName || files[0]?.name || 'Ảnh đã chọn'
+    const imageZoom = getImageEditZoom(imageZoomStep)
+    const hasImageEditAdjustment = imageZoomStep > 0
+        || Math.abs(cropBox.x - imageEditBaselineBox.x) > 0.1
+        || Math.abs(cropBox.y - imageEditBaselineBox.y) > 0.1
+        || Math.abs(cropBox.width - imageEditBaselineBox.width) > 0.1
+        || Math.abs(cropBox.height - imageEditBaselineBox.height) > 0.1
+
+    useEffect(() => {
+        if (!isImagePreviewOpen) return undefined
+
+        if (imagePreviewLoadTimerRef.current) {
+            window.clearTimeout(imagePreviewLoadTimerRef.current)
+            imagePreviewLoadTimerRef.current = null
+        }
+
+        imagePreviewScaleRef.current = 1
+        imagePreviewPositionRef.current = { x: 0, y: 0 }
+        setImagePreviewScale(1)
+        setImagePreviewPosition({ x: 0, y: 0 })
+        setIsDraggingImagePreview(false)
+        setImagePreviewLoadProgress(1)
+        setIsImagePreviewLoaded(false)
+        setImagePreviewFitSize({ width: 0, height: 0 })
+
+        const progressTimer = window.setInterval(() => {
+            setImagePreviewLoadProgress((current) => {
+                if (current >= 95) return current
+
+                const step = Math.max(1, Math.round((95 - current) * 0.14))
+                return Math.min(95, current + step)
+            })
+        }, 120)
+
+        return () => window.clearInterval(progressTimer)
+    }, [isImagePreviewOpen, previewUrl])
+
+    useEffect(() => {
+        if (!isImagePreviewOpen) return undefined
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') setIsImagePreviewOpen(false)
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [isImagePreviewOpen])
+
+    useEffect(() => () => {
+        if (imagePreviewLoadTimerRef.current) window.clearTimeout(imagePreviewLoadTimerRef.current)
+    }, [])
 
     const addFiles = (fileList) => {
         const selected = Array.from(fileList || [])
@@ -139,8 +331,368 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
     }
 
     const removeFile = (index) => {
+        setImageMenuOpen(false)
+        setIsEditingImage(false)
         onChange(files.filter((_, itemIndex) => itemIndex !== index))
     }
+
+    const openFilePicker = () => {
+        if (!isEditingImage && !hasImagePreview) inputRef.current?.click()
+    }
+
+    const getCropImageBounds = (zoomValue = imageZoom) => {
+        const frame = previewFrameRef.current
+        const image = cropImageRef.current
+
+        if (!frame || !image) return { left: 0, top: 0, right: 100, bottom: 100 }
+
+        const rect = frame.getBoundingClientRect()
+        const naturalWidth = image.naturalWidth || 0
+        const naturalHeight = image.naturalHeight || 0
+
+        if (!rect.width || !rect.height || !naturalWidth || !naturalHeight) {
+            return { left: 0, top: 0, right: 100, bottom: 100 }
+        }
+
+        const containScale = Math.min(rect.width / naturalWidth, rect.height / naturalHeight)
+        const displayScale = containScale * Math.max(1, zoomValue)
+        const displayWidth = naturalWidth * displayScale
+        const displayHeight = naturalHeight * displayScale
+        const left = ((rect.width - displayWidth) / 2 / rect.width) * 100
+        const top = ((rect.height - displayHeight) / 2 / rect.height) * 100
+        const right = left + (displayWidth / rect.width) * 100
+        const bottom = top + (displayHeight / rect.height) * 100
+
+        return {
+            left: Math.max(0, left),
+            top: Math.max(0, top),
+            right: Math.min(100, right),
+            bottom: Math.min(100, bottom),
+        }
+    }
+
+    const clampCropBox = (box) => {
+        const bounds = getCropImageBounds()
+        const boundsWidth = Math.max(1, bounds.right - bounds.left)
+        const boundsHeight = Math.max(1, bounds.bottom - bounds.top)
+        const minWidth = Math.min(24, boundsWidth)
+        const minHeight = Math.min(24, boundsHeight)
+        const width = Math.min(boundsWidth, Math.max(minWidth, box.width))
+        const height = Math.min(boundsHeight, Math.max(minHeight, box.height))
+
+        return {
+            width,
+            height,
+            x: Math.min(Math.max(bounds.left, box.x), bounds.right - width),
+            y: Math.min(Math.max(bounds.top, box.y), bounds.bottom - height),
+        }
+    }
+
+    const getDefaultCropBox = (zoomValue = imageZoom) => {
+        const bounds = getCropImageBounds(zoomValue)
+        const boundsWidth = Math.max(1, bounds.right - bounds.left)
+        const boundsHeight = Math.max(1, bounds.bottom - bounds.top)
+        const horizontalInset = Math.min(boundsWidth * 0.12, 12)
+        const verticalInset = Math.min(boundsHeight * 0.14, 14)
+
+        const minWidth = Math.min(24, boundsWidth)
+        const minHeight = Math.min(24, boundsHeight)
+        const width = Math.min(boundsWidth, Math.max(minWidth, boundsWidth - horizontalInset * 2))
+        const height = Math.min(boundsHeight, Math.max(minHeight, boundsHeight - verticalInset * 2))
+
+        return {
+            x: bounds.left + (boundsWidth - width) / 2,
+            y: bounds.top + (boundsHeight - height) / 2,
+            width,
+            height,
+        }
+    }
+
+    useEffect(() => {
+        if (!isEditingImage) return
+        setCropBox((current) => clampCropBox(current))
+    }, [imageZoom, isEditingImage])
+
+    const startImageEdit = (event) => {
+        event.stopPropagation()
+        setImageMenuOpen(false)
+        setImageZoomStep(0)
+        const defaultCropBox = getDefaultCropBox(1)
+        setImageEditBaselineBox(defaultCropBox)
+        setCropBox(defaultCropBox)
+        setIsEditingImage(true)
+    }
+
+    const changeImage = (event) => {
+        event.stopPropagation()
+        setImageMenuOpen(false)
+        inputRef.current?.click()
+    }
+
+    const deleteImage = (event) => {
+        event.stopPropagation()
+        removeFile(0)
+    }
+
+    const startCropDrag = (event, action = 'move') => {
+        event.stopPropagation()
+        event.preventDefault()
+        event.currentTarget.setPointerCapture?.(event.pointerId)
+        cropDragRef.current = {
+            pointerId: event.pointerId,
+            action,
+            startX: event.clientX,
+            startY: event.clientY,
+            startBox: cropBox,
+        }
+    }
+
+    const handleCropPointerMove = (event) => {
+        const dragState = cropDragRef.current
+        const frame = previewFrameRef.current
+        if (!dragState || dragState.pointerId !== event.pointerId || !frame) return
+
+        event.preventDefault()
+        const rect = frame.getBoundingClientRect()
+        const deltaX = ((event.clientX - dragState.startX) / rect.width) * 100
+        const deltaY = ((event.clientY - dragState.startY) / rect.height) * 100
+        const startBox = dragState.startBox
+
+        if (dragState.action === 'move') {
+            setCropBox(clampCropBox({
+                ...startBox,
+                x: startBox.x + deltaX,
+                y: startBox.y + deltaY,
+            }))
+            return
+        }
+
+        const bounds = getCropImageBounds()
+        const minWidth = Math.min(24, Math.max(1, bounds.right - bounds.left))
+        const minHeight = Math.min(24, Math.max(1, bounds.bottom - bounds.top))
+        let left = startBox.x
+        let right = startBox.x + startBox.width
+        let top = startBox.y
+        let bottom = startBox.y + startBox.height
+        const clampValue = (value, min, max) => Math.min(Math.max(value, min), max)
+
+        if (dragState.action.includes('w')) left = clampValue(startBox.x + deltaX, bounds.left, right - minWidth)
+        if (dragState.action.includes('e')) right = clampValue(startBox.x + startBox.width + deltaX, left + minWidth, bounds.right)
+        if (dragState.action.includes('n')) top = clampValue(startBox.y + deltaY, bounds.top, bottom - minHeight)
+        if (dragState.action.includes('s')) bottom = clampValue(startBox.y + startBox.height + deltaY, top + minHeight, bounds.bottom)
+
+        setCropBox(clampCropBox({
+            x: left,
+            y: top,
+            width: right - left,
+            height: bottom - top,
+        }))
+    }
+
+    const stopCropDrag = (event) => {
+        const dragState = cropDragRef.current
+        if (!dragState || dragState.pointerId !== event.pointerId) return
+
+        event.currentTarget.releasePointerCapture?.(event.pointerId)
+        cropDragRef.current = null
+    }
+
+    const applyImageEdit = async (event) => {
+        event.stopPropagation()
+        const file = files[0]
+        if (!file) return
+
+        if (!isNativeFile(file)) {
+            setIsEditingImage(false)
+            return
+        }
+
+        try {
+            const frameRect = previewFrameRef.current?.getBoundingClientRect()
+            const croppedFile = await cropImageFile(file, cropBox, imageZoom, frameRect ? { width: frameRect.width, height: frameRect.height } : null)
+            onChange([croppedFile])
+            setImageZoomStep(0)
+            setIsEditingImage(false)
+        } catch {
+            setIsEditingImage(false)
+        }
+    }
+
+    const cancelImageEdit = (event) => {
+        event.stopPropagation()
+        setImageMenuOpen(false)
+        setIsEditingImage(false)
+        setCropBox(DEFAULT_IMAGE_CROP_BOX)
+        setImageEditBaselineBox(DEFAULT_IMAGE_CROP_BOX)
+        setImageZoomStep(0)
+    }
+
+    const zoomImageIn = (event) => {
+        event.stopPropagation()
+        setImageZoomStep((current) => Math.min(current + 1, IMAGE_EDIT_MAX_ZOOM_STEP))
+    }
+
+    const undoImageZoomStep = (event) => {
+        event.stopPropagation()
+        const nextZoomStep = Math.max(imageZoomStep - 1, 0)
+        const defaultCropBox = getDefaultCropBox(getImageEditZoom(nextZoomStep))
+        setImageEditBaselineBox(defaultCropBox)
+        setCropBox(defaultCropBox)
+        setImageZoomStep(nextZoomStep)
+    }
+
+    const closeImagePreview = () => {
+        setIsImagePreviewOpen(false)
+    }
+
+    const openImagePreview = (event) => {
+        event.stopPropagation()
+        if (isEditingImage) return
+
+        setImageMenuOpen(false)
+        setIsImagePreviewOpen(true)
+    }
+
+    const clampImagePreviewPosition = (position, scaleValue = imagePreviewScaleRef.current) => {
+        const frame = imagePreviewFrameRef.current
+        const image = imagePreviewRef.current
+
+        if (!frame || !image || scaleValue <= 0) return { x: 0, y: 0 }
+
+        const frameRect = frame.getBoundingClientRect()
+        const imageWidth = image.offsetWidth || image.naturalWidth || 0
+        const imageHeight = image.offsetHeight || image.naturalHeight || 0
+
+        if (!frameRect.width || !frameRect.height || !imageWidth || !imageHeight) return { x: 0, y: 0 }
+
+        const scaledImageWidth = imageWidth * scaleValue
+        const scaledImageHeight = imageHeight * scaleValue
+        const maxX = Math.abs(scaledImageWidth - frameRect.width) / 2
+        const maxY = Math.abs(scaledImageHeight - frameRect.height) / 2
+
+        return {
+            x: Math.min(Math.max(position.x, -maxX), maxX),
+            y: Math.min(Math.max(position.y, -maxY), maxY),
+        }
+    }
+
+    const updateImagePreviewFitSize = () => {
+        const frame = imagePreviewFrameRef.current
+        const image = imagePreviewRef.current
+
+        if (!frame || !image || !image.naturalWidth || !image.naturalHeight) return
+
+        const frameRect = frame.getBoundingClientRect()
+        if (!frameRect.width || !frameRect.height) return
+
+        const fitScale = Math.min(frameRect.width / image.naturalWidth, frameRect.height / image.naturalHeight)
+        const nextSize = {
+            width: Math.max(1, Math.round(image.naturalWidth * fitScale)),
+            height: Math.max(1, Math.round(image.naturalHeight * fitScale)),
+        }
+
+        setImagePreviewFitSize((current) => (
+            current.width === nextSize.width && current.height === nextSize.height ? current : nextSize
+        ))
+    }
+
+    const zoomImagePreview = (getNextScale, anchor) => {
+        const currentScale = imagePreviewScaleRef.current
+        const rawNextScale = typeof getNextScale === 'function' ? getNextScale(currentScale) : getNextScale
+        const nextScale = Number(Math.min(Math.max(rawNextScale, 1), 5).toFixed(3))
+        const factor = currentScale > 0 ? nextScale / currentScale : 1
+        let nextPosition = imagePreviewPositionRef.current
+
+        if (anchor && factor !== 1) {
+            const frameRect = imagePreviewFrameRef.current?.getBoundingClientRect()
+
+            if (frameRect) {
+                const anchorX = anchor.clientX - frameRect.left - frameRect.width / 2
+                const anchorY = anchor.clientY - frameRect.top - frameRect.height / 2
+
+                nextPosition = {
+                    x: imagePreviewPositionRef.current.x * factor + anchorX * (1 - factor),
+                    y: imagePreviewPositionRef.current.y * factor + anchorY * (1 - factor),
+                }
+            }
+        }
+
+        const clampedPosition = clampImagePreviewPosition(nextPosition, nextScale)
+        imagePreviewScaleRef.current = nextScale
+        imagePreviewPositionRef.current = clampedPosition
+        setImagePreviewScale(nextScale)
+        setImagePreviewPosition(clampedPosition)
+    }
+
+    const handleImagePreviewWheel = (event) => {
+        event.preventDefault()
+        const wheelDelta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY
+        const zoomFactor = Math.exp(-wheelDelta * 0.0015)
+        zoomImagePreview((current) => current * zoomFactor, { clientX: event.clientX, clientY: event.clientY })
+    }
+
+    const handleImagePreviewPointerDown = (event) => {
+        if (event.button !== 0) return
+
+        event.preventDefault()
+        event.currentTarget.setPointerCapture?.(event.pointerId)
+        imagePreviewDragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startPosition: imagePreviewPositionRef.current,
+        }
+        setIsDraggingImagePreview(true)
+    }
+
+    const handleImagePreviewPointerMove = (event) => {
+        const dragState = imagePreviewDragRef.current
+        if (!dragState || dragState.pointerId !== event.pointerId) return
+
+        event.preventDefault()
+        const clampedPosition = clampImagePreviewPosition({
+            x: dragState.startPosition.x + event.clientX - dragState.startX,
+            y: dragState.startPosition.y + event.clientY - dragState.startY,
+        }, imagePreviewScaleRef.current)
+        imagePreviewPositionRef.current = clampedPosition
+        setImagePreviewPosition(clampedPosition)
+    }
+
+    const stopImagePreviewDrag = (event) => {
+        const dragState = imagePreviewDragRef.current
+        if (!dragState || dragState.pointerId !== event.pointerId) return
+
+        if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId)
+        }
+
+        imagePreviewDragRef.current = null
+        setIsDraggingImagePreview(false)
+    }
+
+    useEffect(() => {
+        if (!isImagePreviewOpen) return undefined
+
+        let frameId = window.requestAnimationFrame(updateImagePreviewFitSize)
+        const handleResize = () => {
+            window.cancelAnimationFrame(frameId)
+            frameId = window.requestAnimationFrame(updateImagePreviewFitSize)
+        }
+
+        window.addEventListener('resize', handleResize)
+        return () => {
+            window.cancelAnimationFrame(frameId)
+            window.removeEventListener('resize', handleResize)
+        }
+    }, [isImagePreviewOpen, previewUrl])
+
+    useEffect(() => {
+        if (!isImagePreviewOpen || !imagePreviewFitSize.width || !imagePreviewFitSize.height) return
+
+        const clampedPosition = clampImagePreviewPosition(imagePreviewPositionRef.current, imagePreviewScaleRef.current)
+        imagePreviewPositionRef.current = clampedPosition
+        setImagePreviewPosition(clampedPosition)
+    }, [imagePreviewFitSize.width, imagePreviewFitSize.height, isImagePreviewOpen])
 
     return (
         <div>
@@ -148,8 +700,8 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
             <div
                 role="button"
                 tabIndex={0}
-                onClick={() => inputRef.current?.click()}
-                onKeyDown={(event) => event.key === 'Enter' && inputRef.current?.click()}
+                onClick={openFilePicker}
+                onKeyDown={(event) => event.key === 'Enter' && openFilePicker()}
                 onDragOver={(event) => {
                     event.preventDefault()
                     setDragOver(true)
@@ -162,15 +714,193 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
                 }}
                 className={`${bucketClassName || 'min-h-[146px]'} cursor-pointer rounded-md border border-dashed p-1 transition ${dragOver ? 'border-[#597EF7] bg-[#F0F5FF]' : error ? 'border-red-400' : 'border-[#D9D9D9] hover:border-[#597EF7]'}`}
             >
-                <div className={`flex ${bodyClassName || "min-h-[136px]"} flex-col items-center justify-center text-center`}>
-                    <Upload className="mb-2 h-5 w-5 text-[#597EF7]" />
-                    <p className="text-sm font-medium text-[#597EF7]">Tải lên từ máy tính</p>
-                    <p className="mt-2 text-sm text-[#8C8C8C]">Hoặc kéo và thả tập tin tại đây</p>
-                    <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click() }} className="mt-3 rounded-md bg-[#597EF7] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2F54EB]">
-                        Kho lưu trữ
-                    </button>
-                </div>
+                {hasImagePreview ? (
+                    <div ref={previewFrameRef} className={`relative ${bodyClassName || "min-h-[136px]"} overflow-hidden rounded-[4px] bg-white ${isEditingImage ? '' : 'cursor-zoom-in'}`} onClick={openImagePreview}>
+                        <img ref={cropImageRef} src={previewUrl} alt={files[0]?.name || files[0]?.fileName || 'Ảnh đã chọn'} className="absolute inset-0 h-full w-full object-contain transition-transform duration-200 ease-out" style={{ transform: `scale(${isEditingImage ? imageZoom : 1})`, transformOrigin: 'center center' }} />
+
+                        {isEditingImage ? (
+                            <>
+                                <div className="absolute left-0 top-0 bg-black/35" style={{ width: '100%', height: `${cropBox.y}%` }} />
+                                <div className="absolute left-0 bg-black/35" style={{ top: `${cropBox.y + cropBox.height}%`, width: '100%', height: `${100 - cropBox.y - cropBox.height}%` }} />
+                                <div className="absolute left-0 bg-black/35" style={{ top: `${cropBox.y}%`, width: `${cropBox.x}%`, height: `${cropBox.height}%` }} />
+                                <div className="absolute bg-black/35" style={{ left: `${cropBox.x + cropBox.width}%`, top: `${cropBox.y}%`, width: `${100 - cropBox.x - cropBox.width}%`, height: `${cropBox.height}%` }} />
+                                <div
+                                    className="absolute z-20 cursor-move border-2 border-[#4285F4] bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.65)]"
+                                    style={{ left: `${cropBox.x}%`, top: `${cropBox.y}%`, width: `${cropBox.width}%`, height: `${cropBox.height}%` }}
+                                    onPointerDown={startCropDrag}
+                                    onPointerMove={handleCropPointerMove}
+                                    onPointerUp={stopCropDrag}
+                                    onPointerCancel={stopCropDrag}
+                                >
+                                    <div className="absolute left-1/3 top-0 h-full border-l border-dashed border-white/70" />
+                                    <div className="absolute left-2/3 top-0 h-full border-l border-dashed border-white/70" />
+                                    <div className="absolute left-0 top-1/3 w-full border-t border-dashed border-white/70" />
+                                    <div className="absolute left-0 top-2/3 w-full border-t border-dashed border-white/70" />
+                                    {[
+                                        ['nw', 'left-0 top-0 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize'],
+                                        ['n', 'left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize'],
+                                        ['ne', 'right-0 top-0 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize'],
+                                        ['w', 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+                                        ['e', 'right-0 top-1/2 translate-x-1/2 -translate-y-1/2 cursor-ew-resize'],
+                                        ['sw', 'left-0 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize'],
+                                        ['s', 'left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2 cursor-ns-resize'],
+                                        ['se', 'right-0 bottom-0 translate-x-1/2 translate-y-1/2 cursor-nwse-resize'],
+                                    ].map(([action, position]) => (
+                                        <span key={action} onPointerDown={(event) => startCropDrag(event, action)} className={`absolute h-2.5 w-2.5 rounded-[2px] border border-white bg-[#4285F4] ${position}`} />
+                                    ))}
+                                </div>
+                                <div className="absolute right-2 top-2 z-30 flex flex-col gap-2">
+                                    <button type="button" onClick={(event) => { event.stopPropagation(); setImageMenuOpen((current) => !current) }} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E4E7EC] bg-white text-[#344054] shadow-none ring-1 ring-inset ring-[#E4E7EC] transition hover:border-[#B7C4FF] hover:bg-[#F8FAFF] hover:text-[#2F54EB]" aria-label="Mở menu chỉnh sửa ảnh">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </button>
+                                    <button type="button" onClick={zoomImageIn} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-red-500 shadow-sm transition hover:bg-red-50" aria-label="Phóng to ảnh">
+                                        <Crop className="h-4 w-4" />
+                                    </button>
+                                    {hasImageEditAdjustment && (
+                                        <button type="button" onClick={undoImageZoomStep} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#434547] shadow-sm transition hover:bg-[#F0F5FF] hover:text-[#2F54EB]" aria-label="Lùi một bước chỉnh sửa ảnh">
+                                            <RotateCcw className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                    <button type="button" onClick={applyImageEdit} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#434547] shadow-sm transition hover:bg-[#F0F5FF] hover:text-[#2F54EB]" aria-label="Áp dụng chỉnh sửa">
+                                        <Check className="h-4 w-4" />
+                                    </button>
+                                    <button type="button" onClick={cancelImageEdit} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#434547] shadow-sm transition hover:bg-red-50 hover:text-red-500" aria-label="Hủy chỉnh sửa">
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                                {imageMenuOpen && (
+                                    <div className="absolute right-11 top-2 z-40 w-44 overflow-hidden rounded-lg bg-white py-1.5 text-sm shadow-lg ring-1 ring-black/5" onClick={(event) => event.stopPropagation()}>
+                                        <button type="button" onClick={cancelImageEdit} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#595959] transition hover:bg-[#F5F5F5] hover:text-[#D4380D]">
+                                            <Pencil className="h-4 w-4 text-red-500" />
+                                            Hủy bỏ chỉnh sửa
+                                        </button>
+                                        <button type="button" onClick={changeImage} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#595959] transition hover:bg-[#F5F5F5] hover:text-[#2F54EB]">
+                                            <RotateCcw className="h-4 w-4" />
+                                            Thay đổi hình
+                                        </button>
+                                        <button type="button" onClick={deleteImage} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#595959] transition hover:bg-red-50 hover:text-red-500">
+                                            <Trash2 className="h-4 w-4 text-red-500" />
+                                            Xóa
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <button type="button" onClick={(event) => { event.stopPropagation(); setImageMenuOpen((current) => !current) }} className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#E4E7EC] bg-white text-[#344054] shadow-none ring-1 ring-inset ring-[#E4E7EC] transition hover:border-[#B7C4FF] hover:bg-[#F8FAFF] hover:text-[#2F54EB]" aria-label="Mở menu ảnh">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </button>
+                                {imageMenuOpen && (
+                                    <div className="absolute right-2 top-11 z-30 w-44 overflow-hidden rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-black/5" onClick={(event) => event.stopPropagation()}>
+                                        <button type="button" onClick={startImageEdit} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#595959] transition hover:bg-[#F5F5F5] hover:text-[#D4380D]">
+                                            <Pencil className="h-4 w-4 text-red-500" />
+                                            Chỉnh sửa hình
+                                        </button>
+                                        <button type="button" onClick={changeImage} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#595959] transition hover:bg-[#F5F5F5] hover:text-[#2F54EB]">
+                                            <RotateCcw className="h-4 w-4" />
+                                            Thay đổi hình
+                                        </button>
+                                        <button type="button" onClick={deleteImage} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#595959] transition hover:bg-red-50 hover:text-red-500">
+                                            <Trash2 className="h-4 w-4 text-red-500" />
+                                            Xóa
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <div className={`flex ${bodyClassName || "min-h-[136px]"} flex-col items-center justify-center text-center`}>
+                        <Upload className="mb-2 h-5 w-5 text-[#597EF7]" />
+                        <p className="text-sm font-medium text-[#597EF7]">Tải lên từ máy tính</p>
+                        <p className="mt-2 text-sm text-[#8C8C8C]">Hoặc kéo và thả tập tin tại đây</p>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); inputRef.current?.click() }} className="mt-3 rounded-md bg-[#597EF7] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2F54EB]">
+                            Kho lưu trữ
+                        </button>
+                    </div>
+                )}
             </div>
+            {isImagePreviewOpen && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={closeImagePreview} />
+                    <div className="relative w-full max-w-[768px] rounded-md bg-white p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                        <div
+                            ref={imagePreviewFrameRef}
+                            className={`relative flex h-[58vh] min-h-[360px] select-none items-center justify-center overflow-hidden rounded-md bg-white ${isDraggingImagePreview ? 'cursor-grabbing' : 'cursor-grab'}`}
+                            onWheel={handleImagePreviewWheel}
+                            onPointerDown={handleImagePreviewPointerDown}
+                            onPointerMove={handleImagePreviewPointerMove}
+                            onPointerUp={stopImagePreviewDrag}
+                            onPointerCancel={stopImagePreviewDrag}
+                            onLostPointerCapture={stopImagePreviewDrag}
+                            style={{ touchAction: 'none' }}
+                        >
+                            {!isImagePreviewLoaded && (
+                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white text-[#434343]">
+                                    <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#D9D9D9] border-t-[#2F54EB]" />
+                                    <div className="w-56 max-w-[70%] overflow-hidden rounded-full bg-[#F0F0F0]">
+                                        <div className="h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out" style={{ width: `${imagePreviewLoadProgress}%` }} />
+                                    </div>
+                                    <p className="text-sm font-medium">Đang tải ảnh {imagePreviewLoadProgress}%</p>
+                                </div>
+                            )}
+                            <img
+                                ref={imagePreviewRef}
+                                src={previewUrl}
+                                alt={imagePreviewFileName}
+                                draggable={false}
+                                onLoad={() => {
+                                    updateImagePreviewFitSize()
+                                    const clampedPosition = clampImagePreviewPosition(imagePreviewPositionRef.current, imagePreviewScaleRef.current)
+                                    imagePreviewPositionRef.current = clampedPosition
+                                    setImagePreviewPosition(clampedPosition)
+                                    setImagePreviewLoadProgress(100)
+
+                                    if (imagePreviewLoadTimerRef.current) {
+                                        window.clearTimeout(imagePreviewLoadTimerRef.current)
+                                    }
+
+                                    imagePreviewLoadTimerRef.current = window.setTimeout(() => {
+                                        setIsImagePreviewLoaded(true)
+                                        imagePreviewLoadTimerRef.current = null
+                                    }, 160)
+                                }}
+                                onError={() => {
+                                    setImagePreviewLoadProgress(100)
+                                    setIsImagePreviewLoaded(true)
+                                }}
+                                onDragStart={(event) => event.preventDefault()}
+                                className={`max-h-full max-w-full flex-none select-none object-contain transition-opacity duration-200 ${isImagePreviewLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                style={{
+                                    width: imagePreviewFitSize.width ? `${imagePreviewFitSize.width}px` : undefined,
+                                    height: imagePreviewFitSize.height ? `${imagePreviewFitSize.height}px` : undefined,
+                                    transform: `translate3d(${imagePreviewPosition.x}px, ${imagePreviewPosition.y}px, 0) scale(${imagePreviewScale})`,
+                                    transition: isDraggingImagePreview ? 'opacity 200ms ease-out' : 'opacity 200ms ease-out, transform 120ms ease-out',
+                                    willChange: 'transform, opacity',
+                                }}
+                            />
+                        </div>
+                        <div className="mt-4">
+                            <p className="break-words text-sm text-[#1F1F1F]">{imagePreviewFileName}</p>
+                            <div className="mt-2 flex items-center justify-between gap-3">
+                                <div className="flex h-9 items-center gap-2 rounded-full border border-[#D9D9D9] px-2 text-[#1F1F1F]">
+                                    <button type="button" onClick={() => zoomImagePreview((current) => current - 0.2)} className="rounded-full p-1 transition hover:bg-[#F5F5F5]" aria-label="Thu nhỏ ảnh">
+                                        <ZoomOut className="h-4 w-4" />
+                                    </button>
+                                    <span className="min-w-10 text-center text-sm text-[#434343]">{Math.round(imagePreviewScale * 100)}%</span>
+                                    <button type="button" onClick={() => zoomImagePreview((current) => current + 0.2)} className="rounded-full p-1 transition hover:bg-[#F5F5F5]" aria-label="Phóng to ảnh">
+                                        <ZoomIn className="h-4 w-4" />
+                                    </button>
+                                </div>
+                                <Button variant="danger" onClick={closeImagePreview} className="!rounded-lg !bg-[#EF4444] hover:!bg-[#DC2626]">
+                                    <X className="h-4 w-4" />
+                                    Đóng
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             <input
                 ref={inputRef}
                 id={id}
@@ -183,7 +913,7 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
                     event.target.value = ''
                 }}
             />
-            {files.length > 0 && (
+            {files.length > 0 && !hasImagePreview && (
                 <div className="mt-2 space-y-2">
                     {files.map((file, index) => (
                         <div key={`${file.name}-${file.size || file.id || index}-${index}`} className="flex items-center justify-between rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm">
@@ -1010,6 +1740,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                                         error={fileError}
                                                         bucketClassName={needsContent ? 'h-full min-h-[252px]' : ''}
                                                         bodyClassName={needsContent ? 'min-h-[242px]' : ''}
+                                                        showImagePreview
                                                     />
                                                 ) : null
                                                 const contentSlot = needsContent ? (
