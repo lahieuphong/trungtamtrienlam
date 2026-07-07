@@ -100,7 +100,7 @@ function Divider() {
     return <div className="my-3 h-px w-full bg-[#F0F0F0]" />
 }
 
-const RICH_TEXT_CONTENT_CLASS_NAME = '[&_p]:my-2 [&_div]:my-2 [&_h1]:my-3 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h5]:my-2 [&_h5]:text-sm [&_h5]:font-semibold [&_a]:text-[#2F54EB] [&_a]:underline [&_a]:break-words [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1'
+const RICH_TEXT_CONTENT_CLASS_NAME = 'break-words [overflow-wrap:anywhere] [word-break:break-word] [&_*]:max-w-full [&_*]:break-words [&_*]:[overflow-wrap:anywhere] [&_*]:[word-break:break-word] [&_p]:my-0 [&_div]:my-0 [&_h1]:my-3 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:my-3 [&_h2]:text-xl [&_h2]:font-bold [&_h3]:my-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h5]:my-2 [&_h5]:text-sm [&_h5]:font-semibold [&_a]:cursor-pointer [&_a]:text-[#2F54EB] [&_a]:underline [&_a]:break-words [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-1'
 const TEXT_SIZE_STYLES = { 1: '12px', 2: '14px', 3: '16px', 4: '18px', 5: '22px', 6: '28px', 7: '36px' }
 
 function RadioOption({ name, value, checked, onChange, label }) {
@@ -979,6 +979,52 @@ function SectionTextEditor({ value, onChange, error }) {
         onChange(nextValue)
     }
 
+    const isAutoLinkText = (text) => {
+        const trimmed = (text || '').trim()
+        if (!trimmed || /\s/.test(trimmed)) return false
+
+        return /^https?:\/\/\S+$/i.test(trimmed)
+            || /^www\.[^\s.]+\.[^\s]+$/i.test(trimmed)
+            || /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/\S*)?$/i.test(trimmed)
+    }
+
+    const normalizeAutoLinkHref = (text) => {
+        const trimmed = (text || '').trim()
+        if (/^https?:\/\//i.test(trimmed)) return trimmed
+        return `https://${trimmed.replace(/^\/+/, '')}`
+    }
+
+    const splitAutoLinkText = (text) => {
+        let linkText = text || ''
+        let suffix = ''
+
+        while (/[.,!?;:)\]}]+$/.test(linkText)) {
+            suffix = linkText.slice(-1) + suffix
+            linkText = linkText.slice(0, -1)
+        }
+
+        return { linkText, suffix }
+    }
+
+    const applyAutoLinkStyle = (link) => {
+        if (!link) return
+        link.style.color = '#2F54EB'
+        link.style.textDecoration = 'underline'
+        link.style.cursor = 'pointer'
+        link.style.overflowWrap = 'anywhere'
+        link.style.wordBreak = 'break-word'
+    }
+
+    const createAutoLink = (linkText) => {
+        const link = document.createElement('a')
+        link.href = normalizeAutoLinkHref(linkText)
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.textContent = linkText
+        applyAutoLinkStyle(link)
+        return link
+    }
+
     const saveSelection = () => {
         const editor = editorRef.current
         if (!editor || typeof window === 'undefined') return
@@ -986,6 +1032,155 @@ function SectionTextEditor({ value, onChange, error }) {
         if (selection?.rangeCount && editor.contains(selection.anchorNode)) {
             selectionRef.current = selection.getRangeAt(0).cloneRange()
         }
+    }
+
+    const getCaretTextOffset = () => {
+        const editor = editorRef.current
+        if (!editor || typeof window === 'undefined' || typeof document === 'undefined') return null
+
+        const selection = window.getSelection()
+        if (!selection?.rangeCount) return null
+
+        const range = selection.getRangeAt(0)
+        if (!editor.contains(range.endContainer)) return null
+
+        const preRange = range.cloneRange()
+        preRange.selectNodeContents(editor)
+        try {
+            preRange.setEnd(range.endContainer, range.endOffset)
+        } catch {
+            return null
+        }
+
+        return preRange.toString().length
+    }
+
+    const restoreCaretTextOffset = (offset) => {
+        const editor = editorRef.current
+        if (offset === null || offset === undefined || !editor || typeof window === 'undefined' || typeof document === 'undefined') return
+
+        const walker = document.createTreeWalker(editor, window.NodeFilter.SHOW_TEXT)
+        let currentOffset = 0
+        let node = walker.nextNode()
+
+        while (node) {
+            const nodeLength = node.nodeValue?.length || 0
+            const nextOffset = currentOffset + nodeLength
+
+            if (offset <= nextOffset) {
+                const range = document.createRange()
+                range.setStart(node, Math.max(0, Math.min(nodeLength, offset - currentOffset)))
+                range.collapse(true)
+                const selection = window.getSelection()
+                selection.removeAllRanges()
+                selection.addRange(range)
+                selectionRef.current = range.cloneRange()
+                return
+            }
+
+            currentOffset = nextOffset
+            node = walker.nextNode()
+        }
+
+        placeCaretAtEnd()
+    }
+
+    const normalizeExistingAutoLinks = (editor) => {
+        let changed = false
+        const links = Array.from(editor.querySelectorAll('a'))
+
+        links.forEach((link) => {
+            applyAutoLinkStyle(link)
+            const fullText = link.textContent || ''
+            const whitespaceIndex = fullText.search(/\s/)
+            let linkText = whitespaceIndex >= 0 ? fullText.slice(0, whitespaceIndex) : fullText
+            let suffix = whitespaceIndex >= 0 ? fullText.slice(whitespaceIndex) : ''
+            const splitText = splitAutoLinkText(linkText)
+            linkText = splitText.linkText
+            suffix = splitText.suffix + suffix
+
+            if (!isAutoLinkText(linkText)) return
+
+            const nextHref = normalizeAutoLinkHref(linkText)
+            if (link.getAttribute('href') !== nextHref) {
+                link.setAttribute('href', nextHref)
+                changed = true
+            }
+            if (link.getAttribute('target') !== '_blank') {
+                link.setAttribute('target', '_blank')
+                changed = true
+            }
+            if (link.getAttribute('rel') !== 'noopener noreferrer') {
+                link.setAttribute('rel', 'noopener noreferrer')
+                changed = true
+            }
+            if (link.textContent !== linkText) {
+                link.textContent = linkText
+                changed = true
+            }
+            if (suffix) {
+                link.after(document.createTextNode(suffix))
+                changed = true
+            }
+        })
+
+        return changed
+    }
+
+    const autoLinkEditorContent = () => {
+        const editor = editorRef.current
+        if (!editor || typeof window === 'undefined' || typeof document === 'undefined') return false
+
+        const caretOffset = getCaretTextOffset()
+        const textNodes = []
+        const walker = document.createTreeWalker(editor, window.NodeFilter.SHOW_TEXT, {
+            acceptNode: (node) => {
+                if (!node.nodeValue || !node.nodeValue.trim()) return window.NodeFilter.FILTER_REJECT
+                if (node.parentElement?.closest('a')) return window.NodeFilter.FILTER_REJECT
+                return window.NodeFilter.FILTER_ACCEPT
+            },
+        })
+        let currentNode = walker.nextNode()
+
+        while (currentNode) {
+            textNodes.push(currentNode)
+            currentNode = walker.nextNode()
+        }
+
+        let changed = normalizeExistingAutoLinks(editor)
+        const urlPattern = /\b((?:https?:\/\/|www\.)[^\s<]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<]*)?)/gi
+
+        textNodes.forEach((node) => {
+            const source = node.nodeValue || ''
+            const fragment = document.createDocumentFragment()
+            let lastIndex = 0
+            let nodeChanged = false
+            urlPattern.lastIndex = 0
+
+            for (const match of source.matchAll(urlPattern)) {
+                const rawMatch = match[0]
+                const matchIndex = match.index || 0
+                if (matchIndex > 0 && source[matchIndex - 1] === '@') continue
+
+                const { linkText, suffix } = splitAutoLinkText(rawMatch)
+                if (!isAutoLinkText(linkText)) continue
+
+                fragment.append(document.createTextNode(source.slice(lastIndex, matchIndex)))
+                fragment.append(createAutoLink(linkText))
+                if (suffix) fragment.append(document.createTextNode(suffix))
+                lastIndex = matchIndex + rawMatch.length
+                nodeChanged = true
+            }
+
+            if (!nodeChanged) return
+
+            fragment.append(document.createTextNode(source.slice(lastIndex)))
+            node.replaceWith(fragment)
+            changed = true
+        })
+
+        if (changed) restoreCaretTextOffset(caretOffset)
+        return changed
     }
 
     const placeCaretAtEnd = () => {
@@ -1189,6 +1384,7 @@ function SectionTextEditor({ value, onChange, error }) {
         linkNode.target = '_blank'
         linkNode.rel = 'noopener noreferrer'
         linkNode.textContent = selectedText || rawUrl
+        applyAutoLinkStyle(linkNode)
 
         range.deleteContents()
         range.insertNode(linkNode)
@@ -1207,9 +1403,50 @@ function SectionTextEditor({ value, onChange, error }) {
         closeLinkModal()
     }
 
+    const getEditorLinkFromTarget = (target) => {
+        const editor = editorRef.current
+        const link = target?.nodeType === 1 ? target.closest('a') : target?.parentElement?.closest('a')
+
+        if (!editor || !link || !editor.contains(link)) return null
+        return link
+    }
+
+    const handleEditorLinkMouseDown = (event) => {
+        if (event.button !== 0) return
+
+        const link = getEditorLinkFromTarget(event.target)
+        if (!link) return
+
+        const href = link.getAttribute('href')
+        if (!href) return
+
+        event.preventDefault()
+        event.stopPropagation()
+        saveSelection()
+        window.open(href, '_blank', 'noopener,noreferrer')
+    }
+
+    const handleEditorInput = () => {
+        autoLinkEditorContent()
+        emitChange()
+        saveSelection()
+    }
+
+    const handleEditorKeyUp = () => {
+        const changed = autoLinkEditorContent()
+        if (changed) emitChange()
+        saveSelection()
+    }
+
+    const handleEditorBlur = () => {
+        autoLinkEditorContent()
+        saveSelection()
+        emitChange()
+    }
+
     return (
         <div className="h-full">
-            <div className="flex h-full min-h-[252px] flex-col rounded-md bg-white">
+            <div className="flex h-full min-h-[252px] max-h-[252px] flex-col overflow-hidden rounded-md bg-white">
                 <div className={`flex min-h-11 shrink-0 flex-wrap items-center gap-1 rounded-t-md border border-[#D0D7DE] bg-[#F8FAFC] p-2 ${error ? 'border-red-400' : ''}`}>
                     <ToolbarIconButton onClick={() => runCommand('undo')}><Undo2 className="h-4 w-4" /></ToolbarIconButton>
                     <ToolbarIconButton onClick={() => runCommand('redo')}><Redo2 className="h-4 w-4" /></ToolbarIconButton>
@@ -1261,11 +1498,13 @@ function SectionTextEditor({ value, onChange, error }) {
                     ref={editorRef}
                     contentEditable
                     suppressContentEditableWarning
-                    onInput={emitChange}
-                    onBlur={() => { saveSelection(); emitChange() }}
-                    onKeyUp={saveSelection}
+                    onInput={handleEditorInput}
+                    onMouseDown={handleEditorLinkMouseDown}
+                    onBlur={handleEditorBlur}
+                    onKeyUp={handleEditorKeyUp}
                     onMouseUp={saveSelection}
-                    className={`min-h-0 flex-1 overflow-auto rounded-b-md border border-t-0 bg-white p-3 text-sm leading-6 text-[#1F2937] outline-none transition focus:border-[#597EF7] focus:ring-2 focus:ring-[#597EF7]/20 ${RICH_TEXT_CONTENT_CLASS_NAME} ${error ? 'border-red-400' : 'border-[#D0D7DE]'}`}
+                    className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-b-md border border-t-0 bg-white p-3 text-sm leading-6 text-[#1F2937] outline-none transition focus:border-[#597EF7] focus:ring-2 focus:ring-[#597EF7]/20 ${RICH_TEXT_CONTENT_CLASS_NAME} ${error ? 'border-red-400' : 'border-[#D0D7DE]'}`}
+                    style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                 />
             </div>
             {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
