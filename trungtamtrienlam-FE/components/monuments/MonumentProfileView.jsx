@@ -47,7 +47,6 @@ const FILE_GROUPS_PUBLIC = [
 const FILE_GROUPS_PRIVATE = [
     { title: 'Hình đại diện', mode: MonumentFileConstants.modes.imageAvatar2 },
     { title: 'Kiến trúc', mode: MonumentFileConstants.modes.fileStructure },
-    { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D, className: 'md:col-span-2' },
     { title: 'Hình ảnh bản vẽ kỹ thuật', mode: MonumentFileConstants.modes.imageTech },
     { title: 'Bản đồ khoanh vùng', mode: MonumentFileConstants.modes.fileMap },
 ]
@@ -124,6 +123,24 @@ function FieldValue({ label, value }) {
         <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-[#434547]"><RequiredLabel label={label} /></label>
             <p className="text-sm font-normal text-[#2F54EB]">{value || '-'}</p>
+        </div>
+    )
+}
+
+function RichTextValue({ label, value }) {
+    const html = String(value || '').trim()
+
+    return (
+        <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-[#434547]"><RequiredLabel label={label} /></label>
+            {html ? (
+                <div
+                    className={`max-w-none rounded-md border border-[#F0F0F0] bg-white px-3 py-2.5 text-sm leading-7 text-[#1F2937] ${RICH_TEXT_CONTENT_CLASS_NAME}`}
+                    dangerouslySetInnerHTML={{ __html: html }}
+                />
+            ) : (
+                <p className="text-sm text-[#8C8C8C]">Chưa có dữ liệu</p>
+            )}
         </div>
     )
 }
@@ -1352,7 +1369,7 @@ export default function MonumentProfileView() {
                 {isPrivate ? (
                     <>
                         <div className="h-px bg-[#F0F0F0]" />
-                        <FieldValue label="Nội dung *" value={monument.description} />
+                        <RichTextValue label="Nội dung *" value={monument.description} />
                     </>
                 ) : (
                     <>
