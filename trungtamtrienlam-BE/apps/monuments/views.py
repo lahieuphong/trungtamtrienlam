@@ -51,6 +51,12 @@ PRIVATE_REQUIRED_FILE_BUCKETS = {
     'fileMaps': (MonumentFile.Mode.FILE_MAP, 'Vui lòng chọn bản đồ khoanh vùng'),
 }
 
+SECTION_TYPES_WITH_IMAGE = {
+    MonumentSection.SectionType.IMAGE,
+    MonumentSection.SectionType.IMAGE_CONTENT,
+    MonumentSection.SectionType.CONTENT_IMAGE,
+}
+
 REQUIRED_COMMON_FIELDS = {
     'name': 'Vui lòng nhập tên di tích',
     'recognitionDecision': 'Vui lòng nhập quyết định công nhận',
@@ -82,6 +88,57 @@ def _get_data_value(data, *names, default=''):
         if value not in (None, ''):
             return value
     return default
+
+
+def _parse_id_set(data, *names):
+    for name in names:
+        raw_value = data.get(name)
+        if raw_value in (None, ''):
+            continue
+
+        if isinstance(raw_value, str):
+            try:
+                value = json.loads(raw_value)
+            except json.JSONDecodeError:
+                value = [raw_value]
+        elif isinstance(raw_value, (list, tuple, set)):
+            value = raw_value
+        else:
+            value = [raw_value]
+
+        return {str(item).strip() for item in value if str(item or '').strip()}
+    return set()
+
+
+def _delete_file_field(file_field):
+    if not file_field:
+        return
+
+    try:
+        file_name = file_field.name
+        storage = file_field.storage
+    except (AttributeError, ValueError):
+        return
+
+    if not file_name:
+        return
+
+    try:
+        storage.delete(file_name)
+    except Exception:
+        pass
+
+
+def _delete_monument_files(monument, file_ids, user):
+    if not file_ids:
+        return
+
+    files = monument.files.filter(id__in=file_ids, is_deleted=False)
+    for item in files:
+        _delete_file_field(item.file)
+        item.is_deleted = True
+        item.updated_by = str(user.id)
+        item.save(update_fields=['is_deleted', 'updated_by', 'updated_at'])
 
 
 def _extension(filename):
@@ -276,13 +333,20 @@ def _section_file(request, section, index):
     return None
 
 
-def _validate_create_payload(request, sections, monument=None, existing_sections=None):
+def _validate_create_payload(request, sections, monument=None, existing_sections=None, deleted_file_ids=None, deleted_section_file_ids=None):
     errors = {}
     data = request.data
     existing_sections = existing_sections or {}
+    deleted_file_ids = set(deleted_file_ids or [])
+    deleted_section_file_ids = set(deleted_section_file_ids or [])
 
     def has_existing_file(mode):
-        return bool(monument and monument.files.filter(mode=mode, is_deleted=False).exists())
+        if not monument:
+            return False
+        queryset = monument.files.filter(mode=mode, is_deleted=False)
+        if deleted_file_ids:
+            queryset = queryset.exclude(id__in=deleted_file_ids)
+        return queryset.exists()
 
     for field, message in REQUIRED_COMMON_FIELDS.items():
         if not _get_data_value(data, field):
@@ -301,8 +365,10 @@ def _validate_create_payload(request, sections, monument=None, existing_sections
             section_type = _as_int(section.get('type'), MonumentSection.SectionType.IMAGE)
             has_content = bool(str(section.get('content') or '').strip())
             file_obj = _section_file(request, section, index)
-            existing_section = existing_sections.get(str(section.get('id') or ''))
-            has_section_file = bool(file_obj or (existing_section and existing_section.file))
+            existing_section_id = str(section.get('id') or '')
+            existing_section = existing_sections.get(existing_section_id)
+            has_existing_section_file = bool(existing_section and existing_section.file and existing_section_id not in deleted_section_file_ids)
+            has_section_file = bool(file_obj or has_existing_section_file)
             if section_type in (MonumentSection.SectionType.CONTENT, MonumentSection.SectionType.IMAGE_CONTENT, MonumentSection.SectionType.CONTENT_IMAGE) and not has_content:
                 errors[f'sections_{section.get("id") or index}_content'] = 'Vui lòng nhập nội dung section'
             if section_type in (MonumentSection.SectionType.IMAGE, MonumentSection.SectionType.IMAGE_CONTENT, MonumentSection.SectionType.CONTENT_IMAGE) and not has_section_file:
@@ -515,8 +581,17 @@ class MonumentUpdateView(APIView):
             return ResponseServer.forbidden('Bạn không có quyền chỉnh sửa hồ sơ này')
 
         sections = _parse_sections(request)
+        deleted_file_ids = _parse_id_set(request.data, 'deletedFileIds', 'deleted_file_ids')
+        deleted_section_file_ids = _parse_id_set(request.data, 'deletedSectionFileIds', 'deleted_section_file_ids')
         existing_sections = {str(section.id): section for section in monument.sections.filter(is_deleted=False)}
-        errors = _validate_create_payload(request, sections, monument=monument, existing_sections=existing_sections)
+        errors = _validate_create_payload(
+            request,
+            sections,
+            monument=monument,
+            existing_sections=existing_sections,
+            deleted_file_ids=deleted_file_ids,
+            deleted_section_file_ids=deleted_section_file_ids,
+        )
         if errors:
             return ResponseServer.failure(message='Dữ liệu chưa hợp lệ', errors=errors)
 
@@ -536,8 +611,10 @@ class MonumentUpdateView(APIView):
         monument.updated_by = str(request.user.id)
         monument.save()
 
+        _delete_monument_files(monument, deleted_file_ids, request.user)
+        _delete_removed_section_files(request, sections, existing_sections, deleted_section_file_ids)
         monument.sections.all().delete()
-        _save_sections(request, monument, sections, request.user, existing_sections=existing_sections)
+        _save_sections(request, monument, sections, request.user, existing_sections=existing_sections, deleted_section_file_ids=deleted_section_file_ids)
         _save_files(request, monument, request.user)
 
         return ResponseServer.success(
@@ -708,22 +785,56 @@ def _request_next(monument, user):
     return ResponseServer.success(data=_serialize_detail(monument, user), message=message)
 
 
-def _save_sections(request, monument, sections, user, existing_sections=None):
+def _section_needs_image(section_type):
+    return section_type in SECTION_TYPES_WITH_IMAGE
+
+
+def _delete_removed_section_files(request, sections, existing_sections, deleted_section_file_ids):
+    deleted_section_file_ids = set(deleted_section_file_ids or [])
+    incoming_section_ids = {str(section.get('id')) for section in sections if section.get('id')}
+
+    for index, section in enumerate(sections):
+        section_id = str(section.get('id') or '')
+        existing_section = existing_sections.get(section_id)
+        if not existing_section or not existing_section.file:
+            continue
+
+        section_type = _as_int(section.get('type'), MonumentSection.SectionType.IMAGE)
+        has_new_file = bool(_section_file(request, section, index))
+        should_delete_file = section_id in deleted_section_file_ids or has_new_file or not _section_needs_image(section_type)
+        if should_delete_file:
+            _delete_file_field(existing_section.file)
+
+    for section_id, existing_section in existing_sections.items():
+        if section_id not in incoming_section_ids and existing_section.file:
+            _delete_file_field(existing_section.file)
+
+
+def _save_sections(request, monument, sections, user, existing_sections=None, deleted_section_file_ids=None):
     existing_sections = existing_sections or {}
+    deleted_section_file_ids = set(deleted_section_file_ids or [])
     for index, section in enumerate(sections):
         file_obj = _section_file(request, section, index)
-        existing_section = existing_sections.get(str(section.get('id') or ''))
-        section_file = file_obj or (existing_section.file if existing_section and existing_section.file else None)
-        section_file_type = _file_type(getattr(file_obj, 'name', '')) if file_obj else (existing_section.file_type if existing_section else None)
+        section_id = str(section.get('id') or '')
+        section_type = _as_int(section.get('type'), MonumentSection.SectionType.IMAGE)
+        existing_section = existing_sections.get(section_id)
+        can_reuse_existing_file = bool(
+            existing_section
+            and existing_section.file
+            and section_id not in deleted_section_file_ids
+            and _section_needs_image(section_type)
+        )
+        section_file = file_obj or (existing_section.file if can_reuse_existing_file else None)
+        section_file_type = _file_type(getattr(file_obj, 'name', '')) if file_obj else (existing_section.file_type if can_reuse_existing_file else None)
         MonumentSection.objects.create(
             monument=monument,
             content=section.get('content') or '',
-            type=_as_int(section.get('type'), MonumentSection.SectionType.IMAGE),
+            type=section_type,
             order=_as_int(section.get('order'), index + 1),
             file=section_file,
-            file_name=getattr(file_obj, 'name', None) if file_obj else (existing_section.file_name if existing_section else None),
-            file_size=(getattr(file_obj, 'size', 0) or 0) if file_obj else (existing_section.file_size if existing_section else 0),
-            file_extension=_extension(getattr(file_obj, 'name', '')) if file_obj else (existing_section.file_extension if existing_section else None),
+            file_name=getattr(file_obj, 'name', None) if file_obj else (existing_section.file_name if can_reuse_existing_file else None),
+            file_size=(getattr(file_obj, 'size', 0) or 0) if file_obj else (existing_section.file_size if can_reuse_existing_file else 0),
+            file_extension=_extension(getattr(file_obj, 'name', '')) if file_obj else (existing_section.file_extension if can_reuse_existing_file else None),
             file_type=section_file_type,
             created_by=str(user.id),
         )

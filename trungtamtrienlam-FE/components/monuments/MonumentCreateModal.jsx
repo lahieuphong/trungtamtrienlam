@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { AlignCenter, AlignLeft, AlignRight, Bold, Check, ChevronDown, Crop, FileText, Italic, Link2, List, ListOrdered, MoreHorizontal, Pencil, Plus, Redo2, RotateCcw, Save, Trash2, Type, Underline, Undo2, Upload, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { AlignCenter, AlignLeft, AlignRight, Bold, Boxes, Check, ChevronDown, Crop, FileText, Image as ImageIcon, Italic, Link2, List, ListOrdered, MoreHorizontal, Pencil, Plus, Redo2, RotateCcw, Save, Trash2, Type, Underline, Undo2, Upload, Video, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 
 import { Button } from '@/components/common/Button'
@@ -21,8 +22,22 @@ const ACCEPTS = {
     model3d: '.stl,.obj,.fbx,.gltf,.glb',
 }
 
+const GlbViewer = dynamic(() => import('@/components/monuments/GlbViewer'), {
+    ssr: false,
+    loading: () => (
+        <div className="flex h-[58vh] min-h-[360px] flex-col items-center justify-center gap-3 rounded-md bg-[#F5F5F5] text-[#434343]">
+            <Boxes className="h-11 w-11 text-[#8C8C8C]" />
+            <div className="w-60 max-w-[72%] overflow-hidden rounded-full bg-[#E5E7EB]">
+                <div className="h-2 w-1/2 animate-pulse rounded-full bg-[#2F54EB]" />
+            </div>
+            <p className="text-sm font-medium">Đang chuẩn bị mô hình 3D</p>
+        </div>
+    ),
+})
+
 const MODEL_3D_EXTENSIONS = ['.stl', '.obj', '.fbx', '.gltf', '.glb']
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp', '.svg', '.arw', '.dng']
+const VIDEO_EXTENSIONS = ['.mp4', '.m4a', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm']
 
 const createInitialForm = () => ({
     name: '',
@@ -46,6 +61,8 @@ const createInitialForm = () => ({
     fileStructures: [],
     fileImageTechs: [],
     fileMaps: [],
+    deletedFileIds: [],
+    deletedSectionFileIds: [],
 })
 
 function getExtension(fileName = '') {
@@ -55,6 +72,69 @@ function getExtension(fileName = '') {
 
 function isNativeFile(file) {
     return typeof File !== 'undefined' && file instanceof File
+}
+
+function getUploadFileName(file) {
+    return file?.fileName || file?.name || 'File'
+}
+
+function formatUploadFileSize(size) {
+    const numericSize = Number(size)
+    if (!Number.isFinite(numericSize) || numericSize <= 0) return ''
+
+    const units = ['KB', 'MB', 'GB', 'TB']
+    let value = numericSize < 1024 ? numericSize : numericSize / 1024
+    let unitIndex = 0
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024
+        unitIndex += 1
+    }
+
+    const displayValue = value.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
+    return `${displayValue}${units[unitIndex]}`
+}
+
+function getUploadFileIcon(file) {
+    const fileName = getUploadFileName(file)
+    const extension = getExtension(fileName)
+    const type = file?.type || ''
+
+    if (MODEL_3D_EXTENSIONS.includes(extension)) return Boxes
+    if (type.startsWith('video/') || VIDEO_EXTENSIONS.includes(extension)) return Video
+    if (type.startsWith('image/') || IMAGE_EXTENSIONS.includes(extension)) return ImageIcon
+    return FileText
+}
+
+function isUploadImagePreviewable(file) {
+    const fileName = getUploadFileName(file)
+    const extension = getExtension(fileName)
+    const type = file?.type || ''
+    return type.startsWith('image/') || IMAGE_EXTENSIONS.includes(extension)
+}
+
+function isUploadVideoPreviewable(file) {
+    const fileName = getUploadFileName(file)
+    const extension = getExtension(fileName)
+    const type = file?.type || ''
+    return type.startsWith('video/') || VIDEO_EXTENSIONS.includes(extension)
+}
+
+function isUploadModelPreviewable(file) {
+    const fileName = getUploadFileName(file)
+    const extension = getExtension(fileName)
+    return ['.glb', '.gltf'].includes(extension)
+}
+
+function getUploadPreviewType(file) {
+    if (isUploadImagePreviewable(file)) return 'image'
+    if (isUploadVideoPreviewable(file)) return 'video'
+    if (isUploadModelPreviewable(file)) return 'model3d'
+    return 'file'
+}
+
+function isUploadPreviewable(file) {
+    return getUploadPreviewType(file) !== 'file'
 }
 
 function toExistingFile(file) {
@@ -192,6 +272,118 @@ function cropImageFile(file, cropBox, imageZoom = 1, frameSize = null) {
         image.src = objectUrl
     })
 }
+function UploadVideoPreview({ src, fileName }) {
+    const videoRef = useRef(null)
+    const progressValueRef = useRef(1)
+    const progressTargetRef = useRef(1)
+    const revealTimerRef = useRef(null)
+    const [progress, setProgress] = useState(1)
+    const [isVideoReady, setIsVideoReady] = useState(false)
+    const [hasVideoError, setHasVideoError] = useState(false)
+
+    const updateProgressTarget = useCallback((target) => {
+        progressTargetRef.current = Math.max(progressTargetRef.current, target)
+    }, [])
+
+    const revealVideo = useCallback(() => {
+        updateProgressTarget(100)
+
+        if (revealTimerRef.current) {
+            window.clearInterval(revealTimerRef.current)
+        }
+
+        revealTimerRef.current = window.setInterval(() => {
+            if (progressValueRef.current < 99.5) return
+
+            progressValueRef.current = 100
+            setProgress(100)
+            setIsVideoReady(true)
+            window.clearInterval(revealTimerRef.current)
+            revealTimerRef.current = null
+        }, 40)
+    }, [updateProgressTarget])
+
+    useEffect(() => {
+        progressValueRef.current = 1
+        progressTargetRef.current = 1
+        setProgress(1)
+        setIsVideoReady(false)
+        setHasVideoError(false)
+
+        const progressTimer = window.setInterval(() => {
+            if (progressTargetRef.current < 92) {
+                progressTargetRef.current = Math.min(92, progressTargetRef.current + 0.6)
+            }
+
+            const current = progressValueRef.current
+            const target = progressTargetRef.current
+            if (current >= target) return
+
+            const distance = target - current
+            const step = Math.max(target >= 100 ? 2.6 : 0.8, distance * (target >= 100 ? 0.22 : 0.08))
+            const nextProgress = Math.min(target, current + step)
+
+            progressValueRef.current = nextProgress
+            setProgress(Math.max(1, Math.min(100, Math.round(nextProgress))))
+        }, 90)
+
+        return () => {
+            window.clearInterval(progressTimer)
+            if (revealTimerRef.current) {
+                window.clearInterval(revealTimerRef.current)
+                revealTimerRef.current = null
+            }
+        }
+    }, [src])
+
+    const handleVideoProgress = useCallback(() => {
+        const video = videoRef.current
+        if (!video || !Number.isFinite(video.duration) || video.duration <= 0 || !video.buffered?.length) return
+
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1)
+        const bufferedPercent = Math.min(1, Math.max(0, bufferedEnd / video.duration))
+        updateProgressTarget(Math.min(96, 8 + bufferedPercent * 88))
+    }, [updateProgressTarget])
+
+    return (
+        <div className="relative overflow-hidden rounded-md bg-black">
+            {!isVideoReady && !hasVideoError && (
+                <div className="absolute inset-0 z-10 flex min-h-[360px] flex-col items-center justify-center gap-3 bg-[#F5F5F5] text-[#434343]">
+                    <Video className="h-11 w-11 text-[#8C8C8C]" />
+                    <div className="w-60 max-w-[72%] overflow-hidden rounded-full bg-[#E5E7EB]">
+                        <div className="h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-sm font-medium">Đang tải video {progress}%</p>
+                </div>
+            )}
+
+            {hasVideoError && (
+                <div className="absolute inset-0 z-10 flex min-h-[360px] flex-col items-center justify-center gap-3 bg-[#F5F5F5] text-center text-sm text-[#595959]">
+                    <Video className="h-12 w-12 text-[#8C8C8C]" />
+                    <p>Không thể tải video này.</p>
+                </div>
+            )}
+
+            <video
+                ref={videoRef}
+                src={src}
+                controls
+                preload="auto"
+                playsInline
+                title={fileName}
+                onLoadedMetadata={() => updateProgressTarget(42)}
+                onLoadedData={() => updateProgressTarget(72)}
+                onProgress={handleVideoProgress}
+                onCanPlay={revealVideo}
+                onError={() => {
+                    setHasVideoError(true)
+                    setProgress(100)
+                }}
+                className={`max-h-[58vh] w-full rounded-md bg-black transition-opacity duration-200 ${isVideoReady && !hasVideoError ? 'opacity-100' : 'opacity-0'}`}
+            />
+        </div>
+    )
+}
 function UploadBucket({ id, files, onChange, title, accept, multiple = true, error, validateFile, bucketClassName = "", bodyClassName = "", showImagePreview = false }) {
     const inputRef = useRef(null)
     const previewFrameRef = useRef(null)
@@ -205,6 +397,8 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
     const cropDragRef = useRef(null)
     const [dragOver, setDragOver] = useState(false)
     const [previewUrl, setPreviewUrl] = useState('')
+    const [listPreviewFile, setListPreviewFile] = useState(null)
+    const [listPreviewUrl, setListPreviewUrl] = useState('')
     const [imageMenuOpen, setImageMenuOpen] = useState(false)
     const [isEditingImage, setIsEditingImage] = useState(false)
     const [cropBox, setCropBox] = useState(DEFAULT_IMAGE_CROP_BOX)
@@ -244,6 +438,26 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
         setPreviewUrl('')
         return undefined
     }, [files, showImagePreview])
+    useEffect(() => {
+        if (!listPreviewFile) {
+            setListPreviewUrl('')
+            return undefined
+        }
+
+        if (listPreviewFile.path) {
+            setListPreviewUrl(listPreviewFile.path)
+            return undefined
+        }
+
+        if (isNativeFile(listPreviewFile) && isUploadPreviewable(listPreviewFile)) {
+            const objectUrl = URL.createObjectURL(listPreviewFile)
+            setListPreviewUrl(objectUrl)
+            return () => URL.revokeObjectURL(objectUrl)
+        }
+
+        setListPreviewUrl('')
+        return undefined
+    }, [listPreviewFile])
 
     useEffect(() => {
         setImageMenuOpen(false)
@@ -256,6 +470,7 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
         setImagePreviewPosition({ x: 0, y: 0 })
         setIsDraggingImagePreview(false)
         setImagePreviewFitSize({ width: 0, height: 0 })
+        setListPreviewFile(null)
         imagePreviewScaleRef.current = 1
         imagePreviewPositionRef.current = { x: 0, y: 0 }
         imagePreviewDragRef.current = null
@@ -263,7 +478,9 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
     }, [files[0]?.name, files[0]?.path, files[0]?.size])
 
     const hasImagePreview = showImagePreview && !!previewUrl
-    const imagePreviewFileName = files[0]?.fileName || files[0]?.name || 'Ảnh đã chọn'
+    const currentImagePreviewUrl = listPreviewUrl || previewUrl
+    const imagePreviewFileName = listPreviewFile ? getUploadFileName(listPreviewFile) : files[0]?.fileName || files[0]?.name || 'Ảnh đã chọn'
+    const currentPreviewType = listPreviewFile ? getUploadPreviewType(listPreviewFile) : 'image'
     const imageZoom = getImageEditZoom(imageZoomStep)
     const hasImageEditAdjustment = imageZoomStep > 0
         || Math.abs(cropBox.x - imageEditBaselineBox.x) > 0.1
@@ -298,13 +515,16 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
         }, 120)
 
         return () => window.clearInterval(progressTimer)
-    }, [isImagePreviewOpen, previewUrl])
+    }, [isImagePreviewOpen, currentImagePreviewUrl])
 
     useEffect(() => {
         if (!isImagePreviewOpen) return undefined
 
         const handleKeyDown = (event) => {
-            if (event.key === 'Escape') setIsImagePreviewOpen(false)
+            if (event.key === 'Escape') {
+                setIsImagePreviewOpen(false)
+                setListPreviewFile(null)
+            }
         }
 
         window.addEventListener('keydown', handleKeyDown)
@@ -543,6 +763,7 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
 
     const closeImagePreview = () => {
         setIsImagePreviewOpen(false)
+        setListPreviewFile(null)
     }
 
     const openImagePreview = (event) => {
@@ -550,6 +771,16 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
         if (isEditingImage) return
 
         setImageMenuOpen(false)
+        setListPreviewFile(null)
+        setIsImagePreviewOpen(true)
+    }
+
+    const openFileCardPreview = (file, event) => {
+        event.stopPropagation()
+        if (!isUploadPreviewable(file)) return
+
+        setImageMenuOpen(false)
+        setListPreviewFile(file)
         setIsImagePreviewOpen(true)
     }
 
@@ -684,7 +915,7 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
             window.cancelAnimationFrame(frameId)
             window.removeEventListener('resize', handleResize)
         }
-    }, [isImagePreviewOpen, previewUrl])
+    }, [isImagePreviewOpen, currentImagePreviewUrl])
 
     useEffect(() => {
         if (!isImagePreviewOpen || !imagePreviewFitSize.width || !imagePreviewFitSize.height) return
@@ -697,6 +928,43 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
     return (
         <div>
             {title && <p className="mb-2 text-sm font-semibold text-[#434547]">{title}</p>}
+            {files.length > 0 && !hasImagePreview && (
+                <div className="mb-2 space-y-2">
+                    {files.map((file, index) => {
+                        const fileName = getUploadFileName(file)
+                        const fileSize = formatUploadFileSize(file.size)
+                        const UploadFileIcon = getUploadFileIcon(file)
+                        const canPreviewFile = isUploadPreviewable(file)
+
+                        return (
+                            <div
+                                key={`${fileName}-${file.size || file.id || index}-${index}`}
+                                role={canPreviewFile ? 'button' : undefined}
+                                tabIndex={canPreviewFile ? 0 : undefined}
+                                onClick={(event) => canPreviewFile && openFileCardPreview(file, event)}
+                                onKeyDown={(event) => {
+                                    if (!canPreviewFile || (event.key !== 'Enter' && event.key !== ' ')) return
+                                    event.preventDefault()
+                                    openFileCardPreview(file, event)
+                                }}
+                                className={`flex min-h-[62px] items-center justify-between gap-3 rounded-md border border-[#D9D9D9] bg-white p-2 text-sm transition-colors ${canPreviewFile ? 'cursor-pointer hover:bg-[#FAFAFA]' : ''}`}
+                            >
+                                <div className="flex min-w-0 items-center gap-3">
+                                    <UploadFileIcon className="h-[30px] w-[30px] flex-shrink-0 text-[#1F1F1F]" />
+                                    <div className="min-w-0">
+                                        <p className="w-full break-words text-sm text-[#1F1F1F]">{fileName}</p>
+                                        {fileSize && <p className="mt-1 break-words text-sm text-[#8C8C8C]">{fileSize}</p>}
+                                        {file.isExisting && <span className="mt-1 inline-flex rounded bg-[#F0F5FF] px-2 py-0.5 text-xs text-[#597EF7]">Đã tải lên</span>}
+                                    </div>
+                                </div>
+                                <button type="button" onClick={(event) => { event.stopPropagation(); removeFile(index) }} className="flex-shrink-0 rounded p-1 text-[#8C8C8C] transition hover:bg-red-50 hover:text-red-500" aria-label="Xóa tệp">
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
             <div
                 role="button"
                 tabIndex={0}
@@ -820,78 +1088,86 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
                     </div>
                 )}
             </div>
-            {isImagePreviewOpen && (
+            {isImagePreviewOpen && currentImagePreviewUrl && (
                 <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/50" onClick={closeImagePreview} />
                     <div className="relative w-full max-w-[768px] rounded-md bg-white p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-                        <div
-                            ref={imagePreviewFrameRef}
-                            className={`relative flex h-[58vh] min-h-[360px] select-none items-center justify-center overflow-hidden rounded-md bg-white ${isDraggingImagePreview ? 'cursor-grabbing' : 'cursor-grab'}`}
-                            onWheel={handleImagePreviewWheel}
-                            onPointerDown={handleImagePreviewPointerDown}
-                            onPointerMove={handleImagePreviewPointerMove}
-                            onPointerUp={stopImagePreviewDrag}
-                            onPointerCancel={stopImagePreviewDrag}
-                            onLostPointerCapture={stopImagePreviewDrag}
-                            style={{ touchAction: 'none' }}
-                        >
-                            {!isImagePreviewLoaded && (
-                                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white text-[#434343]">
-                                    <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#D9D9D9] border-t-[#2F54EB]" />
-                                    <div className="w-56 max-w-[70%] overflow-hidden rounded-full bg-[#F0F0F0]">
-                                        <div className="h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out" style={{ width: `${imagePreviewLoadProgress}%` }} />
+                        {currentPreviewType === 'model3d' ? (
+                            <GlbViewer src={currentImagePreviewUrl} fileName={imagePreviewFileName} />
+                        ) : currentPreviewType === 'video' ? (
+                            <UploadVideoPreview src={currentImagePreviewUrl} fileName={imagePreviewFileName} />
+                        ) : (
+                            <div
+                                ref={imagePreviewFrameRef}
+                                className={`relative flex h-[58vh] min-h-[360px] select-none items-center justify-center overflow-hidden rounded-md bg-white ${isDraggingImagePreview ? 'cursor-grabbing' : 'cursor-grab'}`}
+                                onWheel={handleImagePreviewWheel}
+                                onPointerDown={handleImagePreviewPointerDown}
+                                onPointerMove={handleImagePreviewPointerMove}
+                                onPointerUp={stopImagePreviewDrag}
+                                onPointerCancel={stopImagePreviewDrag}
+                                onLostPointerCapture={stopImagePreviewDrag}
+                                style={{ touchAction: 'none' }}
+                            >
+                                {!isImagePreviewLoaded && (
+                                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white text-[#434343]">
+                                        <ImageIcon className="h-9 w-9 text-[#1F1F1F]" />
+                                        <div className="w-56 max-w-[70%] overflow-hidden rounded-full bg-[#F0F0F0]">
+                                            <div className="h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out" style={{ width: `${imagePreviewLoadProgress}%` }} />
+                                        </div>
+                                        <p className="text-sm font-medium">Đang tải ảnh {imagePreviewLoadProgress}%</p>
                                     </div>
-                                    <p className="text-sm font-medium">Đang tải ảnh {imagePreviewLoadProgress}%</p>
-                                </div>
-                            )}
-                            <img
-                                ref={imagePreviewRef}
-                                src={previewUrl}
-                                alt={imagePreviewFileName}
-                                draggable={false}
-                                onLoad={() => {
-                                    updateImagePreviewFitSize()
-                                    const clampedPosition = clampImagePreviewPosition(imagePreviewPositionRef.current, imagePreviewScaleRef.current)
-                                    imagePreviewPositionRef.current = clampedPosition
-                                    setImagePreviewPosition(clampedPosition)
-                                    setImagePreviewLoadProgress(100)
+                                )}
+                                <img
+                                    ref={imagePreviewRef}
+                                    src={currentImagePreviewUrl}
+                                    alt={imagePreviewFileName}
+                                    draggable={false}
+                                    onLoad={() => {
+                                        updateImagePreviewFitSize()
+                                        const clampedPosition = clampImagePreviewPosition(imagePreviewPositionRef.current, imagePreviewScaleRef.current)
+                                        imagePreviewPositionRef.current = clampedPosition
+                                        setImagePreviewPosition(clampedPosition)
+                                        setImagePreviewLoadProgress(100)
 
-                                    if (imagePreviewLoadTimerRef.current) {
-                                        window.clearTimeout(imagePreviewLoadTimerRef.current)
-                                    }
+                                        if (imagePreviewLoadTimerRef.current) {
+                                            window.clearTimeout(imagePreviewLoadTimerRef.current)
+                                        }
 
-                                    imagePreviewLoadTimerRef.current = window.setTimeout(() => {
+                                        imagePreviewLoadTimerRef.current = window.setTimeout(() => {
+                                            setIsImagePreviewLoaded(true)
+                                            imagePreviewLoadTimerRef.current = null
+                                        }, 160)
+                                    }}
+                                    onError={() => {
+                                        setImagePreviewLoadProgress(100)
                                         setIsImagePreviewLoaded(true)
-                                        imagePreviewLoadTimerRef.current = null
-                                    }, 160)
-                                }}
-                                onError={() => {
-                                    setImagePreviewLoadProgress(100)
-                                    setIsImagePreviewLoaded(true)
-                                }}
-                                onDragStart={(event) => event.preventDefault()}
-                                className={`max-h-full max-w-full flex-none select-none object-contain transition-opacity duration-200 ${isImagePreviewLoaded ? 'opacity-100' : 'opacity-0'}`}
-                                style={{
-                                    width: imagePreviewFitSize.width ? `${imagePreviewFitSize.width}px` : undefined,
-                                    height: imagePreviewFitSize.height ? `${imagePreviewFitSize.height}px` : undefined,
-                                    transform: `translate3d(${imagePreviewPosition.x}px, ${imagePreviewPosition.y}px, 0) scale(${imagePreviewScale})`,
-                                    transition: isDraggingImagePreview ? 'opacity 200ms ease-out' : 'opacity 200ms ease-out, transform 120ms ease-out',
-                                    willChange: 'transform, opacity',
-                                }}
-                            />
-                        </div>
+                                    }}
+                                    onDragStart={(event) => event.preventDefault()}
+                                    className={`max-h-full max-w-full flex-none select-none object-contain transition-opacity duration-200 ${isImagePreviewLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                    style={{
+                                        width: imagePreviewFitSize.width ? `${imagePreviewFitSize.width}px` : undefined,
+                                        height: imagePreviewFitSize.height ? `${imagePreviewFitSize.height}px` : undefined,
+                                        transform: `translate3d(${imagePreviewPosition.x}px, ${imagePreviewPosition.y}px, 0) scale(${imagePreviewScale})`,
+                                        transition: isDraggingImagePreview ? 'opacity 200ms ease-out' : 'opacity 200ms ease-out, transform 120ms ease-out',
+                                        willChange: 'transform, opacity',
+                                    }}
+                                />
+                            </div>
+                        )}
                         <div className="mt-4">
                             <p className="break-words text-sm text-[#1F1F1F]">{imagePreviewFileName}</p>
                             <div className="mt-2 flex items-center justify-between gap-3">
-                                <div className="flex h-9 items-center gap-2 rounded-full border border-[#D9D9D9] px-2 text-[#1F1F1F]">
-                                    <button type="button" onClick={() => zoomImagePreview((current) => current - 0.2)} className="rounded-full p-1 transition hover:bg-[#F5F5F5]" aria-label="Thu nhỏ ảnh">
-                                        <ZoomOut className="h-4 w-4" />
-                                    </button>
-                                    <span className="min-w-10 text-center text-sm text-[#434343]">{Math.round(imagePreviewScale * 100)}%</span>
-                                    <button type="button" onClick={() => zoomImagePreview((current) => current + 0.2)} className="rounded-full p-1 transition hover:bg-[#F5F5F5]" aria-label="Phóng to ảnh">
-                                        <ZoomIn className="h-4 w-4" />
-                                    </button>
-                                </div>
+                                {currentPreviewType === 'image' ? (
+                                    <div className="flex h-9 items-center gap-2 rounded-full border border-[#D9D9D9] px-2 text-[#1F1F1F]">
+                                        <button type="button" onClick={() => zoomImagePreview((current) => current - 0.2)} className="rounded-full p-1 transition hover:bg-[#F5F5F5]" aria-label="Thu nhỏ ảnh">
+                                            <ZoomOut className="h-4 w-4" />
+                                        </button>
+                                        <span className="min-w-10 text-center text-sm text-[#434343]">{Math.round(imagePreviewScale * 100)}%</span>
+                                        <button type="button" onClick={() => zoomImagePreview((current) => current + 0.2)} className="rounded-full p-1 transition hover:bg-[#F5F5F5]" aria-label="Phóng to ảnh">
+                                            <ZoomIn className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ) : <div />}
                                 <Button variant="danger" onClick={closeImagePreview} className="!rounded-lg !bg-[#EF4444] hover:!bg-[#DC2626]">
                                     <X className="h-4 w-4" />
                                     Đóng
@@ -913,24 +1189,6 @@ function UploadBucket({ id, files, onChange, title, accept, multiple = true, err
                     event.target.value = ''
                 }}
             />
-            {files.length > 0 && !hasImagePreview && (
-                <div className="mt-2 space-y-2">
-                    {files.map((file, index) => (
-                        <div key={`${file.name}-${file.size || file.id || index}-${index}`} className="flex items-center justify-between rounded-md border border-[#E5E7EB] bg-white px-3 py-2 text-sm">
-                            <div className="flex min-w-0 items-center gap-2 text-[#434547]">
-                                <FileText className="h-4 w-4 flex-shrink-0 text-[#597EF7]" />
-                                <span className="truncate">{file.name}</span>
-                                {file.isExisting && <span className="flex-shrink-0 rounded bg-[#F0F5FF] px-2 py-0.5 text-xs text-[#597EF7]">Đã tải lên</span>}
-                            </div>
-                            {!file.isExisting && (
-                                <button type="button" onClick={() => removeFile(index)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500" aria-label="Xóa tệp">
-                                    <X className="h-4 w-4" />
-                                </button>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
             {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
         </div>
     )
@@ -1590,6 +1848,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
 
                 const filesByMode = (mode) => files.filter((file) => Number(file.mode) === Number(mode)).map(toExistingFile)
                 setForm({
+                    ...createInitialForm(),
                     name: monument.name || '',
                     recognitionDecision: monument.recognitionDecision || '',
                     address: monument.address || '',
@@ -1643,7 +1902,24 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
             toast.warning(warningMessage)
             return
         }
-        setValue(name, nextFiles)
+
+        setForm((current) => {
+            const previousFiles = Array.isArray(current[name]) ? current[name] : []
+            const nextExistingIds = new Set((nextFiles || [])
+                .filter((file) => file?.isExisting && file?.id)
+                .map((file) => String(file.id)))
+            const removedIds = previousFiles
+                .filter((file) => file?.isExisting && file?.id && !nextExistingIds.has(String(file.id)))
+                .map((file) => String(file.id))
+            const deletedFileIds = [...(current.deletedFileIds || [])]
+
+            removedIds.forEach((id) => {
+                if (!deletedFileIds.includes(id)) deletedFileIds.push(id)
+            })
+
+            return { ...current, [name]: nextFiles || [], deletedFileIds }
+        })
+        setErrors((current) => ({ ...current, [name]: undefined }))
     }
 
     const addSection = () => {
@@ -1658,17 +1934,45 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
     }
 
     const updateSection = (id, patch) => {
-        setForm((current) => ({
-            ...current,
-            sections: current.sections.map((section) => section.id === id ? { ...section, ...patch } : section),
-        }))
+        setForm((current) => {
+            const deletedSectionFileIds = [...(current.deletedSectionFileIds || [])]
+            const sections = current.sections.map((section) => {
+                if (section.id !== id) return section
+
+                if (Object.prototype.hasOwnProperty.call(patch, 'file')) {
+                    const previousFile = section.file
+                    const nextFile = patch.file
+                    const keepsSameExistingFile = previousFile?.isExisting && nextFile?.isExisting && String(previousFile.id) === String(nextFile.id)
+
+                    if (previousFile?.isExisting && previousFile?.id && !keepsSameExistingFile) {
+                        const fileId = String(previousFile.id)
+                        if (!deletedSectionFileIds.includes(fileId)) deletedSectionFileIds.push(fileId)
+                    }
+                }
+
+                return { ...section, ...patch }
+            })
+
+            return { ...current, sections, deletedSectionFileIds }
+        })
     }
 
     const removeSection = (id) => {
-        setForm((current) => ({
-            ...current,
-            sections: current.sections.filter((section) => section.id !== id),
-        }))
+        setForm((current) => {
+            const deletedSectionFileIds = [...(current.deletedSectionFileIds || [])]
+            const removedSection = current.sections.find((section) => section.id === id)
+
+            if (removedSection?.file?.isExisting && removedSection.file.id) {
+                const fileId = String(removedSection.file.id)
+                if (!deletedSectionFileIds.includes(fileId)) deletedSectionFileIds.push(fileId)
+            }
+
+            return {
+                ...current,
+                sections: current.sections.filter((section) => section.id !== id),
+                deletedSectionFileIds,
+            }
+        })
     }
 
     const validate = () => {
@@ -1702,6 +2006,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
             if (!form.fileAvatars.length) nextErrors.fileAvatars = 'Vui lòng chọn hình đại diện'
             if (!form.fileModel3Ds.length) nextErrors.fileModel3Ds = 'Vui lòng chọn tệp GLB/3D'
             if (!form.fileImageDetails.length) nextErrors.fileImageDetails = 'Vui lòng chọn hình ảnh chi tiết'
+            if (!form.fileVideos.length) nextErrors.fileVideos = 'Vui lòng chọn video'
         }
 
         setErrors(nextErrors)
@@ -1722,6 +2027,8 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
         body.append('description', form.description || '')
         body.append('type', String(profileType))
         body.append('submitForApproval', 'false')
+        body.append('deletedFileIds', JSON.stringify(form.deletedFileIds || []))
+        body.append('deletedSectionFileIds', JSON.stringify(form.deletedSectionFileIds || []))
 
         const sectionsPayload = isPrivateProfile ? [] : form.sections.map((section, index) => ({
             id: section.id,
@@ -1914,10 +2221,10 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                 <Divider />
 
                                 <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                                    <Field label="Hình đại diện" required error={errors.fileAvatar2s}>
+                                    <Field label="Hình đại diện" required>
                                         <UploadBucket id="fileAvatar2s" files={form.fileAvatar2s} onChange={setFiles('fileAvatar2s')} accept={ACCEPTS.image} multiple={false} validateFile={validateImage} error={errors.fileAvatar2s} />
                                     </Field>
-                                    <Field label="Hình ảnh/Video 3D xoay 360" error={errors.fileVideos}>
+                                    <Field label="Hình ảnh/Video 3D xoay 360">
                                         <UploadBucket id="fileVideos" files={form.fileVideos} onChange={setFiles('fileVideos')} accept={`${ACCEPTS.image},${ACCEPTS.video}`} error={errors.fileVideos} />
                                     </Field>
                                 </div>
@@ -1925,7 +2232,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                 <Divider />
 
                                 <div className="mt-5">
-                                    <Field label="Định dạng 3D" error={errors.fileModel3Ds}>
+                                    <Field label="Định dạng 3D">
                                         <UploadBucket id="fileModel3Ds" files={form.fileModel3Ds} onChange={setFiles('fileModel3Ds')} accept={ACCEPTS.model3d} validateFile={validateModel3D} error={errors.fileModel3Ds} />
                                     </Field>
                                 </div>
@@ -1933,10 +2240,10 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                 <Divider />
 
                                 <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                                    <Field label="Kiến trúc" required error={errors.fileStructures}>
+                                    <Field label="Kiến trúc" required>
                                         <UploadBucket id="fileStructures" files={form.fileStructures} onChange={setFiles('fileStructures')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileStructures} />
                                     </Field>
-                                    <Field label="Hình ảnh bản vẽ kỹ thuật" required error={errors.fileImageTechs}>
+                                    <Field label="Hình ảnh bản vẽ kỹ thuật" required>
                                         <UploadBucket id="fileImageTechs" files={form.fileImageTechs} onChange={setFiles('fileImageTechs')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageTechs} />
                                     </Field>
                                 </div>
@@ -1944,7 +2251,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                 <Divider />
 
                                 <div className="mt-5">
-                                    <Field label="Bản đồ khoanh vùng" required error={errors.fileMaps}>
+                                    <Field label="Bản đồ khoanh vùng" required>
                                         <UploadBucket id="fileMaps" files={form.fileMaps} onChange={setFiles('fileMaps')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileMaps} />
                                     </Field>
                                 </div>
@@ -2029,10 +2336,10 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                 <Divider />
 
                                 <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                                    <Field label="Hình đại diện" required error={errors.fileAvatars}>
+                                    <Field label="Hình đại diện" required>
                                         <UploadBucket id="fileAvatars" files={form.fileAvatars} onChange={setFiles('fileAvatars')} accept={ACCEPTS.image} multiple={false} validateFile={validateImage} error={errors.fileAvatars} />
                                     </Field>
-                                    <Field label="Hình ảnh hiện vật" error={errors.fileImageObjects}>
+                                    <Field label="Hình ảnh hiện vật">
                                         <UploadBucket id="fileImageObjects" files={form.fileImageObjects} onChange={setFiles('fileImageObjects')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageObjects} />
                                     </Field>
                                 </div>
@@ -2040,7 +2347,7 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                 <Divider />
 
                                 <div className="mt-5">
-                                    <Field label="Định dạng 3D" required error={errors.fileModel3Ds}>
+                                    <Field label="Định dạng 3D" required>
                                         <UploadBucket id="fileModel3Ds" files={form.fileModel3Ds} onChange={setFiles('fileModel3Ds')} accept={ACCEPTS.model3d} validateFile={validateModel3D} error={errors.fileModel3Ds} />
                                     </Field>
                                 </div>
@@ -2048,10 +2355,10 @@ export default function MonumentCreateModal({ open, onClose, onSaved, profileTyp
                                 <Divider />
 
                                 <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-                                    <Field label="Hình ảnh chi tiết" required error={errors.fileImageDetails}>
+                                    <Field label="Hình ảnh chi tiết" required>
                                         <UploadBucket id="fileImageDetails" files={form.fileImageDetails} onChange={setFiles('fileImageDetails')} accept={ACCEPTS.image} validateFile={validateImage} error={errors.fileImageDetails} />
                                     </Field>
-                                    <Field label="Video" required error={errors.fileVideos}>
+                                    <Field label="Video" required>
                                         <UploadBucket id="fileVideos" files={form.fileVideos} onChange={setFiles('fileVideos')} accept={ACCEPTS.video} error={errors.fileVideos} />
                                     </Field>
                                 </div>

@@ -36,8 +36,6 @@ const LEVEL_NAMES = {
 }
 
 const FILE_GROUPS_PUBLIC = [
-    { title: 'Quyết định công nhận', mode: MonumentFileConstants.modes.fileRecognitionDecision },
-    { title: 'Xếp hạng', mode: MonumentFileConstants.modes.fileRating },
     { title: 'Hình đại diện', mode: MonumentFileConstants.modes.imageAvatar },
     { title: 'Hình ảnh hiện vật', mode: MonumentFileConstants.modes.imageObject },
     { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D, className: 'md:col-span-2' },
@@ -46,14 +44,17 @@ const FILE_GROUPS_PUBLIC = [
 ]
 
 const FILE_GROUPS_PRIVATE = [
-    { title: 'Quyết định công nhận', mode: MonumentFileConstants.modes.fileRecognitionDecision },
-    { title: 'Xếp hạng', mode: MonumentFileConstants.modes.fileRating },
     { title: 'Hình đại diện', mode: MonumentFileConstants.modes.imageAvatar2 },
     { title: 'Kiến trúc', mode: MonumentFileConstants.modes.fileStructure },
     { title: 'Định dạng 3D', mode: MonumentFileConstants.modes.fileModel3D, className: 'md:col-span-2' },
     { title: 'Hình ảnh bản vẽ kỹ thuật', mode: MonumentFileConstants.modes.imageTech },
     { title: 'Bản đồ khoanh vùng', mode: MonumentFileConstants.modes.fileMap },
 ]
+
+const INLINE_FIELD_FILE_MODES = new Set([
+    MonumentFileConstants.modes.fileRecognitionDecision,
+    MonumentFileConstants.modes.fileRating,
+])
 
 function normalizeRoleText(value) {
     return String(value || '')
@@ -122,6 +123,21 @@ function FieldValue({ label, value }) {
         <div className="flex flex-col gap-1">
             <label className="text-sm font-semibold text-[#434547]"><RequiredLabel label={label} /></label>
             <p className="text-sm font-normal text-[#2F54EB]">{value || '-'}</p>
+        </div>
+    )
+}
+
+function FieldValueWithFiles({ label, value, files = [], onPreview }) {
+    return (
+        <div className="flex flex-col gap-2">
+            <FieldValue label={label} value={value} />
+            {files.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                    {files.map((file, index) => <FileItem key={`${file.id || file.fileName || file.name}-${index}`} file={file} onPreview={onPreview} />)}
+                </div>
+            ) : (
+                <p className="text-sm text-[#8C8C8C]">Chưa có dữ liệu</p>
+            )}
         </div>
     )
 }
@@ -684,7 +700,7 @@ function FilePreviewModal({ file, onClose }) {
                 >
                     {!isImageLoaded && (
                         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white text-[#434343]">
-                            <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#D9D9D9] border-t-[#2F54EB]" />
+                            <ImageIcon className="h-9 w-9 text-[#1F1F1F]" />
                             <div className="w-56 max-w-[70%] overflow-hidden rounded-full bg-[#F0F0F0]">
                                 <div
                                     className="h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out"
@@ -1159,11 +1175,18 @@ export default function MonumentProfileView() {
 
     const fileGroups = useMemo(() => {
         const groups = Number(monument?.type) === MonumentProfileConstants.types.private ? FILE_GROUPS_PRIVATE : FILE_GROUPS_PUBLIC
-        return groups.map((group) => ({
-            ...group,
-            files: files.filter((file) => Number(file.mode) === Number(group.mode)),
-        }))
+        return groups
+            .filter((group) => !INLINE_FIELD_FILE_MODES.has(Number(group.mode)))
+            .map((group) => ({
+                ...group,
+                files: files.filter((file) => Number(file.mode) === Number(group.mode)),
+            }))
     }, [files, monument?.type])
+
+    const inlineFieldFiles = useMemo(() => ({
+        recognitionDecision: files.filter((file) => Number(file.mode) === Number(MonumentFileConstants.modes.fileRecognitionDecision)),
+        rating: files.filter((file) => Number(file.mode) === Number(MonumentFileConstants.modes.fileRating)),
+    }), [files])
 
     if (loading) {
         return (
@@ -1259,7 +1282,7 @@ export default function MonumentProfileView() {
             <div className="mt-4 space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <FieldValue label="Tên di tích *" value={monument.name} />
-                    <FieldValue label="Quyết định công nhận *" value={monument.recognitionDecision} />
+                    <FieldValueWithFiles label="Quyết định công nhận *" value={monument.recognitionDecision} files={inlineFieldFiles.recognitionDecision} onPreview={setPreviewFile} />
                 </div>
                 <div className="h-px bg-[#F0F0F0]" />
                 <FieldValue label="Địa chỉ *" value={monument.address} />
@@ -1270,7 +1293,7 @@ export default function MonumentProfileView() {
                 </div>
                 <div className="h-px bg-[#F0F0F0]" />
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <FieldValue label="Xếp hạng *" value={LEVEL_NAMES[monument.rating]} />
+                    <FieldValueWithFiles label="Xếp hạng *" value={LEVEL_NAMES[monument.rating]} files={inlineFieldFiles.rating} onPreview={setPreviewFile} />
                     <FieldValue label="Loại di tích *" value={LEVEL_NAMES[monument.typeOfMonument]} />
                 </div>
 
