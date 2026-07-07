@@ -344,15 +344,22 @@ class StaffUpdateView(APIView):
             staff.save()
 
             type_files_to_delete = []
+            should_clear_director_files = not check_is_director
             if avatar_file:
                 type_files_to_delete.append(TYPE_FILE_AVATAR)
-            if check_is_director and files.get('sign'):
+            if should_clear_director_files:
+                type_files_to_delete.extend([TYPE_FILE_SIGN, TYPE_FILE_STAMP])
+                staff.sign = None
+                staff.stamp = None
+                staff.sign_encrypted = None
+                staff.stamp_encrypted = None
+                staff.save(update_fields=['sign', 'stamp', 'sign_encrypted', 'stamp_encrypted', 'updated_at'])
+            elif files.get('sign'):
                 type_files_to_delete.append(TYPE_FILE_SIGN)
             if check_is_director and files.get('stamp'):
                 type_files_to_delete.append(TYPE_FILE_STAMP)
             if type_files_to_delete:
                 clean_staff_files_for_type(staff, type_files_to_delete)
-
             if avatar_file:
                 save_staff_file(avatar_file, staff, TYPE_FILE_AVATAR, 'avatar', created_by=str(request.user.id))
             if check_is_director and files.get('sign'):

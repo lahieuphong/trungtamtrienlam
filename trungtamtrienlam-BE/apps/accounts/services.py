@@ -2,6 +2,7 @@ import os
 import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from apps.authentication.models import Role, UserRole, RoleDepartment
 from apps.departments.models import Department, Staff
 from .models import District, Organization, Province, StaffFile, UserConcurrently, Ward
@@ -178,15 +179,53 @@ def role_flags_for_user(user):
     }
 
 
-def clean_staff_files_for_type(staff, type_files):
-    StaffFile.objects.filter(staff=staff, type_file__in=type_files, is_deleted=False).update(is_deleted=True)
+def _media_file_path(rel_path):
+    if not rel_path:
+        return None
 
+    media_root = os.path.abspath(settings.MEDIA_ROOT)
+    full_path = os.path.abspath(os.path.join(media_root, str(rel_path).lstrip('/\\')))
+    try:
+        common_path = os.path.commonpath([
+            os.path.normcase(media_root),
+            os.path.normcase(full_path),
+        ])
+    except ValueError:
+        return None
+
+    if common_path != os.path.normcase(media_root):
+        return None
+    return full_path
+
+
+def delete_staff_file_record(staff_file):
+    full_path = _media_file_path(staff_file.file)
+    if full_path and os.path.exists(full_path):
+        try:
+            os.remove(full_path)
+        except OSError:
+            pass
+        try:
+            os.rmdir(os.path.dirname(full_path))
+        except OSError:
+            pass
+    staff_file.delete()
+
+
+def clean_staff_files_for_type(staff, type_files):
+    owner_filter = Q(staff=staff)
+    if staff.user_id:
+        owner_filter |= Q(user_id=str(staff.user_id))
+
+    files = list(StaffFile.objects.filter(owner_filter, type_file__in=type_files).distinct())
+    for staff_file in files:
+        delete_staff_file_record(staff_file)
 
 def save_staff_file(uploaded_file, staff, type_file, subfolder, created_by=None):
     ext = os.path.splitext(uploaded_file.name)[1].lower()
     filename = f'{uuid.uuid4()}{ext}'
-    rel_path = f'staff/{subfolder}/{staff.id}/{filename}'
-    full_path = os.path.join(settings.MEDIA_ROOT, 'staff', subfolder, str(staff.id), filename)
+    rel_path = f'staff/{staff.id}/{subfolder}/{filename}'
+    full_path = os.path.join(settings.MEDIA_ROOT, 'staff', str(staff.id), subfolder, filename)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
     with open(full_path, 'wb+') as dest:
         for chunk in uploaded_file.chunks():
