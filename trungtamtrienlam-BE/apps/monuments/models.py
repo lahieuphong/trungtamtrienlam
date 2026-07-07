@@ -36,18 +36,32 @@ def _monument_file_mode_folder(mode):
     return f'khac-{mode}'
 
 
+def _monument_profile_type_folder(instance):
+    monument = getattr(instance, 'monument', None)
+    profile_type = getattr(monument, 'type', None)
+
+    try:
+        profile_type = int(profile_type)
+    except (TypeError, ValueError):
+        profile_type = None
+
+    return 'private' if profile_type == 1 else 'public'
+
+
 def monument_upload_to(instance, filename):
     _, extension = os.path.splitext(filename or '')
     safe_name = f'{uuid.uuid4()}{extension.lower()}'
+    profile_folder = _monument_profile_type_folder(instance)
     monument_id = instance.monument_id or 'pending'
-    return f'monuments/{monument_id}/{_monument_file_mode_folder(instance.mode)}/{safe_name}'
+    return f'monuments/{profile_folder}/{monument_id}/{_monument_file_mode_folder(instance.mode)}/{safe_name}'
 
 
 def monument_section_upload_to(instance, filename):
     _, extension = os.path.splitext(filename or '')
     safe_name = f'{uuid.uuid4()}{extension.lower()}'
+    profile_folder = _monument_profile_type_folder(instance)
     monument_id = instance.monument_id or 'pending'
-    return f'monuments/{monument_id}/sections/{safe_name}'
+    return f'monuments/{profile_folder}/{monument_id}/noi-dung-di-tich/{safe_name}'
 
 
 class Monument(BaseModel):
@@ -111,7 +125,7 @@ class MonumentSection(BaseModel):
     content = models.TextField(blank=True, null=True)
     type = models.IntegerField(choices=SectionType.choices, default=SectionType.IMAGE)
     order = models.IntegerField(default=1)
-    file = models.FileField(upload_to=monument_section_upload_to, blank=True, null=True)
+    file = models.FileField(upload_to=monument_section_upload_to, max_length=500, blank=True, null=True)
     file_name = models.CharField(max_length=500, blank=True, null=True)
     file_size = models.BigIntegerField(default=0)
     file_extension = models.CharField(max_length=20, blank=True, null=True)
@@ -147,7 +161,7 @@ class MonumentFile(BaseModel):
         OTHER = 5, 'Khác'
 
     monument = models.ForeignKey(Monument, on_delete=models.CASCADE, related_name='files')
-    file = models.FileField(upload_to=monument_upload_to)
+    file = models.FileField(upload_to=monument_upload_to, max_length=500)
     file_name = models.CharField(max_length=500)
     size = models.BigIntegerField(default=0)
     extension = models.CharField(max_length=20, blank=True, null=True)

@@ -928,8 +928,35 @@ function PublishConfirmModal({ open, onClose, onConfirm, loading }) {
         </div>
     )
 }
+function SectionImagePlaceholder({ section, compact = false, message = 'Chưa có hình ảnh' }) {
+    const minHeight = compact ? 'min-h-[220px]' : 'min-h-[280px]'
+    const fileName = section?.fileName || section?.name || ''
+
+    return (
+        <div className={`flex w-full ${minHeight} flex-col items-center justify-center rounded-md border border-dashed border-[#D9D9D9] bg-[#FAFAFA] px-4 py-6 text-center`}>
+            <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#8C8C8C] shadow-sm ring-1 ring-[#F0F0F0]">
+                <ImageIcon className="h-6 w-6" />
+            </span>
+            <p className="text-sm font-medium text-[#434343]">{message}</p>
+            {fileName && <p className="mt-1 max-w-full break-words text-xs text-[#8C8C8C]">{fileName}</p>}
+        </div>
+    )
+}
+
 function SectionImage({ section, imageUrl, compact = false }) {
-    if (!imageUrl) return null
+    const [hasImageError, setHasImageError] = useState(false)
+
+    useEffect(() => {
+        setHasImageError(false)
+    }, [imageUrl])
+
+    if (!imageUrl) {
+        return <SectionImagePlaceholder section={section} compact={compact} />
+    }
+
+    if (hasImageError) {
+        return <SectionImagePlaceholder section={section} compact={compact} message="Không thể hiển thị ảnh" />
+    }
 
     const maxHeight = compact ? 'clamp(220px, 32vw, 420px)' : 'clamp(280px, 54vw, 620px)'
 
@@ -939,6 +966,7 @@ function SectionImage({ section, imageUrl, compact = false }) {
                 src={imageUrl}
                 alt={section.fileName || 'Section'}
                 loading="lazy"
+                onError={() => setHasImageError(true)}
                 className={`${compact ? 'w-full' : 'w-auto'} h-auto max-w-full rounded-md object-contain shadow-sm`}
                 style={{ maxHeight }}
             />

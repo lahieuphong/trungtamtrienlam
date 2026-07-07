@@ -129,16 +129,29 @@ def _delete_file_field(file_field):
         pass
 
 
+def _delete_monument_file_records(files):
+    for item in list(files):
+        _delete_file_field(item.file)
+        item.delete()
+
+
 def _delete_monument_files(monument, file_ids, user):
     if not file_ids:
         return
 
-    files = monument.files.filter(id__in=file_ids, is_deleted=False)
-    for item in files:
-        _delete_file_field(item.file)
-        item.is_deleted = True
-        item.updated_by = str(user.id)
-        item.save(update_fields=['is_deleted', 'updated_by', 'updated_at'])
+    _delete_monument_file_records(monument.files.filter(id__in=file_ids))
+
+
+def _delete_replaced_bucket_files(monument, request, deleted_file_ids=None):
+    deleted_file_ids = set(deleted_file_ids or [])
+    for bucket, mode in FILE_BUCKETS.items():
+        if not request.FILES.getlist(bucket):
+            continue
+
+        files = monument.files.filter(mode=mode)
+        if deleted_file_ids:
+            files = files.exclude(id__in=deleted_file_ids)
+        _delete_monument_file_records(files)
 
 
 def _extension(filename):
@@ -612,8 +625,10 @@ class MonumentUpdateView(APIView):
         monument.save()
 
         _delete_monument_files(monument, deleted_file_ids, request.user)
+        _delete_replaced_bucket_files(monument, request, deleted_file_ids)
         _delete_removed_section_files(request, sections, existing_sections, deleted_section_file_ids)
         monument.sections.all().delete()
+        monument.histories.all().delete()
         _save_sections(request, monument, sections, request.user, existing_sections=existing_sections, deleted_section_file_ids=deleted_section_file_ids)
         _save_files(request, monument, request.user)
 
