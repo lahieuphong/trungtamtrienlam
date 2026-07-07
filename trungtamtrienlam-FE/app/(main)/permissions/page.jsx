@@ -404,6 +404,7 @@ export default function PermissionsPage() {
                             options={roleOptions}
                             onChange={handleRoleChange}
                             placeholder="-- Chọn chức vụ --"
+                            showPlaceholderOption={false}
                             disabled={loading && !roleOptions.length}
                         />
                     </FormGroup>
@@ -417,6 +418,7 @@ export default function PermissionsPage() {
                                 options={departmentOptions}
                                 onChange={(event) => setDepartmentID(event.target.value)}
                                 placeholder="-- Chọn phòng ban --"
+                                showPlaceholderOption={false}
                                 disabled={loading && !departmentOptions.length}
                             />
                         </FormGroup>
@@ -472,6 +474,7 @@ export default function PermissionsPage() {
                             options={roleOptions}
                             onChange={(event) => updateCloneField('oldRoleID', event.target.value)}
                             placeholder="-- Chọn chức vụ nguồn --"
+                            showPlaceholderOption={false}
                         />
                     </FormGroup>
                     <FormGroup label="Phòng ban nguồn" htmlFor="oldDepartmentID">
@@ -490,6 +493,7 @@ export default function PermissionsPage() {
                             options={roleOptions}
                             onChange={(event) => updateCloneField('newRoleID', event.target.value)}
                             placeholder="-- Chọn chức vụ đích --"
+                            showPlaceholderOption={false}
                         />
                     </FormGroup>
                     <FormGroup label="Phòng ban đích" htmlFor="newDepartmentID">
