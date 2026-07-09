@@ -33,7 +33,7 @@ export const CreateChat = async formData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to create chat')
+      throw new Error('Không thể tạo cuộc trò chuyện')
     }
   } catch (error) {
     throw error
@@ -62,7 +62,7 @@ export const updateChatName = async (chatID, newName) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to update chat name')
+      throw new Error('Không thể cập nhật tên cuộc trò chuyện')
     }
   } catch (error) {
     throw error
@@ -83,7 +83,7 @@ export const updateChatAvatar = async (chatID, avatar) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to update chat avatar')
+      throw new Error('Không thể cập nhật ảnh đại diện cuộc trò chuyện')
     }
   } catch (error) {
     throw error
@@ -115,7 +115,7 @@ export const sendMessage = async messageData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to send message')
+      throw new Error('Không thể gửi tin nhắn')
     }
   } catch (error) {
     throw error
@@ -207,7 +207,7 @@ export const loadMes = async (chatID, extraParams = {}) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to update chat name')
+      throw new Error('Không thể cập nhật tên cuộc trò chuyện')
     }
   } catch (error) {
     throw error
@@ -223,7 +223,7 @@ export const addUserToGroup = async formData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to update chat name')
+      throw new Error('Không thể cập nhật tên cuộc trò chuyện')
     }
   } catch (error) {
     throw error
@@ -239,7 +239,7 @@ export const loadUserRequest = async chatID => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to load user requests')
+      throw new Error('Không thể tải danh sách yêu cầu tham gia')
     }
   } catch (error) {
     throw error
@@ -255,7 +255,7 @@ export const acceptUserRequest = async (chatAwaitConfrimID, status, currentUserI
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to accept user request')
+      throw new Error('Không thể chấp nhận yêu cầu tham gia')
     }
   } catch (error) {
     throw error
@@ -271,7 +271,7 @@ export const leaveGroup = async (chatID, userID) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to leave group')
+      throw new Error('Không thể rời nhóm')
     }
   } catch (error) {
     throw error
@@ -287,7 +287,7 @@ export const disbandGroup = async (chatID, currentUserID) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to disband group')
+      throw new Error('Không thể giải tán nhóm')
     }
   } catch (error) {
     throw error
@@ -316,7 +316,7 @@ export const recallMessage = async messageID => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to recall message')
+      throw new Error('Không thể thu hồi tin nhắn')
     }
   } catch (error) {
     throw error
@@ -363,7 +363,7 @@ export const promoteToViceLeader = async (chatID, userID, currentUserID) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to promote user to vice leader')
+      throw new Error('Không thể thăng chức phó nhóm')
     }
   } catch (error) {
     throw error
@@ -379,7 +379,7 @@ export const removeViceLeader = async (chatID, userID, currentUserID) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to remove vice leader')
+      throw new Error('Không thể xóa quyền phó nhóm')
     }
   } catch (error) {
     throw error
@@ -394,7 +394,7 @@ export const removeMemberFromGroup = async (chatID, userID, currentUserID) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to remove member from group')
+      throw new Error('Không thể xóa thành viên khỏi nhóm')
     }
   } catch (error) {
     throw error
@@ -410,7 +410,7 @@ export const transferGroupLeader = async (chatID, userID, currentUserID) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to transfer group leader')
+      throw new Error('Không thể nhượng quyền trưởng nhóm')
     }
   } catch (error) {
     throw error
@@ -426,7 +426,7 @@ export const changeLeaderAndLeaveGroup = async (chatID, userID) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to promote user to leader when leaving group')
+      throw new Error('Không thể chọn trưởng nhóm khi rời nhóm')
     }
   } catch (error) {
     throw error
@@ -440,7 +440,7 @@ export const createNote = async noteData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to create note')
+      throw new Error('Không thể tạo ghi chú')
     }
   } catch (error) {
     throw error
@@ -486,7 +486,7 @@ export const updateNote = async noteData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to update note')
+      throw new Error('Không thể cập nhật ghi chú')
     }
   } catch (error) {
     throw error
@@ -506,7 +506,7 @@ export const createPoll = async pollData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to create poll')
+      throw new Error('Không thể tạo bình chọn')
     }
   } catch (error) {
     throw error
@@ -535,7 +535,7 @@ export const votePoll = async voteData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to vote on poll')
+      throw new Error('Không thể bình chọn')
     }
   } catch (error) {
     throw error
@@ -562,7 +562,7 @@ export const markMessageAsSeen = async (messageId, currentUserId) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to mark message as seen')
+      throw new Error('Không thể đánh dấu tin nhắn đã xem')
     }
   } catch (error) {
     throw error
@@ -595,7 +595,7 @@ export const createOptionsPoll = async pollData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to create poll')
+      throw new Error('Không thể tạo bình chọn')
     }
   } catch (error) {
     throw error
@@ -615,7 +615,7 @@ export const createReminder = async reminderData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to create reminder')
+      throw new Error('Không thể tạo nhắc hẹn')
     }
   } catch (error) {
     throw error
@@ -648,7 +648,7 @@ export const editReminder = async reminderData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to edit reminder')
+      throw new Error('Không thể cập nhật nhắc hẹn')
     }
   } catch (error) {
     throw error
@@ -664,7 +664,7 @@ export const confirmJoinReminder = async (idChatRemind, type) => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to confirm join reminder')
+      throw new Error('Không thể xác nhận tham gia nhắc hẹn')
     }
   } catch (error) {
     throw error
@@ -693,7 +693,7 @@ export const pinMessage = async messageID => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to pin message')
+      throw new Error('Không thể ghim tin nhắn')
     }
   } catch (error) {
     throw error
@@ -739,7 +739,7 @@ export const pinChat = async chatID => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to pin chat')
+      throw new Error('Không thể ghim hội thoại')
     }
   } catch (error) {
     throw error

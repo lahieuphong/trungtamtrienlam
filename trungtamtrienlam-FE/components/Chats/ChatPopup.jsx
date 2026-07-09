@@ -496,8 +496,16 @@ export default function ChatPopup ({
 
       {/* Header */}
       <div className='flex items-center justify-between p-3 bg-blue-500 text-white rounded-t-lg'>
-        <div className='flex items-center gap-2 flex-1'>
-          {!isAIHeaderChat && (
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
+          {isAIHeaderChat ? (
+            <div className='flex h-[35px] w-[35px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/30 bg-white/10'>
+              <img
+                src='/TTBT_icon_anim_idle.gif'
+                alt='Trợ lý trung tâm'
+                className='h-full w-full rounded-full object-cover'
+              />
+            </div>
+          ) : (
             <AvatarWithFrame
               avatarPath={chat?.avatar}
               altAvatar={chat?.name || 'Avatar'}
@@ -528,7 +536,7 @@ export default function ChatPopup ({
           </div>
         </div>
 
-        <div className='flex items-center gap-1'>
+        <div className='flex shrink-0 items-center gap-1'>
           <button
             onClick={onMinimize}
             className='p-1 hover:bg-blue-600 rounded transition-colors'
@@ -581,45 +589,35 @@ export default function ChatPopup ({
                   if (pinnedMessages.length === 0) return null
 
                   return (
-                    <div className='sticky top-0 z-10 bg-white border-b p-2 mb-2'>
-                      <div className='flex items-center gap-2'>
-                        <PinIcon className='w-4 h-4 text-gray-500' />
-                        <span className='text-sm font-medium text-gray-600'>
-                          Tin nhắn đã ghim
+                    <div className='sticky top-0 z-10 mb-1 border-b bg-white/95 px-3 py-1.5 backdrop-blur'>
+                      <div className='flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50/70 px-2 py-1.5 text-xs'>
+                        <PinIcon className='h-3.5 w-3.5 shrink-0 text-blue-500' />
+                        <span className='shrink-0 font-semibold text-blue-700'>
+                          {pinnedMessages.length > 1
+                            ? `${pinnedMessages.length} ghim`
+                            : 'Đã ghim'}
                         </span>
-                      </div>
+                        <span className='min-w-0 flex-1 truncate text-gray-700'>
+                          <span className='font-semibold text-gray-900'>Mới:</span>{' '}
+                          {formatPinnedMessagePreview(pinnedMessages[0])}
+                        </span>
 
-                      <div className='mt-1 border rounded px-3 py-2 text-sm bg-gray-50 flex justify-between items-start gap-3'>
-                        <div className='min-w-0 flex-1'>
-                          <p className='text-xs font-medium text-gray-500'>
-                            {pinnedMessages.length > 1
-                              ? `Đã ghim ${pinnedMessages.length} tin nhắn`
-                              : 'Đã ghim 1 tin nhắn'}
-                          </p>
-                          <p className='mt-0.5 truncate text-gray-700'>
-                            <span className='font-semibold'>Mới nhất:</span>{' '}
-                            {formatPinnedMessagePreview(pinnedMessages[0])}
-                          </p>
-                          {pinnedMessages.length > 1 && (
-                            <button
-                              type='button'
-                              onClick={() => setShowAllPins(!showAllPins)}
-                              className='mt-1 text-xs font-medium text-blue-500 hover:text-blue-600'
-                            >
-                              {showAllPins
-                                ? 'Ẩn bớt tin ghim'
-                                : `Xem thêm ${pinnedMessages.length - 1} tin ghim`}
-                            </button>
-                          )}
-                        </div>
+                        {pinnedMessages.length > 1 && (
+                          <button
+                            type='button'
+                            onClick={() => setShowAllPins(!showAllPins)}
+                            className='shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-100'
+                          >
+                            {showAllPins ? 'Ẩn' : `+${pinnedMessages.length - 1}`}
+                          </button>
+                        )}
 
-                        {/* Nút More */}
-                        <div className='relative'>
+                        <div className='relative shrink-0'>
                           <button
                             onClick={() => setOpenDropdown(!openDropdown)}
-                            className='p-1 rounded hover:bg-gray-200'
+                            className='flex h-6 w-6 items-center justify-center rounded-full hover:bg-blue-100'
                           >
-                            <MoreHorizontal className='w-4 h-4 text-gray-500' />
+                            <MoreHorizontal className='h-3.5 w-3.5 text-gray-500' />
                           </button>
 
                           <PinDropdownMenu
@@ -632,14 +630,11 @@ export default function ChatPopup ({
                       </div>
 
                       {showAllPins && pinnedMessages.length > 1 && (
-                        <div className='mt-2 border rounded bg-gray-50 divide-y'>
-                          <div className='px-3 py-1 text-xs font-medium text-gray-500'>
-                            Các tin ghim khác
-                          </div>
+                        <div className='mt-1 overflow-hidden rounded-md border border-gray-100 bg-white text-xs shadow-sm'>
                           {pinnedMessages.slice(1).map(msg => (
                             <div
                               key={getPinnedMessageKey(msg)}
-                              className='px-3 py-2 hover:bg-gray-100 cursor-pointer truncate text-sm text-gray-700'
+                              className='truncate px-2 py-1.5 text-gray-600 hover:bg-gray-50'
                             >
                               {formatPinnedMessagePreview(msg)}
                             </div>

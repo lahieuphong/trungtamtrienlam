@@ -30,7 +30,7 @@ function DocumentLoading({ className }) {
             <div className="w-60 max-w-[72%] overflow-hidden rounded-full bg-[#E5E7EB]">
                 <div className="h-2 w-1/2 animate-pulse rounded-full bg-[#2F54EB]" />
             </div>
-            <p className="text-sm font-medium">Dang tai tai lieu...</p>
+            <p className="text-sm font-medium">Đang tải tài liệu...</p>
         </div>
     )
 }
@@ -114,7 +114,7 @@ export default function UniversalDocumentPreview({
             return (
                 <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 rounded-md bg-[#F5F5F5] text-center text-sm text-[#595959]">
                     <FileText className="h-12 w-12 text-[#8C8C8C]" />
-                    <p>Tep nay can duoc tai len may chu truoc khi xem bang OnlyOffice.</p>
+                    <p>Tệp này cần được tải lên máy chủ trước khi xem bằng OnlyOffice.</p>
                 </div>
             )
         }

@@ -44,7 +44,7 @@ const RestoreConfirmFileModal = ({ files, onClose, callBack }) => {
         }).catch(err => {
             loadingContext.hide();
 
-            toast.error(err.message || MessageConstants.renameFolderFailure);
+            toast.error(MessageConstants.renameFolderFailure);
         });
     }
 

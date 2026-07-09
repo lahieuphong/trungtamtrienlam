@@ -4,6 +4,10 @@ import Image from 'next/image'
 import { PinIcon } from 'lucide-react'
 import AvatarWithFrame from '../avatars/avatarFrame'
 import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
+import {
+  getChatAttachmentActionPreview,
+  getChatAttachmentPreview
+} from '@/helpers/chatPreviewHelpers'
 
 // Helper functions for localStorage
 const getStoredUnreadCount = chatId => {
@@ -148,12 +152,69 @@ export default function ChatItem ({
     )
   }
 
+  const getCurrentUserNames = () =>
+    [
+      userInfo?.fullName,
+      userInfo?.FullName,
+      userInfo?.name,
+      userInfo?.Name,
+      userInfo?.userName,
+      userInfo?.UserName,
+      userInfo?.username,
+      userInfo?.email,
+      userInfo?.Email
+    ]
+      .map(value => String(value ?? '').trim().toLowerCase())
+      .filter(Boolean)
+
+  const isLastMessageFromCurrentUser = () => {
+    const currentUserIds = [
+      userInfo?.userID,
+      userInfo?.UserID,
+      userInfo?.id,
+      userInfo?.ID
+    ]
+      .map(normalizeUserId)
+      .filter(Boolean)
+
+    const senderId = normalizeUserId(
+      chat?.lastMessageSenderId ??
+        chat?.lastMessageSenderID ??
+        chat?.LastMessageSenderID ??
+        chat?.lastSenderId ??
+        chat?.lastSenderID ??
+        chat?.LastSenderID ??
+        chat?.senderID ??
+        chat?.SenderID
+    )
+
+    if (senderId && currentUserIds.includes(senderId)) return true
+
+    const senderName = String(
+      chat?.lastMessageSender ??
+        chat?.lastSenderName ??
+        chat?.senderName ??
+        chat?.SenderName ??
+        ''
+    )
+      .trim()
+      .toLowerCase()
+
+    return Boolean(senderName && getCurrentUserNames().includes(senderName))
+  }
+
   let displayContent = chat.lastMessage
   if (chat?.lastMessage) {
     displayContent = chat.lastMessage.replace(/{([^}]+)}/g, (_, userId) =>
       getUserDisplayName(userId)
     )
   }
+
+  const isOwnLastMessage = isLastMessageFromCurrentUser()
+  const attachmentActionPreview = getChatAttachmentActionPreview(chat)
+  const attachmentPreview = getChatAttachmentPreview(chat, { isOwn: isOwnLastMessage })
+  const previewContent = displayContent || attachmentActionPreview
+  const previewSenderLabel = isOwnLastMessage ? 'Bạn' : truncateName(senderName, 12)
 
   const handleClick = () => {
     clearUnreadCount()
@@ -276,21 +337,34 @@ export default function ChatItem ({
             } truncate mt-1`}
           >
             {/* Hiển thị tên người gửi cho chat nhóm */}
-            {chat.type === 2 && chat.lastMessage && chat.eventType === 0 ? (
+            {chat.type === 2 && previewContent && chat.eventType === 0 ? (
               <>
                 <span
                   className={`font-medium ${
                     isUnread ? 'text-gray-900' : ''
                   }`}
-                  title={senderName}
+                  title={isOwnLastMessage ? 'Bạn' : senderName}
                 >
-                  {truncateName(senderName, 12)}:{' '}
+                  {previewSenderLabel}:{' '}
                 </span>
-                <span>{displayContent}</span>
+                <span>{previewContent}</span>
               </>
             ) : (
               /* Hiển thị tin nhắn cá nhân - không cần tên người gửi vì đã hiển thị ở tên chat */
-              <span>{displayContent}</span>
+              isOwnLastMessage && displayContent ? (
+                <>
+                  <span
+                    className={`font-medium ${
+                      isUnread ? 'text-gray-900' : 'text-gray-700'
+                    }`}
+                  >
+                    Bạn:{' '}
+                  </span>
+                  <span>{previewContent}</span>
+                </>
+              ) : (
+                <span>{displayContent || attachmentPreview}</span>
+              )
             )}
           </p>
         </div>

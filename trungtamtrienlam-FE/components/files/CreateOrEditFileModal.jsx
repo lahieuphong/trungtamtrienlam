@@ -134,7 +134,7 @@ const CreateOrEditFileModal = ({ callBack, id, type, title, onClose, folderID })
         }).catch(err => {
             loadingContext.hide();
 
-            toast.error(err.message || MessageConstants.getErrorData);
+            toast.error(MessageConstants.getErrorData);
         });
     }, []);
 
@@ -472,7 +472,7 @@ const CreateOrEditFileModal = ({ callBack, id, type, title, onClose, folderID })
         }).catch(err => {
             loadingContext.hide();
 
-            toast.error(err.message || messageFailure);
+            toast.error(messageFailure);
         });
     }
 

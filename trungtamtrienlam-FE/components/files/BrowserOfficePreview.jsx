@@ -130,6 +130,28 @@ function TextDocument({ text }) {
     )
 }
 
+function getFriendlyPreviewError(error) {
+    const message = String(error?.message || '')
+
+    if (/loading chunk|chunkloaderror|failed to fetch dynamically imported module/i.test(message)) {
+        return 'Không thể tải bộ xem trước tài liệu trong trình duyệt. Vui lòng thử lại sau.'
+    }
+
+    if (/failed to fetch|network|fetch/i.test(message)) {
+        return 'Không thể tải tệp. Vui lòng kiểm tra kết nối hoặc thử lại sau.'
+    }
+
+    if (/http\s*404/i.test(message)) {
+        return 'Không tìm thấy tệp cần xem trước.'
+    }
+
+    if (/http\s*401|http\s*403/i.test(message)) {
+        return 'Bạn không có quyền xem trước tệp này.'
+    }
+
+    return 'Không thể đọc tệp này trong trình duyệt.'
+}
+
 function LoadingState() {
     return (
         <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-3 bg-[#F5F5F5] text-[#434343]">
@@ -137,7 +159,7 @@ function LoadingState() {
             <div className="w-60 max-w-[72%] overflow-hidden rounded-full bg-[#E5E7EB]">
                 <div className="h-2 w-1/2 animate-pulse rounded-full bg-[#2F54EB]" />
             </div>
-            <p className="text-sm font-medium">Dang tai tai lieu...</p>
+            <p className="text-sm font-medium">Đang tải tài liệu...</p>
         </div>
     )
 }
@@ -213,7 +235,7 @@ export default function BrowserOfficePreview({ fileUrl, fileName, className, sca
                 if (WORD_XML_EXTENSIONS.has(extension) || PRESENTATION_XML_EXTENSIONS.has(extension)) {
                     const arrayBuffer = await response.arrayBuffer()
                     const text = await extractZipText(arrayBuffer, extension)
-                    if (isActive) setState({ status: 'ready', content: { kind: 'text', text: text || 'Khong tim thay noi dung van ban trong tep nay.' }, error: '' })
+                    if (isActive) setState({ status: 'ready', content: { kind: 'text', text: text || 'Không tìm thấy nội dung văn bản trong tệp này.' }, error: '' })
                     return
                 }
 
@@ -226,8 +248,9 @@ export default function BrowserOfficePreview({ fileUrl, fileName, className, sca
                     })
                 }
             } catch (error) {
+                console.error('Kh\u00f4ng th\u1ec3 xem tr\u01b0\u1edbc t\u1ec7p trong tr\u00ecnh duy\u1ec7t:', error)
                 if (isActive) {
-                    setState({ status: 'error', content: null, error: error?.message || 'Khong the doc tep nay' })
+                    setState({ status: 'error', content: null, error: getFriendlyPreviewError(error) })
                 }
             }
         }
@@ -245,7 +268,7 @@ export default function BrowserOfficePreview({ fileUrl, fileName, className, sca
             {state.status === 'error' && (
                 <div className="flex h-full min-h-[360px] flex-col items-center justify-center gap-3 bg-[#F5F5F5] text-center text-sm text-[#595959]">
                     <FileText className="h-12 w-12 text-[#8C8C8C]" />
-                    <p>Khong the xem truoc tep nay trong trinh duyet.</p>
+                    <p>Không thể xem trước tệp này trong trình duyệt.</p>
                     {state.error ? <p className="max-w-[520px] text-xs text-[#8C8C8C]">{state.error}</p> : null}
                 </div>
             )}

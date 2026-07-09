@@ -165,7 +165,7 @@ export default function PdfSignatureViewer ({
       URL.revokeObjectURL(url)
       toast.success('Đã tải PDF hiện tại')
     } catch (e) {
-      toast.error('Không thể tải PDF: ' + e.message)
+      toast.error('Không thể tải PDF. Vui lòng thử lại sau.')
     }
   }
 
@@ -423,7 +423,7 @@ export default function PdfSignatureViewer ({
         addDebugLog('PDF.js loaded successfully')
       } catch (err) {
         console.error('Failed to load PDF.js:', err)
-        setError('Không thể tải thư viện PDF.js: ' + err.message)
+        setError('Không thể tải thư viện PDF.js. Vui lòng thử lại sau.')
       }
     }
     if (typeof window !== 'undefined') {
@@ -872,7 +872,7 @@ export default function PdfSignatureViewer ({
       addDebugLog(`Đã thêm ${type} tại x=${xPx}, y=${yPx}`)
     } catch (err) {
       console.error(err)
-      toast.error('Lỗi khi thêm chữ ký/con dấu: ' + err.message)
+      toast.error('Lỗi khi thêm chữ ký/con dấu. Vui lòng thử lại.')
     }
   }
 
@@ -1182,7 +1182,7 @@ export default function PdfSignatureViewer ({
       }
     } catch (e) {
       console.error(e)
-      toast.error('Lỗi khi lưu PDF: ' + e.message)
+      toast.error('Lỗi khi lưu PDF. Vui lòng thử lại.')
     } finally {
       setLoading(false)
     }
@@ -1235,7 +1235,7 @@ export default function PdfSignatureViewer ({
       toast.success('Đã hoàn tác thành công. Có thể chỉnh sửa lại.')
     } catch (e) {
       console.error('Restore error:', e)
-      toast.error('Không thể khôi phục phiên bản trước đó: ' + e.message)
+      toast.error('Không thể khôi phục phiên bản trước đó. Vui lòng thử lại.')
     } finally {
       setLoading(false)
     }
@@ -1261,7 +1261,7 @@ export default function PdfSignatureViewer ({
           throw new Error('File PDF rỗng sau khi reload')
         }
       } catch (reloadError) {
-        toast.error('Không thể reload PDF: ' + reloadError.message)
+        toast.error('Không thể tải lại PDF. Vui lòng thử lại.')
         return
       }
     }

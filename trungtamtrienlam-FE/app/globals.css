@@ -195,3 +195,58 @@ img {
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
+
+
+@keyframes chatSeenAvatarsIn {
+  0% {
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  100% {
+    max-height: 26px;
+    margin-top: 0.25rem;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chatSeenAvatarIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.78);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(0) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chat-seen-avatars {
+  animation: chatSeenAvatarsIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow: hidden;
+  transform-origin: top right;
+  will-change: max-height, margin-top, opacity, transform;
+}
+
+.chat-seen-avatar-list {
+  min-height: 18px;
+  transform: translateZ(0);
+}
+
+.chat-seen-avatar {
+  animation: chatSeenAvatarIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-seen-avatars,
+  .chat-seen-avatar {
+    animation: none;
+  }
+}

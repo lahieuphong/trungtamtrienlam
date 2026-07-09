@@ -78,7 +78,7 @@ const DeleteConfirmFileModal = ({ files, onClose, callBack }) => {
         }).catch(err => {
             loadingContext.hide();
 
-            toast.error(err.message || MessageConstants.deleteFileFailure);
+            toast.error(MessageConstants.deleteFileFailure);
         });
     }
 

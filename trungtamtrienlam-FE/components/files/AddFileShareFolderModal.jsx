@@ -52,7 +52,7 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
         }).catch(err => {
             loadingContext.hide();
 
-            toast.error(err.message || MessageConstants.getErrorData);
+            toast.error(MessageConstants.getErrorData);
         });
     }
 
@@ -182,7 +182,7 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
         }).catch(err => {
             loadingContext.hide();
 
-            toast.error(err.message || MessageConstants.addFileToShareFolderFailure);
+            toast.error(MessageConstants.addFileToShareFolderFailure);
         });
     }
 

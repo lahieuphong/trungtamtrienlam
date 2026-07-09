@@ -6,7 +6,7 @@ export const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY || process.env.AI_TOKEN;
 
   if (!apiKey) {
-    throw new Error("Missing OPENAI_API_KEY or AI_TOKEN");
+    throw new Error("Thiếu OPENAI_API_KEY hoặc AI_TOKEN");
   }
 
   if (!client) {

@@ -367,7 +367,7 @@ export const addFileToArchive = async formData => {
     if (response.status === 200) {
       return response.data
     } else {
-      throw new Error('Failed to archive file')
+      throw new Error('Không thể thêm tệp vào kho lưu trữ')
     }
   } catch (error) {
     throw error

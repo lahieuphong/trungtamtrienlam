@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback, memo } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { Paperclip, Download, Bell, NotebookIcon, Vote, PinIcon } from 'lucide-react'
+import { Paperclip, Download, Bell, NotebookIcon, Vote, PinIcon, RotateCcw } from 'lucide-react'
 import AvatarWithFrame from '../avatars/avatarFrame'
 import MarkdownViewer from '@/components/Chats/MarkDownViewer'
 import SelectFileItem from '../files/SelectFileItem'
@@ -222,13 +222,7 @@ const ContextMenu = ({ position, isOwn, isPinned, onPin, onUnpin, onReply, onRec
           onClick={event => stopAndRun(event, onRecall)}
           className='flex items-center w-full px-4 py-2 text-sm text-left text-red-500 hover:bg-gray-100'
         >
-          <Image
-            src='/thu_hoi.svg'
-            alt='Recall Icon'
-            width={16}
-            height={16}
-            className='mr-2'
-          />
+          <RotateCcw className='mr-2 shrink-0' size={16} />
           Thu hồi tin nhắn
         </button>
       )}
@@ -353,6 +347,7 @@ const ChatPopupMessageItem = ({
   }
   const selectedFilePath = selectFile?.file || selectFile?.File
   const selectedFileName = getChatFileDisplayName(selectFile)
+  const selectedFileKey = getChatFileIdentity(selectFile) || selectedFilePath || selectedFileName || selectFile?.id || 'file'
   const onlyOfficeType = getTypeOnlyOffice(getChatFileIdentity(selectFile))
   const renderFileViewer = () => {
     if (!selectFile || !showFileViewerModal) return null
@@ -426,7 +421,7 @@ const ChatPopupMessageItem = ({
     } else if (selectedFileType?.isImage) {
       return (
         <UniversalFilePreviewModal
-          key={`preview-${selectFile?.id || selectFile?.file}-${Date.now()}`}
+          key={`preview-${selectedFileKey}`}
           file={selectFile}
           onClose={onClosePreviewFile}
         />
@@ -435,7 +430,7 @@ const ChatPopupMessageItem = ({
 
     return (
       <UniversalFilePreviewModal
-        key={`preview-${selectFile?.id || selectFile?.file}-${Date.now()}`}
+        key={`preview-${selectedFileKey}`}
         file={selectFile}
         onClose={onClosePreviewFile}
       />
@@ -449,15 +444,6 @@ const ChatPopupMessageItem = ({
     const propSeenUsers = Array.isArray(seenByUsers) ? seenByUsers : []
     const rawSeenUsers = parseSeenBy(message.seenBy)
     const seenUsers = propSeenUsers.length > 0 ? propSeenUsers : rawSeenUsers
-    console.log('[chat-seen:render-popup]', {
-      messageId: message?.id,
-      isOwn,
-      propSeenUsers,
-      rawSeenBy: message?.seenBy,
-      rawSeenUsers,
-      selectedSeenUsers: seenUsers,
-      currentUser: userInfo
-    })
     if (!seenUsers || seenUsers.length === 0) return null
 
     const currentUserId = normalizeUserId(
@@ -480,40 +466,37 @@ const ChatPopupMessageItem = ({
     )
 
     if (uniqueUsers.length === 0) {
-      console.log('[chat-seen:render-popup-empty-after-filter]', {
-        messageId: message?.id,
-        currentUserId,
-        seenUsers,
-        otherUsers
-      })
       return null
     }
 
-    console.log('[chat-seen:render-popup-show]', {
-      messageId: message?.id,
-      currentUserId,
-      uniqueUsers
-    })
 
     return (
-      <div className='mt-1 flex justify-end pr-1'>
-        <div className='flex -space-x-1'>
+      <div className='chat-seen-avatars mt-1 flex justify-end pr-1'>
+        <div className='chat-seen-avatar-list flex -space-x-1'>
           {uniqueUsers.slice(0, 3).map((user, index) => {
             const userId = user.userID || user.UserID || user.id || user.ID
             const avatar = user.avatar || user.Avatar
             const fullName = user.fullName || user.FullName || user.name || user.Name
 
             return (
-              <AvatarWithFrame
+              <div
                 key={`${userId}-${index}`}
-                avatarPath={avatar}
-                altAvatar={fullName || userId}
-                size={18}
-              />
+                className='chat-seen-avatar h-[18px] w-[18px] rounded-full'
+                style={{ animationDelay: `${index * 35}ms` }}
+              >
+                <AvatarWithFrame
+                  avatarPath={avatar}
+                  altAvatar={fullName || userId}
+                  size={18}
+                />
+              </div>
             )
           })}
           {uniqueUsers.length > 3 && (
-            <div className='w-[18px] h-[18px] bg-gray-200 border border-white rounded-full flex items-center justify-center text-[9px] font-medium text-gray-600'>
+            <div
+              className='chat-seen-avatar w-[18px] h-[18px] bg-gray-200 border border-white rounded-full flex items-center justify-center text-[9px] font-medium text-gray-600'
+              style={{ animationDelay: `${Math.min(uniqueUsers.length, 3) * 35}ms` }}
+            >
               +{uniqueUsers.length - 3}
             </div>
           )}
@@ -1208,7 +1191,11 @@ const ChatPopupMessageItem = ({
             {/* Reply indicator */}
             {message.replyToMessage && (
               <div
-                className='mb-2 border-l-2 border-blue-400 pl-2 cursor-pointer hover:bg-blue-50 rounded p-1 transition-colors'
+                className={`mb-2 border-l-2 pl-2 cursor-pointer rounded p-1 transition-colors ${
+                  isOwn && !hasFileAttachments
+                    ? 'border-white/70 bg-white/15 hover:bg-white/20'
+                    : 'border-blue-400 bg-white/70 hover:bg-blue-50'
+                }`}
                 onClick={e => {
                   e.stopPropagation() // Prevent triggering parent events
                   if (onScrollToMessage && message.replyToMessage.id) {
@@ -1216,11 +1203,19 @@ const ChatPopupMessageItem = ({
                   }
                 }}
               >
-                <div className='text-xs text-blue-600 font-medium mb-1'>
+                <div
+                  className={`text-xs font-medium mb-1 ${
+                    isOwn && !hasFileAttachments ? 'text-white/90' : 'text-blue-600'
+                  }`}
+                >
                   Trả lời{' '}
                   {message.replyToMessage.senderName || (message.replyToMessage.sender === 'me' ? 'chính mình' : message.replyToMessage.sender)}
                 </div>
-                <div className='text-xs text-gray-500 line-clamp-2'>
+                <div
+                  className={`text-xs line-clamp-2 ${
+                    isOwn && !hasFileAttachments ? 'text-white font-medium' : 'text-gray-600'
+                  }`}
+                >
                   {message.replyToMessage.content || (message.replyToMessage.files?.length > 0 ? '[Tệp đính kèm]' : '')}
                 </div>
               </div>

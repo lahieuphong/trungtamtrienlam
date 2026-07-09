@@ -758,6 +758,10 @@ const ChatsPage = () => {
                 lastMessageDate:
                   msg.createdDate || msg.timestamp || new Date().toISOString(),
                 lastMessageSender: msg.senderName || 'Unknown',
+                 lastMessageSenderId: msg.senderID ?? msg.SenderID,
+                 messageType: msg.messageType ?? msg.MessageType,
+                 chatFiles: msg.chatFiles ?? msg.ChatFiles,
+                 files: msg.files ?? msg.Files,
                 unreadCount:
                   isFromOther && isNotCurrentChat
                     ? (chat.unreadCount || 0) + 1
@@ -823,6 +827,10 @@ const ChatsPage = () => {
                     msg.timestamp ||
                     new Date().toISOString(),
                   lastMessageSender: msg.senderName || 'Unknown',
+                   lastMessageSenderId: msg.senderID ?? msg.SenderID,
+                   messageType: msg.messageType ?? msg.MessageType,
+                   chatFiles: msg.chatFiles ?? msg.ChatFiles,
+                   files: msg.files ?? msg.Files,
                   unreadCount:
                     isFromOther && isNotCurrentChat
                       ? (chat.unreadCount || 0) + 1
@@ -847,6 +855,10 @@ const ChatsPage = () => {
               lastMessageDate:
                 msg.createdDate || msg.timestamp || new Date().toISOString(),
               lastMessageSender: msg.senderName || 'Unknown',
+               lastMessageSenderId: msg.senderID ?? msg.SenderID,
+               messageType: msg.messageType ?? msg.MessageType,
+               chatFiles: msg.chatFiles ?? msg.ChatFiles,
+               files: msg.files ?? msg.Files,
               unreadCount: isFromOther ? 1 : 0,
               isOnline: onlineUsers.includes(chatUserID),
               hasNotification: false,
@@ -904,11 +916,14 @@ const ChatsPage = () => {
 
               return {
                 ...chat,
-                messageType: msg.messageType,
                 lastMessage: msg.content || msg.Content,
                 lastMessageDate:
                   msg.createdDate || msg.timestamp || new Date().toISOString(),
                 lastMessageSender: msg.senderName || 'Unknown',
+                 lastMessageSenderId: msg.senderID ?? msg.SenderID,
+                 messageType: msg.messageType ?? msg.MessageType,
+                 chatFiles: msg.chatFiles ?? msg.ChatFiles,
+                 files: msg.files ?? msg.Files,
                 unreadCount: newUnreadCount
               }
             }
@@ -926,6 +941,10 @@ const ChatsPage = () => {
             lastMessageDate:
               msg.createdDate || msg.timestamp || new Date().toISOString(),
             lastMessageSender: msg.senderName || 'Unknown',
+            lastMessageSenderId: msg.senderID ?? msg.SenderID,
+            messageType: msg.messageType ?? msg.MessageType,
+            chatFiles: msg.chatFiles ?? msg.ChatFiles,
+            files: msg.files ?? msg.Files,
             unreadCount: isFromOther ? 1 : 0,
             countUser: msg.countUser || 2,
             createdDate:
@@ -1804,7 +1823,6 @@ const ChatsPage = () => {
           id: msg.id,
           content: msg.content,
           timestamp: msg.createdDate,
-          messageType: msg.messageType,
           sender: isCurrentUserMessage(msg, userInfo) ? 'me' : 'other',
           avatar: msg.senderAvatar,
           senderName: msg.senderName,
@@ -2665,7 +2683,11 @@ const ChatsPage = () => {
                       ...chat,
                       lastMessage: messageData.Content,
                       lastMessageDate: messageTime,
-                      lastMessageSender: senderName
+                      lastMessageSender: senderName,
+                       lastMessageSenderId: userInfo.userID,
+                       messageType: messageData.MessageType,
+                       chatFiles: messageData.ChatFiles,
+                       files: optimisticFiles,
                     }
                     : chat
                 )
@@ -2688,7 +2710,11 @@ const ChatsPage = () => {
                         ...chat,
                         lastMessage: messageData.Content,
                         lastMessageDate: messageTime,
-                        lastMessageSender: senderName
+                        lastMessageSender: senderName,
+                         lastMessageSenderId: userInfo.userID,
+                         messageType: messageData.MessageType,
+                         chatFiles: messageData.ChatFiles,
+                         files: optimisticFiles,
                       }
                     }
                     return chat
@@ -2701,6 +2727,10 @@ const ChatsPage = () => {
                     lastMessage: messageData.Content,
                     lastMessageDate: messageTime,
                     lastMessageSender: senderName,
+                     lastMessageSenderId: userInfo.userID,
+                     messageType: messageData.MessageType,
+                     chatFiles: messageData.ChatFiles,
+                     files: optimisticFiles,
                     createdDate: messageTime,
                     userID: userFromIndividualList.id,
                     isOnline: onlineUsers.includes(userFromIndividualList.id)
@@ -2723,7 +2753,11 @@ const ChatsPage = () => {
                       ...chat,
                       lastMessage: messageData.Content,
                       lastMessageDate: messageTime,
-                      lastMessageSender: senderName
+                      lastMessageSender: senderName,
+                       lastMessageSenderId: userInfo.userID,
+                       messageType: messageData.MessageType,
+                       chatFiles: messageData.ChatFiles,
+                       files: optimisticFiles,
                     }
                     : chat
                 )
@@ -3442,7 +3476,7 @@ const ChatsPage = () => {
           await loadMessages(selectedChat)
         }
       } else {
-        throw new Error(res?.message || 'Unpin failed')
+        throw new Error(res?.message || 'Bỏ ghim thất bại')
       }
     } catch (err) {
       const msg =

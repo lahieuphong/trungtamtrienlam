@@ -25,6 +25,11 @@ import { MessageConstants } from '@/constants/notificationContants'
 import AvatarWithFrame from '../avatars/avatarFrame'
 import { Button, Input } from '../Form'
 import Image from 'next/image'
+import {
+  getChatAttachmentActionPreview,
+  getChatAttachmentPreview,
+  hasChatAttachmentPreview
+} from '@/helpers/chatPreviewHelpers'
 
 const NEW_CHAT_USER_PREVIEW_LIMIT = 6
 
@@ -90,6 +95,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
   const [filteredGroupChats, setFilteredGroupChats] = useState([])
   const [filteredNewChatUsers, setFilteredNewChatUsers] = useState([])
   const [forceUpdate, setForceUpdate] = useState(0)
+  const [isOpeningChatsPage, setIsOpeningChatsPage] = useState(false)
   const [, setTabNotificationCounts] = useState({ individual: 0, groups: 0 })
   const currentUserId = getCurrentUserId(userInfo)
 
@@ -191,7 +197,81 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
     )
   }
 
+  const getCurrentUserNames = () =>
+    [
+      userInfo?.fullName,
+      userInfo?.FullName,
+      userInfo?.name,
+      userInfo?.Name,
+      userInfo?.userName,
+      userInfo?.UserName,
+      userInfo?.username,
+      userInfo?.email,
+      userInfo?.Email
+    ]
+      .map(value => String(value ?? '').trim().toLowerCase())
+      .filter(Boolean)
+
+  const isLastMessageFromCurrentUser = chat => {
+    const currentUserIds = [
+      currentUserId,
+      userInfo?.userID,
+      userInfo?.UserID,
+      userInfo?.id,
+      userInfo?.ID
+    ]
+      .map(normalizeUserId)
+      .filter(Boolean)
+
+    const senderId = normalizeUserId(
+      chat?.lastMessageSenderId ??
+        chat?.lastMessageSenderID ??
+        chat?.LastMessageSenderID ??
+        chat?.lastSenderId ??
+        chat?.lastSenderID ??
+        chat?.LastSenderID ??
+        chat?.senderID ??
+        chat?.SenderID
+    )
+
+    if (senderId && currentUserIds.includes(senderId)) return true
+
+    const senderName = String(
+      chat?.lastMessageSender ??
+        chat?.lastSenderName ??
+        chat?.senderName ??
+        chat?.SenderName ??
+        ''
+    )
+      .trim()
+      .toLowerCase()
+
+    return Boolean(senderName && getCurrentUserNames().includes(senderName))
+  }
+
+  const formatConversationPreview = chat => {
+    const preview = formatChatPreview(chat?.lastMessage)
+    const isOwnLastMessage = isLastMessageFromCurrentUser(chat)
+
+    if (preview !== null && preview !== undefined && preview !== '') {
+      const previewText = String(preview)
+      return isOwnLastMessage ? `Bạn: ${previewText}` : previewText
+    }
+
+    return getChatAttachmentPreview(chat, { isOwn: isOwnLastMessage })
+  }
+
   const isEventMessage = messageType => Number(messageType) === 5
+
+  const formatGroupSenderLabel = group => {
+    if (isEventMessage(group?.messageType ?? group?.MessageType)) return ''
+    if (isLastMessageFromCurrentUser(group)) return 'Bạn: '
+    if (group?.lastSenderName) return `${group.lastSenderName.split(' ').pop()}: `
+    return ''
+  }
+
+  const formatGroupMessagePreview = group =>
+    formatChatPreview(group?.lastMessage) || getChatAttachmentActionPreview(group)
 
   const individualUnreadCount = useMemo(() => {
     const count = userChatList.reduce((total, chat) => total + getUnreadCount(chat), 0)
@@ -202,6 +282,26 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
     const count = groupChatList.reduce((total, chat) => total + getUnreadCount(chat), 0)
     return count
   }, [groupChatList])
+
+  const totalUnreadCount = individualUnreadCount + groupUnreadCount
+
+  const renderTabUnreadBadge = count => {
+    if (count <= 0) return null
+
+    return (
+      <span className='ml-1.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white'>
+        {count > 99 ? '99+' : count}
+      </span>
+    )
+  }
+
+  const prefetchChatsPage = useCallback(() => {
+    router.prefetch?.('/chats')
+  }, [router])
+
+  useEffect(() => {
+    prefetchChatsPage()
+  }, [prefetchChatsPage])
 
   // Listen for Web Push chat notifications
   useEffect(() => {
@@ -375,13 +475,13 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
       const filteredUsers = userChatList.filter(
         chat =>
           chat.name?.toLowerCase().includes(query) ||
-          formatChatPreview(chat.lastMessage)?.toLowerCase().includes(query)
+          formatConversationPreview(chat).toLowerCase().includes(query)
       )
 
       const filteredGroups = groupChatList.filter(
         chat =>
           chat.name?.toLowerCase().includes(query) ||
-          formatChatPreview(chat.lastMessage)?.toLowerCase().includes(query) ||
+          formatConversationPreview(chat).toLowerCase().includes(query) ||
           chat.lastSenderName?.toLowerCase().includes(query)
       )
 
@@ -496,6 +596,9 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                 lastMessageDate:
                   msg.createdDate || msg.timestamp || new Date().toISOString(),
                 lastMessageSender: msg.senderName || 'Unknown',
+                lastMessageSenderId: msg.senderID ?? msg.SenderID,
+                messageType: msg.messageType ?? msg.MessageType,
+                chatFiles: msg.chatFiles ?? msg.ChatFiles,
                 unreadCount: newUnreadCount,
                 hasNotification: newUnreadCount > 0
               }
@@ -529,6 +632,9 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                 lastMessageDate:
                   msg.createdDate || msg.timestamp || new Date().toISOString(),
                 lastMessageSender: msg.senderName || 'Unknown',
+                lastMessageSenderId: msg.senderID ?? msg.SenderID,
+                messageType: msg.messageType ?? msg.MessageType,
+                chatFiles: msg.chatFiles ?? msg.ChatFiles,
                 unreadCount: 1,
                 isOnline: onlineUsers.includes(msg.senderID),
                 hasNotification: true
@@ -581,12 +687,15 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
 
               return {
                 ...chat,
-                messageType: msg.messageType,
                 lastMessage: msg.content || msg.Content,
                 lastMessageDate:
                   msg.createdDate || msg.timestamp || new Date().toISOString(),
                 lastMessageSender: msg.senderName || 'Unknown',
+                lastMessageSenderId: msg.senderID ?? msg.SenderID,
+                messageType: msg.messageType ?? msg.MessageType,
+                chatFiles: msg.chatFiles ?? msg.ChatFiles,
                 lastSenderName: msg.senderName || 'Unknown',
+                lastSenderId: msg.senderID ?? msg.SenderID,
                 unreadCount: newUnreadCount,
                 hasNotification: newUnreadCount > 0
               }
@@ -749,6 +858,8 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
           isActive: onlineMembersCount > 0,
           totalMembers,
           lastMessage: chat.lastMessage || '',
+          messageType: chat.messageType ?? chat.MessageType ?? chat.lastMessageType ?? chat.LastMessageType,
+          chatFiles: chat.chatFiles ?? chat.ChatFiles ?? chat.files ?? chat.Files,
           lastMessageSender: chat.lastMessageSender || '',
           lastSenderName: chat.lastSenderName || chat.lastMessageSender,
           lastMessageDate: chat.lastMessageDate || chat.lastMessageTime,
@@ -796,14 +907,30 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
     return () => clearInterval(timer)
   }, [isConnected, currentUserId])
 
+  const closeFloatingChatPopups = useCallback(() => {
+    if (!activeChats || activeChats.length === 0) return
+
+    activeChats.forEach(chat => {
+      closeChatPopup(chat.id)
+    })
+  }, [activeChats, closeChatPopup])
+
   const handleTurnPage = () => {
-    // Đóng tất cả ChatPopup trước khi chuyển trang
-    if (activeChats && activeChats.length > 0) {
-      activeChats.forEach(chat => {
-        closeChatPopup(chat.id)
-      })
+    if (pathname === '/chats') {
+      onClose?.()
+      return
     }
+
+    setIsOpeningChatsPage(true)
+    onClose?.()
+    prefetchChatsPage()
     router.push('/chats')
+
+    if (typeof window !== 'undefined') {
+      window.setTimeout(closeFloatingChatPopups, 0)
+    } else {
+      closeFloatingChatPopups()
+    }
   }
 
   const handleChatSelect = chat => {
@@ -981,15 +1108,9 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
               : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
               }`}
           >
-            <div className='relative flex items-center justify-center'>
+            <div className='inline-flex min-w-0 items-center justify-center'>
               <span>Cá nhân</span>
-              {individualUnreadCount > 0 && (
-                <div className='absolute -top-4 -right-4 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 bg-red-500'>
-                  <span className='text-xs text-white font-bold leading-none'>
-                    {individualUnreadCount > 99 ? '99+' : individualUnreadCount}
-                  </span>
-                </div>
-              )}
+              {renderTabUnreadBadge(individualUnreadCount)}
             </div>
           </button>
           <button
@@ -999,15 +1120,9 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
               : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
               }`}
           >
-            <div className='relative flex items-center justify-center'>
+            <div className='inline-flex min-w-0 items-center justify-center'>
               <span>Nhóm</span>
-              {groupUnreadCount > 0 && (
-                <div className='absolute -top-4 -right-4 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 bg-red-500'>
-                  <span className='text-xs text-white font-bold leading-none'>
-                    {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
-                  </span>
-                </div>
-              )}
+              {renderTabUnreadBadge(groupUnreadCount)}
             </div>
           </button>
         </div>
@@ -1114,7 +1229,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                               {chat.name}
                             </h3>
                             <p className={`text-xs truncate mt-1 ${hasNewMessages ? 'font-semibold text-gray-800' : 'text-gray-500'}`}>
-                              {formatChatPreview(chat.lastMessage) || 'Chưa có tin nhắn'}
+                              {formatConversationPreview(chat) || 'Chưa có tin nhắn'}
                             </p>
                           </div>
 
@@ -1272,7 +1387,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                         </div>
                       )}
                     </div>
-                    {group.lastMessage ? (
+                    {(group.lastMessage || hasChatAttachmentPreview(group)) ? (
                       <p
                         className={`text-xs ${hasNewMessages
                           ? 'font-semibold text-gray-800'
@@ -1283,12 +1398,9 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                           className={`font-medium ${hasNewMessages ? 'text-gray-900' : ''
                             }`}
                         >
-                          {group.lastSenderName &&
-                          !isEventMessage(group.messageType ?? group.MessageType)
-                            ? `${group.lastSenderName.split(' ').pop()}: `
-                            : ''}
+                          {formatGroupSenderLabel(group)}
                         </span>
-                        {formatChatPreview(group.lastMessage)}
+                        {formatGroupMessagePreview(group)}
                       </p>
                     ) : (
                       <p
@@ -1317,19 +1429,26 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         <div className='flex items-center justify-between gap-1'>
           <Button
             onClick={handleMarkAllAsRead}
-            className='text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded transition-colors flex items-center flex-shrink-0'
+            className={`text-xs hover:bg-blue-50 px-2 py-1.5 rounded transition-colors flex items-center flex-shrink-0 ${
+              totalUnreadCount > 0
+                ? 'font-semibold text-blue-700 hover:text-blue-800'
+                : 'font-normal text-blue-600 hover:text-blue-700'
+            }`}
             variant='ghost'
           >
-            <Check size={12} className='mr-1' />
+            <Check size={12} strokeWidth={totalUnreadCount > 0 ? 3 : 2} className='mr-1' />
             <span className='whitespace-nowrap'>Đánh dấu đã đọc</span>
           </Button>
           <Button
             onClick={handleTurnPage}
-            className='text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded transition-colors flex items-center flex-shrink-0'
+            onMouseEnter={prefetchChatsPage}
+            onFocus={prefetchChatsPage}
+            disabled={isOpeningChatsPage}
+            className='text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded transition-colors flex items-center flex-shrink-0 disabled:cursor-wait disabled:opacity-70'
             variant='ghost'
           >
-            <span className='whitespace-nowrap'>Xem tất cả</span>
-            <ArrowRight size={12} className='ml-1' />
+            <span className='whitespace-nowrap'>{isOpeningChatsPage ? 'Đang mở...' : 'Xem tất cả'}</span>
+            <ArrowRight size={12} className={`ml-1 transition-transform ${isOpeningChatsPage ? 'translate-x-0.5' : ''}`} />
           </Button>
         </div>
       </div>

@@ -1,14 +1,13 @@
-import { XCircle } from "lucide-react"
+import { PinOff } from 'lucide-react'
 
-export default function PinDropdownMenu({
+export default function PinDropdownMenu ({
   isOpen,
   onClose,
-  messages = [], // mảng messages
+  messages = [],
   onCopy,
   onOpenBoard,
   onUnpin
 }) {
-  // Lấy danh sách ID đúng theo rule
   const targetIds = (messages || [])
     .map(m => {
       if (m?.isPin || m?.IsPin) return m.id ?? m.ID
@@ -18,34 +17,26 @@ export default function PinDropdownMenu({
     .filter(id => id !== null && id !== undefined && id !== '')
     .filter((id, i, arr) => arr.indexOf(id) === i)
 
+  if (!isOpen) return null
+
   return (
     <>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-[9998]" onClick={onClose} />
+      <div className='fixed inset-0 z-[9998]' onClick={onClose} />
 
-          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-[9999] animate-in slide-in-from-top-2 duration-200">
-            <div className="py-2">
-              <div className="border-t border-gray-100 my-1"></div>
-
-              <button
-                onClick={() => {
-                  onUnpin?.(targetIds) 
-                  onClose()
-                }}
-                className="flex items-center gap-3 w-full px-4 py-2 text-left hover:bg-gray-50 text-red-600 disabled:opacity-50"
-                disabled={targetIds.length === 0}
-                title={targetIds.length === 0 ? "Không có mục để bỏ ghim" : undefined}
-              >
-                <XCircle className="w-4 h-4" />
-                <span className="text-sm">
-                  Bỏ ghim tất cả ({targetIds.length})
-                </span>
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      <div className='absolute right-0 top-full z-[9999] mt-1 w-40 overflow-hidden rounded-md border border-red-100 bg-red-50/95 shadow-sm animate-in slide-in-from-top-2 duration-150'>
+        <button
+          onClick={() => {
+            onUnpin?.(targetIds)
+            onClose()
+          }}
+          className='flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50'
+          disabled={targetIds.length === 0}
+          title={targetIds.length === 0 ? 'Không có mục để bỏ ghim' : undefined}
+        >
+          <PinOff className='h-3.5 w-3.5 shrink-0' />
+          <span className='truncate'>Bỏ ghim tất cả ({targetIds.length})</span>
+        </button>
+      </div>
     </>
   )
 }

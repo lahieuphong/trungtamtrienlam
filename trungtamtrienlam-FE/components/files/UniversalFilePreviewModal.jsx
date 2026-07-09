@@ -557,6 +557,49 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
         link.click()
         link.remove()
     }
+    const handleZoomOut = () => {
+        if (isImage) {
+            zoomImage((current) => current - 0.2)
+            return
+        }
+
+        setScale((current) => Math.max(0.5, Number((current - 0.1).toFixed(2))))
+    }
+
+    const handleZoomIn = () => {
+        if (isImage) {
+            zoomImage((current) => current + 0.2)
+            return
+        }
+
+        setScale((current) => Math.min(2.5, Number((current + 0.1).toFixed(2))))
+    }
+
+    const renderFooterControls = () => {
+        if (!(isImage || documentPreviewType) || isModel3D) return null
+
+        return (
+            <>
+                <div className="flex h-8 items-center gap-2 rounded-full border border-[#D9D9D9] bg-white px-2 text-[#1F1F1F]">
+                    <button type="button" onClick={handleZoomOut} aria-label="Thu nho" className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F5F5F5]">
+                        <ZoomOut className="h-4 w-4" />
+                    </button>
+                    <p className="min-w-10 text-center text-sm text-[#434343]">{Math.round(scale * 100)}%</p>
+                    <button type="button" onClick={handleZoomIn} aria-label="Phong to" className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F5F5F5]">
+                        <ZoomIn className="h-4 w-4" />
+                    </button>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setIsFullscreen((current) => !current)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] bg-white text-[#1F1F1F] hover:bg-[#F5F5F5]"
+                    aria-label={isFullscreen ? 'Thu nho man hinh' : 'Toan man hinh'}
+                >
+                    {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </button>
+            </>
+        )
+    }
 
     const renderPreview = () => {
         if (!previewUrl) {
@@ -661,10 +704,21 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
     }
 
     return (
-        <div className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center p-4`}>
+        <div
+            className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center p-4`}
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            onContextMenu={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+            }}
+        >
             <div className="absolute inset-0 bg-black/45" onClick={onClose} />
             <div className={modalPanelClassName}>
-                {renderPreview()}
+                <div className="relative">
+                    {renderPreview()}
+                </div>
                 <div className="mt-4">
                     <p className="break-words text-sm text-[#1F1F1F]">{fileName}</p>
                     <div className="mt-2 flex items-center justify-between gap-2">
@@ -689,26 +743,9 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
                                     <Download className="h-4 w-4" />
                                 </button>
                             )}
-                            {(isImage || documentPreviewType) && (
-                                <div className="flex h-8 items-center gap-2 rounded-full border border-[#D9D9D9] px-2 text-[#1F1F1F]">
-                                    <button type="button" onClick={() => isImage ? zoomImage((current) => current - 0.2) : setScale((current) => Math.max(0.5, Number((current - 0.1).toFixed(2))))} aria-label="Thu nhỏ">
-                                        <ZoomOut className="h-4 w-4" />
-                                    </button>
-                                    <p className="min-w-10 text-center text-sm text-[#434343]">{Math.round(scale * 100)}%</p>
-                                    <button type="button" onClick={() => isImage ? zoomImage((current) => current + 0.2) : setScale((current) => Math.min(2.5, Number((current + 0.1).toFixed(2))))} aria-label="Phóng to">
-                                        <ZoomIn className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            )}
+                            {renderFooterControls()}
                             {showInfo && <FileMetadataPanel file={file} onClose={() => setShowInfo(false)} anchorRef={infoButtonRef} />}
-                            <button
-                                type="button"
-                                onClick={() => setIsFullscreen((current) => !current)}
-                                className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] text-[#1F1F1F] hover:bg-[#F5F5F5]"
-                                aria-label={isFullscreen ? 'Thu nhỏ màn hình' : 'Toàn màn hình'}
-                            >
-                                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                            </button>
+
                         </div>
                         <Button variant="danger" onClick={onClose} className="!rounded-lg !bg-[#EF4444] hover:!bg-[#DC2626]">
                             <X className="h-4 w-4" />
