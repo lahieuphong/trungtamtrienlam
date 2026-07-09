@@ -186,7 +186,7 @@ const ChatsPage = () => {
   const router = useRouter()
   const searchParams = useSearchParams()
   const loadingContext = useContext(LoadingContext)
-  const { registerChatCallback, onlineUsers } = useSignalR()
+  const { registerChatCallback, onlineUsers, isConnected } = useSignalR()
   const { notificationData, setNotificationData } = useNotification()
   const [activeTab, setActiveTab] = useState('individual')
   const [selectedChat, setSelectedChat] = useState(null)
@@ -353,7 +353,7 @@ const ChatsPage = () => {
         (messageType === 5 &&
           content &&
           (content.includes('giải tán nhóm') ||
-            content.includes('giáº£i tÃ¡n nhÃ³m')))
+            content.includes('giải tán nhóm')))
 
       if (isDisbandGroupEvent) {
         if (chatID === selectedChat) {
@@ -1459,7 +1459,8 @@ const ChatsPage = () => {
     const {
       showPaneLoading = false,
       scrollToBottomAfterLoad = true,
-      force = false
+      force = false,
+      silent = false
     } = options
     if (!showPaneLoading && !force) {
       const now = Date.now()
@@ -1490,7 +1491,7 @@ const ChatsPage = () => {
 
     setIsChatsAI(false)
     try {
-      setIsLoading(true)
+      if (!silent) setIsLoading(true)
 
       if (chatId === 'heritage-assistant') {
         setIsChatsAI(true) // Set AI flag for heritage assistant
@@ -1515,7 +1516,7 @@ const ChatsPage = () => {
         if (scrollToBottomAfterLoad) {
           scrollToBottom({ smooth: false })
         }
-        setIsLoading(false)
+        if (!silent) setIsLoading(false)
         return
       }
 
@@ -1775,7 +1776,7 @@ const ChatsPage = () => {
         setIsChatsAI(false)
       }
     } finally {
-      if (latestLoadChatIdRef.current === chatId) {
+      if (!silent && latestLoadChatIdRef.current === chatId) {
         setIsLoading(false)
       }
       if (showPaneLoading && messagePaneLoadingChatRef.current === chatId) {
@@ -2029,6 +2030,38 @@ const ChatsPage = () => {
   }
 
   // Function để handle khi user được thêm vào group mới
+  useEffect(() => {
+    if (isConnected || !userInfo?.userID) return
+
+    let isPolling = false
+    const pollRealtimeFallback = async () => {
+      if (isPolling) return
+      if (typeof document !== 'undefined' && document.hidden) return
+
+      isPolling = true
+      try {
+        const activeChatId = selectedChatRef.current
+        await Promise.allSettled([
+          loadChatUser(),
+          forceReloadGroupData(),
+          activeChatId
+            ? loadMessages(activeChatId, {
+                force: true,
+                silent: true,
+                scrollToBottomAfterLoad: isAtBottom()
+              })
+            : Promise.resolve()
+        ])
+      } finally {
+        isPolling = false
+      }
+    }
+
+    const timer = setInterval(pollRealtimeFallback, 3000)
+    pollRealtimeFallback()
+    return () => clearInterval(timer)
+  }, [isConnected, userInfo?.userID])
+
   const handleUserAddedToGroup = async chatID => {
     setPendingNewGroupSelection(chatID)
 

@@ -32,8 +32,8 @@ class ManagedChatRemind(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_reminds'
         ordering = ('-remind_time', '-created_date', 'id')
-        verbose_name = 'Managed chat remind'
-        verbose_name_plural = 'Managed chat reminds'
+        verbose_name = 'Nhắc hẹn cuộc trò chuyện'
+        verbose_name_plural = 'Nhắc hẹn cuộc trò chuyện'
 
     def __str__(self):  # pragma: nocover
         return self.remind_name or self.id
@@ -58,8 +58,8 @@ class ManagedChatRemindJob(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_remind_jobs'
         ordering = ('time', 'id')
-        verbose_name = 'Managed chat remind job'
-        verbose_name_plural = 'Managed chat remind jobs'
+        verbose_name = 'Lịch chạy nhắc hẹn'
+        verbose_name_plural = 'Lịch chạy nhắc hẹn'
 
     def __str__(self):  # pragma: nocover
         return f'{self.chat_remind_id}:{self.job_id}'
@@ -92,8 +92,8 @@ class ManagedChatRemindUser(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_remind_users'
         ordering = ('created_date', 'id')
-        verbose_name = 'Managed chat remind user'
-        verbose_name_plural = 'Managed chat remind users'
+        verbose_name = 'Người tham gia nhắc hẹn'
+        verbose_name_plural = 'Người tham gia nhắc hẹn'
 
     def __str__(self):  # pragma: nocover
         return f'{self.chat_remind_id}:{self.user_id}'

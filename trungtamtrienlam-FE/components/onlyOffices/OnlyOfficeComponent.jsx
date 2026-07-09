@@ -363,7 +363,7 @@ function OnlyOfficeEditor({
                     <div className="">
                         <img className='w-14 h-14 text-black' src="/images/icons/loading_black.svg" />
                     </div>
-                    <p className='text-black text-sm'>Äang táº£i dá»¯ liá»‡u, xin vui lÃ²ng Ä‘á»£i trong giÃ¢y lÃ¡t...</p>
+                    <p className='text-black text-sm'>Đang tải dữ liệu, xin vui lòng đợi trong giây lát...</p>
                 </div>
             )}
         </div>

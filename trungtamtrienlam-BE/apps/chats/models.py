@@ -121,8 +121,8 @@ class ManagedChat(models.Model):
     class Meta:
         db_table = 'aidi_managed_chats'
         ordering = ('-updated_date', '-created_date')
-        verbose_name = 'Managed chat'
-        verbose_name_plural = 'Managed chats'
+        verbose_name = 'Cuộc trò chuyện'
+        verbose_name_plural = 'Cuộc trò chuyện'
 
     def __str__(self):
         return self.name or self.id
@@ -141,8 +141,8 @@ class ManagedChatUser(models.Model):
         db_table = 'aidi_managed_chat_users'
         ordering = ('chat_id', 'role', 'created_date')
         unique_together = ('chat_id', 'user_id')
-        verbose_name = 'Managed chat user'
-        verbose_name_plural = 'Managed chat users'
+        verbose_name = 'Thành viên cuộc trò chuyện'
+        verbose_name_plural = 'Thành viên cuộc trò chuyện'
 
     def __str__(self):
         return f'{self.chat_id}:{self.user_id}'
@@ -166,8 +166,8 @@ class ManagedChatMessage(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_messages'
         ordering = ('created_date',)
-        verbose_name = 'Managed chat message'
-        verbose_name_plural = 'Managed chat messages'
+        verbose_name = 'Tin nhắn cuộc trò chuyện'
+        verbose_name_plural = 'Tin nhắn cuộc trò chuyện'
 
     def __str__(self):
         return f'{self.chat_id}:{self.sender_id}:{self.created_date}'
@@ -187,8 +187,8 @@ class ManagedChatFile(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_files'
         ordering = ('created_date',)
-        verbose_name = 'Managed chat file'
-        verbose_name_plural = 'Managed chat files'
+        verbose_name = 'Tệp đính kèm tin nhắn'
+        verbose_name_plural = 'Tệp đính kèm tin nhắn'
 
     def __str__(self):
         return self.file_name or self.file
@@ -205,8 +205,8 @@ class ManagedChatLink(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_links'
         ordering = ('created_date',)
-        verbose_name = 'Managed chat link'
-        verbose_name_plural = 'Managed chat links'
+        verbose_name = 'Liên kết tin nhắn'
+        verbose_name_plural = 'Liên kết tin nhắn'
 
     def __str__(self):
         return self.link
@@ -223,8 +223,8 @@ class ManagedChatSeen(models.Model):
         db_table = 'aidi_managed_chat_seen'
         ordering = ('chat_id', 'user_id')
         unique_together = ('chat_id', 'user_id')
-        verbose_name = 'Managed chat seen'
-        verbose_name_plural = 'Managed chat seen'
+        verbose_name = 'Lượt đọc tin nhắn'
+        verbose_name_plural = 'Lượt đọc tin nhắn'
 
     def __str__(self):
         return f'{self.chat_id}:{self.user_id}'
@@ -240,8 +240,8 @@ class ManagedChatPin(models.Model):
         db_table = 'aidi_managed_chat_pins'
         ordering = ('-pin_date',)
         unique_together = ('chat_id', 'user_id')
-        verbose_name = 'Managed chat pin'
-        verbose_name_plural = 'Managed chat pins'
+        verbose_name = 'Ghim cuộc trò chuyện'
+        verbose_name_plural = 'Ghim cuộc trò chuyện'
 
     def __str__(self):
         return f'{self.chat_id}:{self.user_id}'
@@ -261,8 +261,8 @@ class ManagedChatAwaitConfirm(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_await_confirms'
         ordering = ('-created_date',)
-        verbose_name = 'Managed chat await confirm'
-        verbose_name_plural = 'Managed chat await confirms'
+        verbose_name = 'Yêu cầu tham gia cuộc trò chuyện'
+        verbose_name_plural = 'Yêu cầu tham gia cuộc trò chuyện'
 
     def __str__(self):
         return f'{self.chat_id}:{self.user_id}:{self.status}'

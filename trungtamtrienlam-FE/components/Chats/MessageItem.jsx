@@ -104,7 +104,7 @@ export default function MessageItem ({
   }
 
   const getUserDisplayName = (userId, isCurrentUser = false) => {
-    if (isCurrentUser) return 'Báº¡n'
+    if (isCurrentUser) return 'Bạn'
 
     const user = findUserById(userId)
     return (
@@ -162,7 +162,7 @@ export default function MessageItem ({
     return { isPdf, isWord, isSupported, isImage }
   }
 
-  // Format thá»i gian hiá»ƒn thá»‹
+  // Format thời gian hiển thị
   const formatReminderTime = dateTime => {
     if (!dateTime) return ''
 
@@ -182,19 +182,19 @@ export default function MessageItem ({
     })
 
     if (reminderDate.getTime() === today.getTime()) {
-      return `HÃ´m nay lÃºc ${timeString}`
+      return `Hôm nay lúc ${timeString}`
     } else if (
       reminderDate.getTime() ===
       today.getTime() + 24 * 60 * 60 * 1000
     ) {
-      return `NgÃ y mai lÃºc ${timeString}`
+      return `Ngày mai lúc ${timeString}`
     } else {
       const dateString = date.toLocaleDateString('vi-VN', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
       })
-      return `${dateString} lÃºc ${timeString}`
+      return `${dateString} lúc ${timeString}`
     }
   }
 
@@ -413,7 +413,7 @@ export default function MessageItem ({
   const handleContextMenu = e => {
     e.preventDefault()
 
-    // Chá»‰ hiá»ƒn thá»‹ context menu cho tin nháº¯n cá»§a mÃ¬nh hoáº·c khi cÃ³ quyá»n
+    // Chỉ hiển thị context menu cho tin nhắn của mình hoặc khi có quyền
     if (isOwn || message.sender !== 'me') {
       setContextMenuPosition({ x: e.clientX, y: e.clientY })
       setShowContextMenu(true)
@@ -480,13 +480,13 @@ export default function MessageItem ({
 
   const handleDowloadFile = file => {
     if (file) {
-      // Kiá»ƒm tra náº¿u lÃ  file zip
+      // Kiểm tra nếu là file zip
       const fileName = file.FileName || file.name || ''
       const fileExtension =
         file.Extension || fileName.split('.').pop().toLowerCase()
       const zipId = v4().toString()
       if (fileExtension === 'zip') {
-        // Xá»­ lÃ½ Ä‘áº·c biá»‡t cho file zip
+        // Xử lý đặc biệt cho file zip
         progressContext.addProgress({
           file,
           path: file.file || file.File,
@@ -500,7 +500,7 @@ export default function MessageItem ({
           name: fileName || 'file.zip'
         })
       } else {
-        // Xá»­ lÃ½ cho file thÆ°á»ng
+        // Xử lý cho file thường
         progressContext.addProgress({
           file,
           path: file.file || file.File,
@@ -516,8 +516,8 @@ export default function MessageItem ({
 
     if (
       message.content &&
-      (message.content.includes('Ä‘Ã£ bá»• nhiá»‡m') ||
-        message.content.includes('thÃ nh trÆ°á»Ÿng nhÃ³m'))
+      (message.content.includes('đã bổ nhiệm') ||
+        message.content.includes('thành trưởng nhóm'))
     ) {
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
 
@@ -532,10 +532,10 @@ export default function MessageItem ({
         const actorName = getUserDisplayName(actorId, isActorCurrentUser)
         const targetName = getUserDisplayName(targetId, isTargetCurrentUser)
 
-        if (message.content.includes('thÃ nh trÆ°á»Ÿng nhÃ³m má»›i')) {
-          displayContent = `${actorName} Ä‘Ã£ bá»• nhiá»‡m ${targetName} thÃ nh trÆ°á»Ÿng nhÃ³m má»›i`
-        } else if (message.content.includes('Ä‘Ã£ bá»• nhiá»‡m')) {
-          displayContent = `${actorName} Ä‘Ã£ bá»• nhiá»‡m ${targetName} thÃ nh phÃ³ nhÃ³m`
+        if (message.content.includes('thành trưởng nhóm mới')) {
+          displayContent = `${actorName} đã bổ nhiệm ${targetName} thành trưởng nhóm mới`
+        } else if (message.content.includes('đã bổ nhiệm')) {
+          displayContent = `${actorName} đã bổ nhiệm ${targetName} thành phó nhóm`
         }
 
         return (
@@ -550,8 +550,8 @@ export default function MessageItem ({
 
     if (
       message.content &&
-      (message.content.includes('Ä‘Ã£ xÃ³a') ||
-        message.content.includes('khá»i nhÃ³m'))
+      (message.content.includes('đã xóa') ||
+        message.content.includes('khỏi nhóm'))
     ) {
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
 
@@ -567,10 +567,10 @@ export default function MessageItem ({
         const targetName = getUserDisplayName(targetId, isTargetCurrentUser)
 
         if (
-          message.content.includes('Ä‘Ã£ xÃ³a') ||
-          message.content.includes('khá»i nhÃ³m')
+          message.content.includes('đã xóa') ||
+          message.content.includes('khỏi nhóm')
         ) {
-          displayContent = `${actorName} Ä‘Ã£ xÃ³a ${targetName} khá»i nhÃ³m`
+          displayContent = `${actorName} đã xóa ${targetName} khỏi nhóm`
         }
         return (
           <div key={message.id} className='flex justify-center mb-3 px-4'>
@@ -582,25 +582,25 @@ export default function MessageItem ({
       }
     }
 
-    // Xá»­ lÃ½ message "xÃ¡c nháº­n: Tham gia"
+    // Xử lý message "xác nhận: Tham gia"
     if (
       message.content &&
-      message.content.includes('xÃ¡c nháº­n:') &&
+      message.content.includes('xác nhận:') &&
       message.content.includes('Tham gia')
     ) {
       let displayContent = message.content
       
-      // TÃ¡ch tÃªn user tá»« content (trÆ°á»›c cá»¥m "xÃ¡c nháº­n:")
-      const beforeConfirmText = message.content.split('xÃ¡c nháº­n:')[0].trim()
+      // Tách tên user từ content (trước cụm "xác nhận:")
+      const beforeConfirmText = message.content.split('xác nhận:')[0].trim()
       
       if (beforeConfirmText) {
-        // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+        // Kiểm tra xem có phải user hiện tại không
         const isCurrentUser = userInfo && userInfo.fullName && beforeConfirmText === userInfo.fullName
         
         if (isCurrentUser) {
-          displayContent = message.content.replace(beforeConfirmText, 'Báº¡n')
+          displayContent = message.content.replace(beforeConfirmText, 'Bạn')
         } else {
-          // Kiá»ƒm tra trong ListUsers Ä‘á»ƒ xÃ¡c nháº­n
+          // Kiểm tra trong ListUsers để xác nhận
           let foundUser = null
           if (Array.isArray(ListUsers)) {
             foundUser = ListUsers.find(user => user && user.fullName === beforeConfirmText)
@@ -610,7 +610,7 @@ export default function MessageItem ({
             }
           }
           
-          // Náº¿u tÃ¬m tháº¥y user trong ListUsers thÃ¬ giá»¯ nguyÃªn tÃªn, náº¿u khÃ´ng tÃ¬m tháº¥y thÃ¬ cÅ©ng giá»¯ nguyÃªn
+          // Nếu tìm thấy user trong ListUsers thì giữ nguyên tên, nếu không tìm thấy thì cũng giữ nguyên
           displayContent = message.content
         }
       }
@@ -624,24 +624,24 @@ export default function MessageItem ({
       )
     }
 
-    // Xá»­ lÃ½ message "Ä‘Ã£ tham gia bÃ¬nh chá»n"
+    // Xử lý message "đã tham gia bình chọn"
     if (
       message.content &&
-      message.content.includes('Ä‘Ã£ tham gia bÃ¬nh chá»n')
+      message.content.includes('đã tham gia bình chọn')
     ) {
       let displayContent = message.content
       
-      // TÃ¡ch tÃªn user tá»« content (trÆ°á»›c cá»¥m "Ä‘Ã£ tham gia bÃ¬nh chá»n")
-      const beforeVoteText = message.content.split('Ä‘Ã£ tham gia bÃ¬nh chá»n')[0].trim()
+      // Tách tên user từ content (trước cụm "đã tham gia bình chọn")
+      const beforeVoteText = message.content.split('đã tham gia bình chọn')[0].trim()
       
       if (beforeVoteText) {
-        // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+        // Kiểm tra xem có phải user hiện tại không
         const isCurrentUser = userInfo && userInfo.fullName && beforeVoteText === userInfo.fullName
         
         if (isCurrentUser) {
-          displayContent = message.content.replace(beforeVoteText, 'Báº¡n')
+          displayContent = message.content.replace(beforeVoteText, 'Bạn')
         } else {
-          // Kiá»ƒm tra trong ListUsers Ä‘á»ƒ xÃ¡c nháº­n
+          // Kiểm tra trong ListUsers để xác nhận
           let foundUser = null
           if (Array.isArray(ListUsers)) {
             foundUser = ListUsers.find(user => user && user.fullName === beforeVoteText)
@@ -651,7 +651,7 @@ export default function MessageItem ({
             }
           }
           
-          // Náº¿u tÃ¬m tháº¥y user trong ListUsers thÃ¬ giá»¯ nguyÃªn tÃªn, náº¿u khÃ´ng tÃ¬m tháº¥y thÃ¬ cÅ©ng giá»¯ nguyÃªn
+          // Nếu tìm thấy user trong ListUsers thì giữ nguyên tên, nếu không tìm thấy thì cũng giữ nguyên
           displayContent = message.content
         }
       }
@@ -665,25 +665,25 @@ export default function MessageItem ({
       )
     }
 
-    // Xá»­ lÃ½ message "xÃ¡c nháº­n: Tham gia" hoáº·c "xÃ¡c nháº­n: KhÃ´ng tham gia"
+    // Xử lý message "xác nhận: Tham gia" hoặc "xác nhận: Không tham gia"
     if (
       message.content &&
-      message.content.includes('xÃ¡c nháº­n:') &&
-      (message.content.includes('Tham gia') || message.content.includes('KhÃ´ng tham gia'))
+      message.content.includes('xác nhận:') &&
+      (message.content.includes('Tham gia') || message.content.includes('Không tham gia'))
     ) {
       let displayContent = message.content
       
-      // TÃ¡ch tÃªn user tá»« content (trÆ°á»›c cá»¥m "xÃ¡c nháº­n:")
-      const beforeConfirmText = message.content.split('xÃ¡c nháº­n:')[0].trim()
+      // Tách tên user từ content (trước cụm "xác nhận:")
+      const beforeConfirmText = message.content.split('xác nhận:')[0].trim()
       
       if (beforeConfirmText) {
-        // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+        // Kiểm tra xem có phải user hiện tại không
         const isCurrentUser = userInfo && userInfo.fullName && beforeConfirmText === userInfo.fullName
         
         if (isCurrentUser) {
-          displayContent = message.content.replace(beforeConfirmText, 'Báº¡n')
+          displayContent = message.content.replace(beforeConfirmText, 'Bạn')
         } else {
-          // Kiá»ƒm tra trong ListUsers Ä‘á»ƒ xÃ¡c nháº­n
+          // Kiểm tra trong ListUsers để xác nhận
           let foundUser = null
           if (Array.isArray(ListUsers)) {
             foundUser = ListUsers.find(user => user && user.fullName === beforeConfirmText)
@@ -693,7 +693,7 @@ export default function MessageItem ({
             }
           }
           
-          // Náº¿u tÃ¬m tháº¥y user trong ListUsers thÃ¬ giá»¯ nguyÃªn tÃªn, náº¿u khÃ´ng tÃ¬m tháº¥y thÃ¬ cÅ©ng giá»¯ nguyÃªn
+          // Nếu tìm thấy user trong ListUsers thì giữ nguyên tên, nếu không tìm thấy thì cũng giữ nguyên
           displayContent = message.content
         }
       }
@@ -707,11 +707,11 @@ export default function MessageItem ({
       )
     }
 
-    // Xá»­ lÃ½ message "Ä‘Æ°á»£c thÃªm vÃ o nhÃ³m"
+    // Xử lý message "được thêm vào nhóm"
     if (
       message.content &&
-      (message.content.includes('Ä‘Æ°á»£c thÃªm vÃ o nhÃ³m') ||
-        message.content.includes('Ä‘Ã£ Ä‘Æ°á»£c thÃªm'))
+      (message.content.includes('được thêm vào nhóm') ||
+        message.content.includes('đã được thêm'))
     ) {
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
 
@@ -721,7 +721,7 @@ export default function MessageItem ({
           userInfo && normalizeUserId(targetId) === normalizeUserId(userInfo.userID)
         const targetName = getUserDisplayName(targetId, isTargetCurrentUser)
 
-        displayContent = `${targetName} Ä‘Ã£ Ä‘Æ°á»£c thÃªm vÃ o nhÃ³m`
+        displayContent = `${targetName} đã được thêm vào nhóm`
 
         return (
           <div key={message.id} className='flex justify-center mb-3 px-4'>
@@ -736,22 +736,22 @@ export default function MessageItem ({
     if (
       message.eventType === 2 &&
       message.content &&
-      message.content.toLowerCase().includes('táº¡o bÃ¬nh chá»n')
+      message.content.toLowerCase().includes('tạo bình chọn')
     ) {
       let displayContent = message.content
       
-      // TÃ¡ch tÃªn user tá»« content (trÆ°á»›c cá»¥m "Ä‘Ã£ táº¡o bÃ¬nh chá»n")
-      const beforeCreateText = message.content.split('Ä‘Ã£ táº¡o bÃ¬nh chá»n')[0].trim()
+      // Tách tên user từ content (trước cụm "đã tạo bình chọn")
+      const beforeCreateText = message.content.split('đã tạo bình chọn')[0].trim()
       
       if (beforeCreateText) {
-        // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+        // Kiểm tra xem có phải user hiện tại không
         const isCurrentUser = userInfo && userInfo.fullName && beforeCreateText === userInfo.fullName
         
         if (isCurrentUser) {
-          displayContent = message.content.replace(beforeCreateText, 'Báº¡n')
+          displayContent = message.content.replace(beforeCreateText, 'Bạn')
         }
       } else {
-        // Fallback cho trÆ°á»ng há»£p cÃ³ userID trong {}
+        // Fallback cho trường hợp có userID trong {}
         const allUserIds = message.content.match(/{([^}]+)}/g) || []
         
         if (allUserIds.length > 0) {
@@ -769,21 +769,21 @@ export default function MessageItem ({
             }
           }
           let actorName = isActorCurrentUser
-            ? 'Báº¡n'
+            ? 'Bạn'
             : actorUser?.fullName || actorId
 
-          displayContent = `${actorName} Ä‘Ã£ táº¡o bÃ¬nh chá»n má»›i`
+          displayContent = `${actorName} đã tạo bình chọn mới`
         } else {
-          displayContent = 'ÄÃ£ táº¡o bÃ¬nh chá»n má»›i'
+          displayContent = 'Đã tạo bình chọn mới'
         }
       }
 
-      // TÃ¬m poll phÃ¹ há»£p vá»›i message hiá»‡n táº¡i
+      // Tìm poll phù hợp với message hiện tại
       const matchingPoll = polls.find(
         poll => String(poll.id) === String(message.eventID)
       )
 
-      // Hiá»ƒn thá»‹ thÃ´ng bÃ¡o vÃ  poll UI náº¿u cÃ³
+      // Hiển thị thông báo và poll UI nếu có
       return (
         <>
           <div
@@ -826,21 +826,21 @@ export default function MessageItem ({
       )
     }
 
-    if (message.content && message.content.toLowerCase().includes('ghi chÃº')) {
+    if (message.content && message.content.toLowerCase().includes('ghi chú')) {
       let displayContent = message.content
       
-      // TÃ¡ch tÃªn user tá»« content (trÆ°á»›c cá»¥m "Ä‘Ã£ táº¡o ghi chÃº")
-      const beforeNoteText = message.content.split('Ä‘Ã£ táº¡o ghi chÃº')[0].trim()
+      // Tách tên user từ content (trước cụm "đã tạo ghi chú")
+      const beforeNoteText = message.content.split('đã tạo ghi chú')[0].trim()
       
       if (beforeNoteText) {
-        // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+        // Kiểm tra xem có phải user hiện tại không
         const isCurrentUser = userInfo && userInfo.fullName && beforeNoteText === userInfo.fullName
         
         if (isCurrentUser) {
-          displayContent = message.content.replace(beforeNoteText, 'Báº¡n')
+          displayContent = message.content.replace(beforeNoteText, 'Bạn')
         }
       } else {
-        // Fallback cho trÆ°á»ng há»£p cÃ³ userID trong {}
+        // Fallback cho trường hợp có userID trong {}
         const allUserIds = message.content.match(/{([^}]+)}/g) || []
         
         if (allUserIds.length > 0) {
@@ -858,12 +858,12 @@ export default function MessageItem ({
             }
           }
           let actorName = isActorCurrentUser
-            ? 'Báº¡n'
+            ? 'Bạn'
             : actorUser?.fullName || actorId
 
-          displayContent = `${actorName} Ä‘Ã£ táº¡o ghi chÃº má»›i`
+          displayContent = `${actorName} đã tạo ghi chú mới`
         } else {
-          displayContent = 'ÄÃ£ táº¡o ghi chÃº má»›i'
+          displayContent = 'Đã tạo ghi chú mới'
         }
       }
 
@@ -904,7 +904,7 @@ export default function MessageItem ({
     if (
       (message.eventType === 3 &&
         message.content &&
-        message.content.toLowerCase().includes('nháº¯c háº¹n') &&
+        message.content.toLowerCase().includes('nhắc hẹn') &&
         message.ListUserJoinReminder &&
         Array.isArray(message.ListUserJoinReminder) &&
         message.ListUserJoinReminder.length > 0) ||
@@ -916,23 +916,23 @@ export default function MessageItem ({
         userInfo
       )
 
-      // Chá»‰ hiá»ƒn thá»‹ thÃ´ng bÃ¡o náº¿u user náº±m trong danh sÃ¡ch
+      // Chỉ hiển thị thông báo nếu user nằm trong danh sách
       if (!isUserInReminderList) {
         return null
       }
 
-      // TÃ¬m reminder phÃ¹ há»£p vá»›i message hiá»‡n táº¡i
+      // Tìm reminder phù hợp với message hiện tại
       const matchingReminder = reminders.find(
         reminder => String(reminder.id) === String(message.eventID)
       )
 
-      const displayContent = `Nháº¯c háº¹n: ${
+      const displayContent = `Nhắc hẹn: ${
         matchingReminder?.remindContent || message.content
       }`
 
       return (
         <>
-          {/* ThÃ´ng bÃ¡o nháº¯c háº¹n selective */}
+          {/* Thông báo nhắc hẹn selective */}
           <div key={message.id} className='flex justify-center mb-3 px-4'>
             <div
               className={`bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex items-center gap-2 ${
@@ -952,7 +952,7 @@ export default function MessageItem ({
             </div>
           </div>
 
-          {/* ReminderCard hiá»ƒn thá»‹ giao diá»‡n nháº¯c háº¹n */}
+          {/* ReminderCard hiển thị giao diện nhắc hẹn */}
           {matchingReminder && (
             <div className='flex justify-center mb-3 px-2 sm:px-4 cursor-pointer'>
               <div
@@ -981,41 +981,41 @@ export default function MessageItem ({
       )
     }
 
-    // TrÆ°á»ng há»£p thÃ´ng thÆ°á»ng: Nháº¯c háº¹n khÃ´ng cÃ³ ListUserJoinReminder (public notification)
+    // Trường hợp thông thường: Nhắc hẹn không có ListUserJoinReminder (public notification)
     if (
       message.eventType === 3 &&
       message.content &&
-      message.content.toLowerCase().includes('nháº¯c háº¹n')
+      message.content.toLowerCase().includes('nhắc hẹn')
     ) {
       let displayContent = message.content
 
-      // TÃ¬m reminder phÃ¹ há»£p vá»›i message hiá»‡n táº¡i
+      // Tìm reminder phù hợp với message hiện tại
       const matchingReminder = reminders.find(
         reminder => String(reminder.id) === String(message.eventID)
       )
 
-      // TÃ¡ch tÃªn user tá»« content (trÆ°á»›c cá»¥m "Ä‘Ã£ táº¡o nháº¯c háº¹n")
-      const beforeReminderText = message.content.split('Ä‘Ã£ táº¡o nháº¯c háº¹n')[0].trim()
+      // Tách tên user từ content (trước cụm "đã tạo nhắc hẹn")
+      const beforeReminderText = message.content.split('đã tạo nhắc hẹn')[0].trim()
       
       if (beforeReminderText) {
-        // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+        // Kiểm tra xem có phải user hiện tại không
         const isCurrentUser = userInfo && userInfo.fullName && beforeReminderText === userInfo.fullName
         
         if (isCurrentUser) {
-          displayContent = `Báº¡n Ä‘Ã£ táº¡o nháº¯c háº¹n ${
-            matchingReminder?.remindContent || 'má»›i'
-          } vÃ o ${formatReminderTime(
+          displayContent = `Bạn đã tạo nhắc hẹn ${
+            matchingReminder?.remindContent || 'mới'
+          } vào ${formatReminderTime(
             matchingReminder?.remindTime || matchingReminder?.remindTime
           )}`
         } else {
-          displayContent = `${beforeReminderText} Ä‘Ã£ táº¡o nháº¯c háº¹n ${
-            matchingReminder?.remindContent || 'má»›i'
-          } vÃ o ${formatReminderTime(
+          displayContent = `${beforeReminderText} đã tạo nhắc hẹn ${
+            matchingReminder?.remindContent || 'mới'
+          } vào ${formatReminderTime(
             matchingReminder?.remindTime || matchingReminder?.remindTime
           )}`
         }
       } else {
-        // Fallback cho trÆ°á»ng há»£p cÃ³ userID trong {}
+        // Fallback cho trường hợp có userID trong {}
         const allUserIds = message.content.match(/{([^}]+)}/g) || []
         
         if (allUserIds.length > 0) {
@@ -1033,22 +1033,22 @@ export default function MessageItem ({
             }
           }
           let actorName = isActorCurrentUser
-            ? 'Báº¡n'
+            ? 'Bạn'
             : actorUser?.fullName || actorId
 
-          displayContent = `${actorName} Ä‘Ã£ táº¡o nháº¯c háº¹n ${
-            matchingReminder?.remindContent || 'má»›i'
-          } vÃ o ${formatReminderTime(
+          displayContent = `${actorName} đã tạo nhắc hẹn ${
+            matchingReminder?.remindContent || 'mới'
+          } vào ${formatReminderTime(
             matchingReminder?.remindTime || matchingReminder?.remindTime
           )}`
         } else {
-          displayContent = 'ÄÃ£ táº¡o nháº¯c háº¹n má»›i'
+          displayContent = 'Đã tạo nhắc hẹn mới'
         }
       }
 
       return (
         <>
-          {/* ThÃ´ng bÃ¡o táº¡o nháº¯c háº¹n public */}
+          {/* Thông báo tạo nhắc hẹn public */}
           <div key={message.id} className='flex justify-center mb-3 px-4'>
             <div
               className={`bg-gray-100 rounded-full py-2 px-4 flex items-center gap-2 ${
@@ -1068,7 +1068,7 @@ export default function MessageItem ({
             </div>
           </div>
 
-          {/* ReminderCard hiá»ƒn thá»‹ giao diá»‡n nháº¯c háº¹n */}
+          {/* ReminderCard hiển thị giao diện nhắc hẹn */}
           {matchingReminder && (
             <div className='flex justify-center mb-3 px-2 sm:px-4 cursor-pointer'>
               <div
@@ -1101,7 +1101,7 @@ export default function MessageItem ({
       displayContent = replaceUserPlaceholders(message.content)
     } else if (message.senderID && message.content.includes(message.senderID)) {
       const isCurrentUser = isCurrentUserMessage(message, userInfo)
-      const displayName = isCurrentUser ? 'Báº¡n' : message.senderName
+      const displayName = isCurrentUser ? 'Bạn' : message.senderName
       displayContent = message.content.replace(message.senderID, displayName)
       displayContent = displayContent.replace(/[{}]/g, '')
     }
@@ -1143,7 +1143,7 @@ export default function MessageItem ({
                 isOwn ? 'bg-[#F0F5FF]' : 'bg-gray-100'
               } text-gray-500 italic text-sm`}
             >
-              Tin nháº¯n Ä‘Ã£ Ä‘Æ°á»£c thu há»“i
+              Tin nhắn đã được thu hồi
             </div>
             <div
               className={`text-xs text-gray-500 mt-1 ${
@@ -1160,7 +1160,7 @@ export default function MessageItem ({
     )
   }
 
-  // Kiá»ƒm tra xem message cÃ³ liÃªn quan Ä‘áº¿n poll khÃ´ng (thÃ´ng bÃ¡o hoáº·c hiá»ƒn thá»‹ poll)
+  // Kiểm tra xem message có liên quan đến poll không (thông báo hoặc hiển thị poll)
   if (message.eventType === 2) {
     const matchingPoll = polls.find(
       poll => String(poll.id || poll.ID) === String(message.eventID)
@@ -1206,7 +1206,7 @@ export default function MessageItem ({
             <path d='m15 17-5-5 5-5'></path>
             <path d='M19 17v-3a4 4 0 0 0-4-4H5'></path>
           </svg>
-          Chuyá»ƒn tiáº¿p tin nháº¯n
+          Chuyển tiếp tin nhắn
         </button> */}
         {message.isPin ? (
           <button
@@ -1214,7 +1214,7 @@ export default function MessageItem ({
             className='flex items-center w-full px-4 py-2 text-sm text-left text-red-500 hover:bg-gray-100'
           >
             <PinIcon className='mr-2' size={16} />
-            Bá» ghim tin nháº¯n
+            Bỏ ghim tin nhắn
           </button>
         ) : (
           <button
@@ -1222,7 +1222,7 @@ export default function MessageItem ({
             className='flex items-center w-full px-4 py-2 text-sm text-left hover:bg-gray-100'
           >
             <PinIcon className='mr-2' size={16} />
-            Ghim tin nháº¯n
+            Ghim tin nhắn
           </button>
         )}
         <button
@@ -1236,7 +1236,7 @@ export default function MessageItem ({
             height={16}
             className='mr-2'
           />
-          Tráº£ lá»i tin nháº¯n
+          Trả lời tin nhắn
         </button>
         {isOwn && (
           <button
@@ -1250,7 +1250,7 @@ export default function MessageItem ({
               height={16}
               className='mr-2'
             />
-            Thu há»“i tin nháº¯n
+            Thu hồi tin nhắn
           </button>
         )}
       </div>
@@ -1322,16 +1322,16 @@ export default function MessageItem ({
                 }}
               >
                 <div className='text-xs text-blue-600 font-medium mb-1'>
-                  Tráº£ lá»i{' '}
+                  Trả lời{' '}
                   {message.replyToMessage.senderName ||
                     (message.replyToMessage.sender === 'me'
-                      ? 'chÃ­nh mÃ¬nh'
+                      ? 'chính mình'
                       : message.replyToMessage.sender)}
                 </div>
                 <div className='text-xs text-gray-500 line-clamp-2'>
                   {message.replyToMessage.content ||
                     (message.replyToMessage.files?.length > 0
-                      ? '[Tá»‡p Ä‘Ã­nh kÃ¨m]'
+                      ? '[Tệp đính kèm]'
                       : '')}
                 </div>
               </div>
@@ -1359,7 +1359,7 @@ export default function MessageItem ({
                   className={isAI ? 'text-xl' : ''}
                 />
 
-                {/* Hiá»ƒn thá»‹ file Ä‘Ã­nh kÃ¨m */}
+                {/* Hiển thị file đính kèm */}
                 {message.files && message.files.length > 0 && (
                   <div className='mt-2 space-y-2'>
                     {message.files.map((file, index) => {
@@ -1450,7 +1450,7 @@ export default function MessageItem ({
             {/* {isOwn && (
               <div className="flex items-center ml-2">
                 {isRead ? (
-                  <span className="text-xs text-blue-500 ml-1">ÄÃ£ xem</span>
+                  <span className="text-xs text-blue-500 ml-1">Đã xem</span>
                 ) : (
                   <div className="w-2.5 h-2.5 rounded-full bg-blue-500 ml-1"></div>
                 )}
@@ -1470,7 +1470,7 @@ export default function MessageItem ({
           <div className='mx-4 flex items-center'>
             <div className='w-2 h-2 rounded-full bg-blue-500 mr-2'></div>
             <span className='text-xs font-medium text-blue-500'>
-              Tin nháº¯n chÆ°a Ä‘á»c
+              Tin nhắn chưa đọc
             </span>
           </div>
           <div className='flex-grow border-t border-gray-300'></div>

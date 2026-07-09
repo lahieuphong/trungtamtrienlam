@@ -34,7 +34,7 @@ const PreviewFileDocument = ({
 
   //         return <OnlyOfficeComponent className='h-[65vh]' widthContent='100%' heightContent='65vh' fileUrl={src} fileType={(onlyOfficeFileType || {}).type} documentType={(onlyOfficeFileType || {}).documentType} mode={'edit'} title={file.name} uniqueKey={id} callbackUrl={file.isGlobal ? onlyOfficeCallBackUrl : ApiConstants.onlyOfficeServerUrlCallBack + `?savePath=${file.path}&isPrivate=${true}`} />
   //     }} /> : <div className='flex items-center justify-center min-h-[20vh]'>
-  //         <p className='text-sm text-[#1F1F1F]'>KhÃ´ng thá»ƒ xem trÆ°á»›c táº­p tin cÃ³ Ä‘á»‹nh dáº¡ng nÃ y</p>
+  //         <p className='text-sm text-[#1F1F1F]'>Không thể xem trước tập tin có định dạng này</p>
   //     </div>
   // ), [file.path]);
 
@@ -129,7 +129,7 @@ const PreviewFileDocument = ({
         ) : (
           <div className='flex items-center justify-center min-h-[20vh]'>
             <p className='text-sm text-[#1F1F1F]'>
-              KhÃ´ng thá»ƒ xem trÆ°á»›c táº­p tin cÃ³ Ä‘á»‹nh dáº¡ng nÃ y
+              Không thể xem trước tập tin có định dạng này
             </p>
           </div>
         )}
@@ -157,7 +157,7 @@ const PreviewFileDocument = ({
           </div>
           <Button variant='destructive' onClick={onClose}>
             <X size={16} className='mr-2' />
-            ÄÃ³ng
+            Đóng
           </Button>
         </div>
       </div>
@@ -173,31 +173,31 @@ const PreviewFileDocument = ({
           <div className='p-4'>
             <div className='space-y-3'>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>MÃ£ sá»‘ tá»‡p tin</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Mã số tệp tin</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.code}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>MÃ£ cÆ¡ quan lÆ°u trá»¯</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Mã cơ quan lưu trữ</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.organizationCode}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>Sá»‘ lÆ°u trá»¯</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Số lưu trữ</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.storageNumber}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>KÃ½ hiá»‡u thÃ´ng tin</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Ký hiệu thông tin</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.informationSympol}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>TÃªn sá»± kiá»‡n</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Tên sự kiện</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.eventName}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>LÄ©nh vá»±c</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Lĩnh vực</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.fieldName}</p>
               </div>
               <div className='pb-2 border-b'>
-                <p className='text-xs text-[#434343] mb-2'>Chá»§ Ä‘á»</p>
+                <p className='text-xs text-[#434343] mb-2'>Chủ đề</p>
                 <div className='flex flex-wrap gap-1'>
                   {topics.map((topic, index) => (
                     <span
@@ -210,47 +210,47 @@ const PreviewFileDocument = ({
                 </div>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>TiÃªu Ä‘á» táº­p tin</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Tiêu đề tập tin</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.name}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>TÃ¡c giáº£</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Tác giả</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.author}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>Äá»‹a Ä‘iá»ƒm</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Địa điểm</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.location}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>Thá»i gian</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Thời gian</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{moment(file.createdDate).format('DD/MM/YYYY HH:mm')}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>NgÃ´n ngá»¯</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Ngôn ngữ</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.language}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>Cháº¿ Ä‘á»™ sá»­ dá»¥ng</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Chế độ sử dụng</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.usageMode}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>Cháº¥t lÆ°á»£ng</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Chất lượng</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.quality}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>TÃ¬nh tráº¡ng váº­t lÃ½</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Tình trạng vật lý</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.physicalStatus}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>Tá»« khÃ³a</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Từ khóa</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.hashTag}</p>
               </div>
               <div className='flex justify-between items-start pb-2 border-b'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>Ghi chÃº</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Ghi chú</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.note}</p>
               </div>
               <div className='flex justify-between items-start'>
-                <p className='text-xs text-[#434343] min-w-[120px]'>NgÆ°á»i Ä‘Äƒng</p>
+                <p className='text-xs text-[#434343] min-w-[120px]'>Người đăng</p>
                 <p className='text-xs text-[#1F1F1F] font-medium text-right flex-1'>{file.fullName}</p>
               </div>
             </div>

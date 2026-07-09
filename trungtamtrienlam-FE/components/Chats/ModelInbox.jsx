@@ -103,7 +103,7 @@ const MessageList = forwardRef(function MessageList (
   }
 
   const getUserDisplayName = (userId, isCurrentUser = false) => {
-    if (isCurrentUser) return 'Báº¡n'
+    if (isCurrentUser) return 'Bạn'
 
     const user = findUserById(userId)
     return (
@@ -244,7 +244,7 @@ const MessageList = forwardRef(function MessageList (
       { threshold: 0.5 }
     )
 
-    // Chá»‰ observe tin nháº¯n chÆ°a Ä‘á»c cuá»‘i cÃ¹ng cá»§a ngÆ°á»i khÃ¡c
+    // Chỉ observe tin nhắn chưa đọc cuối cùng của người khác
     setTimeout(() => {
       const rootElement =
         ref && typeof ref === 'object' && 'current' in ref ? ref.current : null
@@ -303,7 +303,7 @@ const MessageList = forwardRef(function MessageList (
     const isToday = messageDate.toDateString() === today.toDateString()
 
     if (isToday) {
-      return 'HÃ´m nay'
+      return 'Hôm nay'
     } else {
       return messageDate.toLocaleDateString('vi-VN', {
         day: '2-digit',
@@ -327,12 +327,12 @@ const MessageList = forwardRef(function MessageList (
   }
 
   const formatMessageContent = msg => {
-    if (msg?.isUnsend) return 'Tin nháº¯n Ä‘Ã£ Ä‘Æ°á»£c thu há»“i'
+    if (msg?.isUnsend) return 'Tin nhắn đã được thu hồi'
     if (!msg?.content) return ''
     const content = typeof msg.content === 'string' ? msg.content : String(msg.content)
 
-    // Náº¿u cÃ³ chá»¯ "ghi chÃº"
-    if (content.toLowerCase().includes('ghi chÃº')) {
+    // Nếu có chữ "ghi chú"
+    if (content.toLowerCase().includes('ghi chú')) {
       const allUserIds = content.match(/{([^}]+)}/g) || []
       let displayContent = content
 
@@ -340,9 +340,9 @@ const MessageList = forwardRef(function MessageList (
         const actorId = allUserIds[0].replace(/{|}/g, '')
         const isActorCurrentUser = isCurrentUserId(actorId)
         const actorName = getUserDisplayName(actorId, isActorCurrentUser)
-        displayContent = `${actorName} Ä‘Ã£ táº¡o ghi chÃº má»›i`
+        displayContent = `${actorName} đã tạo ghi chú mới`
       } else {
-        displayContent = 'ÄÃ£ táº¡o ghi chÃº má»›i'
+        displayContent = 'Đã tạo ghi chú mới'
       }
 
       return displayContent
@@ -384,8 +384,8 @@ const MessageList = forwardRef(function MessageList (
   }
 
   const formatPinnedMessagePreview = msg => {
-    const sender = msg?.senderName || msg?.SenderName || 'NgÆ°á»i dÃ¹ng'
-    const content = formatMessageContent(msg) || 'Tin nháº¯n khÃ´ng cÃ³ ná»™i dung'
+    const sender = msg?.senderName || msg?.SenderName || 'Người dùng'
+    const content = formatMessageContent(msg) || 'Tin nhắn không có nội dung'
 
     return `${sender}: ${content}`
   }
@@ -459,8 +459,8 @@ const MessageList = forwardRef(function MessageList (
               className='rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-500 shadow-sm border border-gray-200 disabled:cursor-wait disabled:opacity-70'
             >
               {isLoadingOlderMessages
-                ? 'Äang táº£i tin nháº¯n cÅ©...'
-                : 'Táº£i tin nháº¯n cÅ© hÆ¡n'}
+                ? 'Đang tải tin nhắn cũ...'
+                : 'Tải tin nhắn cũ hơn'}
             </button>
           </div>
         )}
@@ -470,7 +470,7 @@ const MessageList = forwardRef(function MessageList (
             <div className='flex items-center gap-2'>
               <PinIcon className='w-4 h-4 text-gray-500' />
               <span className='text-sm font-medium text-gray-600'>
-                Tin nháº¯n Ä‘Ã£ ghim
+                Tin nhắn đã ghim
               </span>
             </div>
 
@@ -478,11 +478,11 @@ const MessageList = forwardRef(function MessageList (
               <div className='min-w-0 flex-1'>
                 <p className='text-xs font-medium text-gray-500'>
                   {pinnedMessages.length > 1
-                    ? `ÄÃ£ ghim ${pinnedMessages.length} tin nháº¯n`
-                    : 'ÄÃ£ ghim 1 tin nháº¯n'}
+                    ? `Đã ghim ${pinnedMessages.length} tin nhắn`
+                    : 'Đã ghim 1 tin nhắn'}
                 </p>
                 <p className='mt-0.5 truncate text-gray-700'>
-                  <span className='font-semibold'>Má»›i nháº¥t:</span>{' '}
+                  <span className='font-semibold'>Mới nhất:</span>{' '}
                   {formatPinnedMessagePreview(pinnedMessages[0])}
                 </p>
                 {pinnedMessages.length > 1 && (
@@ -492,8 +492,8 @@ const MessageList = forwardRef(function MessageList (
                     className='mt-1 text-xs font-medium text-blue-500 hover:text-blue-600'
                   >
                     {showAllPins
-                      ? 'áº¨n bá»›t tin ghim'
-                      : `Xem thÃªm ${pinnedMessages.length - 1} tin ghim`}
+                      ? 'Ẩn bớt tin ghim'
+                      : `Xem thêm ${pinnedMessages.length - 1} tin ghim`}
                   </button>
                 )}
               </div>
@@ -514,13 +514,13 @@ const MessageList = forwardRef(function MessageList (
                 />
               </div>
 
-              {/* NÃºt More */}
+              {/* Nút More */}
             </div>
 
             {showAllPins && pinnedMessages.length > 1 && (
               <div className='mt-2 border rounded bg-gray-50 divide-y'>
                 <div className='px-3 py-1 text-xs font-medium text-gray-500'>
-                  CÃ¡c tin ghim khÃ¡c
+                  Các tin ghim khác
                 </div>
                 {pinnedMessages.slice(1).map(msg => (
                   <div

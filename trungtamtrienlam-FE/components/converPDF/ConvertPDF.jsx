@@ -81,7 +81,7 @@ export default function ConvertPDF ({
   useEffect(() => {
     if (!window.DocsAPI) {
       console.error(
-        'âŒ DocsAPI is not loaded. Make sure OnlyOffice api.js is included.'
+        '❌ DocsAPI is not loaded. Make sure OnlyOffice api.js is included.'
       )
       return
     }
@@ -90,7 +90,7 @@ export default function ConvertPDF ({
     if (
       !(fileUrl && _fileType && _documentType && mode && title && uniqueKey)
     ) {
-      console.error('âŒ Missing required parameters for OnlyOffice editor:', {
+      console.error('❌ Missing required parameters for OnlyOffice editor:', {
         fileUrl: !!fileUrl,
         _fileType: !!_fileType,
         _documentType: !!_documentType,
@@ -163,7 +163,7 @@ export default function ConvertPDF ({
             if (convertToPdf) {
               const conversionTimeout = setTimeout(() => {
                 console.warn(
-                  'âš ï¸ PDF conversion taking longer than expected (10s)'
+                  '⚠️ PDF conversion taking longer than expected (10s)'
                 )
                 if (docEditor) {
                   try {
@@ -171,13 +171,13 @@ export default function ConvertPDF ({
                       docEditor.downloadAs('pdf')
                     }
                   } catch (retryError) {
-                    console.error('âŒ Retry conversion failed:', retryError)
+                    console.error('❌ Retry conversion failed:', retryError)
                   }
                 }
               }, 10000)
 
               const failTimeout = setTimeout(() => {
-                console.error('âŒ PDF conversion failed - timeout after 30s')
+                console.error('❌ PDF conversion failed - timeout after 30s')
                 if (window.conversionTimeout) {
                   clearTimeout(window.conversionTimeout)
                   window.conversionTimeout = null
@@ -190,7 +190,7 @@ export default function ConvertPDF ({
               docEditor?.downloadAs?.('pdf')
             }
           } catch (e) {
-            console.error('âŒ downloadAs failed:', e)
+            console.error('❌ downloadAs failed:', e)
           }
         },
         onDownloadAs: e => {
@@ -220,13 +220,13 @@ export default function ConvertPDF ({
               if (typeof onPdfReady === 'function') {
                 onPdfReady(url)
               } else {
-                console.warn('âš ï¸ onPdfReady is not a function:', onPdfReady)
+                console.warn('⚠️ onPdfReady is not a function:', onPdfReady)
               }
             } else {
-              console.error('âŒ onDownloadAs returned no url')
+              console.error('❌ onDownloadAs returned no url')
             }
           } catch (err) {
-            console.error('âŒ onDownloadAs parse error:', err)
+            console.error('❌ onDownloadAs parse error:', err)
           } finally {
             if (convertToPdf) {
               try {
@@ -236,7 +236,7 @@ export default function ConvertPDF ({
           }
         },
         onError: e => {
-          console.error('âŒ ONLYOFFICE error:', e)
+          console.error('❌ ONLYOFFICE error:', e)
         },
         onDocumentReady: () => {},
         onRequestSaveAs: e => {}
@@ -246,7 +246,7 @@ export default function ConvertPDF ({
     try {
       docEditor = new window.DocsAPI.DocEditor(placeholderId, config)
     } catch (error) {
-      console.error('âŒ Failed to create DocEditor:', error)
+      console.error('❌ Failed to create DocEditor:', error)
       return
     }
 
@@ -275,7 +275,7 @@ export default function ConvertPDF ({
           docEditor?.destroyEditor?.()
         }
       } catch (err) {
-        console.error('âŒ Failed to destroy OnlyOffice editor:', err)
+        console.error('❌ Failed to destroy OnlyOffice editor:', err)
       }
     }
   }, [
@@ -316,7 +316,7 @@ export default function ConvertPDF ({
             />
           </div>
           <p className='text-black text-sm'>
-            Äang táº£i dá»¯ liá»‡u, xin vui lÃ²ng Ä‘á»£i trong giÃ¢y lÃ¡t...
+            Đang tải dữ liệu, xin vui lòng đợi trong giây lát...
           </p>
         </div>
       )}

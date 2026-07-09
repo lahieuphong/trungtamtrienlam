@@ -5,6 +5,35 @@ import { useRouter } from 'next/navigation'
 import { ConfigConstants } from '@/constants/configConstants'
 import apiClient from '@/utils/apiClient'
 
+
+const normalizeUserInfo = userInfo => {
+    if (!userInfo || typeof userInfo !== 'object') return null
+
+    const userID = String(
+        userInfo.userID ?? userInfo.UserID ?? userInfo.id ?? userInfo.ID ?? ''
+    ).trim()
+    const fullName = String(
+        userInfo.fullName ??
+            userInfo.FullName ??
+            userInfo.full_name ??
+            [userInfo.first_name, userInfo.last_name].filter(Boolean).join(' ') ??
+            userInfo.username ??
+            ''
+    ).trim()
+
+    return {
+        ...userInfo,
+        ...(userID ? { userID, UserID: userID } : {}),
+        ...(fullName ? { fullName, FullName: fullName } : {}),
+    }
+}
+
+const notifyLocalStorageUpdated = () => {
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('localStorageUpdate'))
+    }
+}
+
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -18,7 +47,7 @@ export function AuthProvider({ children }) {
         const storedUser = localStorage.getItem(ConfigConstants.localstorageUserInfoKey)
         if (storedToken && storedUser) {
             setToken(storedToken)
-            setUser(JSON.parse(storedUser))
+            setUser(normalizeUserInfo(JSON.parse(storedUser)))
         }
         setLoading(false)
     }, [])
@@ -26,11 +55,12 @@ export function AuthProvider({ children }) {
     const login = async (username, password) => {
         const res = await apiClient.post('/auth/login/', { username, password })
         const { access, refresh, user: userInfo } = res.data
+        const normalizedUserInfo = normalizeUserInfo(userInfo)
         localStorage.setItem(ConfigConstants.localstorageTokenKey, access)
         localStorage.setItem(ConfigConstants.localstorageRefreshTokenKey, refresh)
-        localStorage.setItem(ConfigConstants.localstorageUserInfoKey, JSON.stringify(userInfo))
+        localStorage.setItem(ConfigConstants.localstorageUserInfoKey, JSON.stringify(normalizedUserInfo))
         setToken(access)
-        setUser(userInfo)
+        setUser(normalizedUserInfo)
         // Fetch menu permissions after login
         try {
             const permRes = await apiClient.get('/auth/permissions/by-user/', {
@@ -42,7 +72,8 @@ export function AuthProvider({ children }) {
         } catch {
             // Non-critical — sidebar will show empty menu
         }
-        return userInfo
+        notifyLocalStorageUpdated()
+        return normalizedUserInfo
     }
 
     const logout = async () => {
@@ -56,6 +87,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('permissionInfo')
         setToken(null)
         setUser(null)
+        notifyLocalStorageUpdated()
         router.replace('/login')
     }
 

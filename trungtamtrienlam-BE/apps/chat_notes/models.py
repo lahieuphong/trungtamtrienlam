@@ -26,8 +26,8 @@ class ManagedChatNote(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_notes'
         ordering = ('-is_pinned', '-pin_date', '-created_date', 'id')
-        verbose_name = 'Managed chat note'
-        verbose_name_plural = 'Managed chat notes'
+        verbose_name = 'Ghi chú cuộc trò chuyện'
+        verbose_name_plural = 'Ghi chú cuộc trò chuyện'
 
     def __str__(self):  # pragma: nocover
         return self.note or self.id

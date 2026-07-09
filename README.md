@@ -1,4 +1,4 @@
-﻿# Hướng dẫn chạy dự án
+# Hướng dẫn chạy dự án
 
 ## 1. Chạy trên Windows
 
@@ -24,11 +24,20 @@ Nếu thấy `pg-trienlam` và `redis-trienlam` trong danh sách là ok.
 Tiếp theo chạy Backend:
 
 ```powershell
+cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam
+.\start-be.bat
+```
+
+Hoặc chạy thủ công trong thư mục Backend:
+
+```powershell
 cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE
 .\venv\Scripts\activate
 python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
+python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
 ```
+
+Lưu ý: chat realtime dùng WebSocket ở `ws://localhost:8000/ws/chat/`, vì vậy không dùng `python manage.py runserver` cho backend khi test chat.
 
 Rồi chạy Frontend ở PowerShell khác:
 
@@ -163,7 +172,7 @@ python manage.py seed_menu
 Chạy Backend:
 
 ```bash
-python manage.py runserver 0.0.0.0:8000
+python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
 ```
 
 Backend sẽ chạy tại:

@@ -77,7 +77,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
   const pathname = usePathname()
   const [activeTab, setActiveTab] = useState('individual')
   const [searchQuery, setSearchQuery] = useState('')
-  const { onlineUsers, registerChatCallback } = useSignalR()
+  const { onlineUsers, registerChatCallback, isConnected } = useSignalR()
   const { userInfo } = useLoadLocalStorage()
   const loadingContext = useContext(LoadingContext)
   const { openChatPopup, registerChatOpenCallback, closeChatPopup, activeChats } = useChatPopup()
@@ -607,9 +607,10 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
     return unregister
   }, [registerChatCallback, userInfo, allUsersList, onlineUsers])
 
-  const loadChatUser = async () => {
+  const loadChatUser = async (options = {}) => {
+    const { silent = false } = options
     try {
-      setIsLoading(true)
+      if (!silent) setIsLoading(true)
       const existingChatsRes = await getGroupChats(
         ChatConstants.Type.PRIVATE,
         userInfo?.userID
@@ -651,10 +652,10 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
       })
 
       setUserChatList(sortedChats)
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     } catch (error) {
       console.warn('Error fetching user chats:', error)
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     }
   }
 
@@ -706,10 +707,11 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
     }
   }
 
-  const loadData = async () => {
+  const loadData = async (options = {}) => {
+    const { silent = false } = options
     if (userInfo) {
       try {
-        setIsLoading(true)
+        if (!silent) setIsLoading(true)
         const res = await getGroupChats(
           ChatConstants.Type.GROUP,
           userInfo?.userID
@@ -762,13 +764,37 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         })
 
         setGroupChatList(sortedGroups)
-        setIsLoading(false)
+        if (!silent) setIsLoading(false)
       } catch (error) {
         console.warn('Error fetching group chats:', error)
-        setIsLoading(false)
+        if (!silent) setIsLoading(false)
       }
     }
   }
+
+  useEffect(() => {
+    if (isConnected || !currentUserId) return
+
+    let isPolling = false
+    const pollChatLists = async () => {
+      if (isPolling) return
+      if (typeof document !== 'undefined' && document.hidden) return
+
+      isPolling = true
+      try {
+        await Promise.allSettled([
+          loadChatUser({ silent: true }),
+          loadData({ silent: true })
+        ])
+      } finally {
+        isPolling = false
+      }
+    }
+
+    const timer = setInterval(pollChatLists, 5000)
+    pollChatLists()
+    return () => clearInterval(timer)
+  }, [isConnected, currentUserId])
 
   const handleTurnPage = () => {
     // Đóng tất cả ChatPopup trước khi chuyển trang

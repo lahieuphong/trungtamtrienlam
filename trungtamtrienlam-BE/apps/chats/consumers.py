@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
@@ -11,6 +13,9 @@ from apps.notifications.realtime import notification_user_group_name
 
 
 HERITAGE_ASSISTANT_CHAT_ID = 'heritage-assistant'
+REALTIME_GROUP_TIMEOUT_SECONDS = 3
+
+logger = logging.getLogger(__name__)
 
 
 def _scope_user_id(scope):
@@ -59,8 +64,17 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self.accept()
 
         if self.user_id:
-            await self.channel_layer.group_add(user_group_name(self.user_id), self.channel_name)
-            await self.channel_layer.group_add(notification_user_group_name(self.user_id), self.channel_name)
+            user_group_ready = await self._safe_group_add(user_group_name(self.user_id))
+            await self._safe_group_add(notification_user_group_name(self.user_id))
+            if not user_group_ready:
+                await self.send_json({
+                    'event': 'RealtimeUnavailable',
+                    'data': {
+                        'reason': 'channel_layer_unavailable',
+                    },
+                })
+                await self.close(code=1011)
+                return
 
         chat_id = _query_value(self.scope, 'chatID', 'chatId')
         if chat_id:
@@ -80,6 +94,26 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         for group_name in self.joined_chat_groups:
             await self.channel_layer.group_discard(group_name, self.channel_name)
+
+    async def _safe_group_add(self, group_name):
+        if not self.channel_layer:
+            logger.warning('Cannot join websocket group %s: missing channel layer', group_name)
+            return False
+
+        try:
+            await asyncio.wait_for(
+                self.channel_layer.group_add(group_name, self.channel_name),
+                timeout=REALTIME_GROUP_TIMEOUT_SECONDS,
+            )
+            return True
+        except Exception as exc:
+            logger.warning(
+                'Cannot join websocket group %s for user %s: %s',
+                group_name,
+                self.user_id,
+                exc,
+            )
+            return False
 
     async def receive_json(self, content, **kwargs):
         action = str(content.get('action') or content.get('type') or '').lower()
@@ -111,7 +145,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             return
 
         group_name = chat_group_name(chat_id)
-        await self.channel_layer.group_add(group_name, self.channel_name)
+        if not await self._safe_group_add(group_name):
+            await self.send_json({
+                'event': 'SubscribeRejected',
+                'data': {
+                    'chatID': chat_id,
+                    'reason': 'channel_layer_unavailable',
+                },
+            })
+            return
+
         self.joined_chat_groups.add(group_name)
         await self.send_json({
             'event': 'Subscribed',

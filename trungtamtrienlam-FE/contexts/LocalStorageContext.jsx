@@ -1,6 +1,28 @@
 "use client"
 import React, { createContext, useContext, useEffect, useState, useMemo } from "react"
 
+
+const normalizeUserInfo = userInfo => {
+  if (!userInfo || typeof userInfo !== 'object') return null
+
+  const userID = String(
+    userInfo.userID ?? userInfo.UserID ?? userInfo.id ?? userInfo.ID ?? ''
+  ).trim()
+  const fullName = String(
+    userInfo.fullName ??
+      userInfo.FullName ??
+      userInfo.full_name ??
+      [userInfo.first_name, userInfo.last_name].filter(Boolean).join(' ') ??
+      userInfo.username ??
+      ''
+  ).trim()
+
+  return {
+    ...userInfo,
+    ...(userID ? { userID, UserID: userID } : {}),
+    ...(fullName ? { fullName, FullName: fullName } : {})
+  }
+}
 const LoadLocalStorageContext = createContext({
   userInfo: null,
   roleInfo: null,
@@ -20,7 +42,7 @@ export const LoadLocalStorageProvider = ({ children }) => {
         const userInfoRaw = localStorage.getItem("userInfo")
         const roleInfoRaw = localStorage.getItem("roleInfo")
         const permissionInfoRaw = localStorage.getItem("permissionInfo")
-        setUserInfo(userInfoRaw ? JSON.parse(userInfoRaw) : null)
+        setUserInfo(userInfoRaw ? normalizeUserInfo(JSON.parse(userInfoRaw)) : null)
         setRoleInfo(roleInfoRaw ? JSON.parse(roleInfoRaw) : null)
         setPermissionInfo(permissionInfoRaw ? JSON.parse(permissionInfoRaw) : [])
       } catch (error) {

@@ -77,10 +77,10 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
     };
 
     const onCheckFolder = item => () => {
-        // Láº§n click Ä‘áº§u â†’ chá» xem cÃ³ pháº£i double click khÃ´ng
+        // Lần click đầu → chờ xem có phải double click không
         clickTimerRef.current = setTimeout(() => {
             clickTimerRef.current = null;
-        }, 200); // khoáº£ng thá»i gian phÃ¢n biá»‡t click/ double click
+        }, 200); // khoảng thời gian phân biệt click/ double click
     }
 
     const onSelectFolder = item => () => {
@@ -102,10 +102,10 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
             return;
         }
 
-        // Láº§n click Ä‘áº§u â†’ chá» xem cÃ³ pháº£i double click khÃ´ng
+        // Lần click đầu → chờ xem có phải double click không
         clickTimerRef.current = setTimeout(() => {
             clickTimerRef.current = null;
-        }, 200); // khoáº£ng thá»i gian phÃ¢n biá»‡t click/ double click
+        }, 200); // khoảng thời gian phân biệt click/ double click
     }
 
     const onBackFolder = useCallback(() => {
@@ -142,10 +142,10 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
             return;
         }
 
-        // Láº§n click Ä‘áº§u â†’ chá» xem cÃ³ pháº£i double click khÃ´ng
+        // Lần click đầu → chờ xem có phải double click không
         clickTimerRef.current = setTimeout(() => {
             clickTimerRef.current = null;
-        }, 200); // khoáº£ng thá»i gian phÃ¢n biá»‡t click/ double click
+        }, 200); // khoảng thời gian phân biệt click/ double click
     }
 
     const onSubmit = () => {
@@ -196,11 +196,11 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
                 <div className="flex items-center gap-3">
                     <Button variant="outline" onClick={onClose}>
                         <X size={16} className="mr-2" />
-                        ÄÃ³ng
+                        Đóng
                     </Button>
                     <Button variant={files.filter(p => p.isCheck).length > 0 ? 'danger' : 'disabled'} onClick={onSubmit}>
                         <Check size={16} className="mr-2" />
-                        ThÃªm
+                        Thêm
                     </Button>
                 </div>
             </div>} header={
@@ -225,7 +225,7 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
                                         <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                                         <input
                                             type="text"
-                                            placeholder="TÃ¬m kiáº¿m hÃ¬nh áº£nh, thÆ° má»¥c"
+                                            placeholder="Tìm kiếm hình ảnh, thư mục"
                                             className="pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-[250px]"
                                             value={search}
                                             onChange={onChangeSearch}
@@ -254,7 +254,7 @@ const AddFileShareFolderModal = ({ type, folderId, title, onClose, callBack }) =
                     </div>
                     {folders.length <= 0 && <div className="flex flex-col mt-10 items-center justify-center">
                         <img src='/images/icons/book.svg' className="w-22 h-22" />
-                        <p className="text-sm text-[#8C8C8C] mt-2">Trá»‘ng</p>
+                        <p className="text-sm text-[#8C8C8C] mt-2">Trống</p>
                     </div>}
                 </div>
             </Modal>

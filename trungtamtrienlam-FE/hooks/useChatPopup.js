@@ -73,6 +73,34 @@ const getCurrentUserIdentities = userInfo => {
     .filter(Boolean)
 }
 
+const getStoredUserInfo = () => {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.localStorage.getItem('userInfo')
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+const getCurrentUserId = userInfo => {
+  const source = userInfo || getStoredUserInfo()
+
+  return (
+    [
+      source?.userID,
+      source?.UserID,
+      source?.id,
+      source?.ID
+    ]
+      .map(value =>
+        value === null || value === undefined ? '' : String(value).trim()
+      )
+      .find(Boolean) || ''
+  )
+}
+
 const isCurrentUserMessage = (senderId, userInfo) => {
   const sender = normalizeChatIdentity(senderId)
   return Boolean(sender && getCurrentUserIdentities(userInfo).includes(sender))
@@ -304,9 +332,15 @@ const mergeMessages = (...messageGroups) => {
 
 export function useChatMessages (chatId, userId, chatType, chat) {
   const { userInfo } = useLoadLocalStorage()
-  const { registerChatCallback, onlineUsers } = useSignalR()
+  const { registerChatCallback, onlineUsers, isConnected } = useSignalR()
   const toast = useToast()
-  
+  const currentUserID = useMemo(() => getCurrentUserId(userInfo), [
+    userInfo?.userID,
+    userInfo?.UserID,
+    userInfo?.id,
+    userInfo?.ID
+  ])
+
   const [isLoading, setIsLoading] = useState(() => Boolean(chatId || userId))
   const [isSending, setIsSending] = useState(false)
   const [isChatsAI, setIsChatsAI] = useState(false)
@@ -331,7 +365,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
   const isLoadingOlderRef = useRef(false)
   const seenMessagesRef = useRef(new Set())
   const debounceTimerRef = useRef(null)
-  const effectiveId = currentChatId || chatId || userId
+  const effectiveId = currentChatId || chatId || userId || chat?.chatID || chat?.ChatID || chat?.id || chat?.ID || ''
   const isGroup = (chatType || chat?.type) === 'group'
   const isAIChat = useMemo(() => {
     return !!(isChatsAI || chat?.isAI || effectiveId === 'heritage-assistant')
@@ -442,14 +476,14 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       return
     }
     try {
-      const users = await getListUserByChatID(effectiveId, userInfo?.userID)
+      const users = await getListUserByChatID(effectiveId, currentUserID)
       const userData = users?.data?.data || []
       setListUsers(userData)
     } catch (e) {
       console.error('❌ Error in loadGroupMembers:', e)
       setListUsers([])
     }
-  }, [isGroup, effectiveId, userInfo?.userID])
+  }, [isGroup, effectiveId, currentUserID])
 
   const loadPollsByChatID = useCallback(async id => {
     try {
@@ -563,7 +597,8 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         page = 1,
         prepend = false,
         loadMeta = page === 1,
-        scrollToBottomAfterLoad = !prepend
+        scrollToBottomAfterLoad = !prepend,
+        silent = false
       } = options
       const box = messageListRef.current
       const previousScrollHeight = box?.scrollHeight || 0
@@ -573,7 +608,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         if (isLoadingOlderRef.current) return
         isLoadingOlderRef.current = true
         setIsLoadingOlder(true)
-      } else {
+      } else if (!silent) {
         setIsLoading(true)
       }
 
@@ -586,7 +621,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
           res = await loadMes(id, {
             page: 1,
             pageSize: POPUP_MESSAGE_PAGE_SIZE,
-            currentUserID: userInfo?.userID
+            currentUserID
           })
           setIsChatsAI(!!res?.data?.data?.dataChat?.isAI)
 
@@ -635,7 +670,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
           res = await loadMes(id, {
             page,
             pageSize: POPUP_MESSAGE_PAGE_SIZE,
-            currentUserID: userInfo?.userID
+            currentUserID
           })
           setIsChatsAI(!!res?.data?.data?.dataChat?.isAI)
 
@@ -692,7 +727,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         if (prepend) {
           isLoadingOlderRef.current = false
           setIsLoadingOlder(false)
-        } else {
+        } else if (!silent) {
           setIsLoading(false)
         }
       }
@@ -707,7 +742,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       loadUserRequestsByChatID,
       normalizeMessages,
       scrollToBottomInstantly,
-      userInfo?.userID
+      currentUserID
     ]
   )
 
@@ -729,6 +764,40 @@ export function useChatMessages (chatId, userId, chatType, chat) {
     hasMoreMessages,
     loadMessages,
     messagePage
+  ])
+
+  useEffect(() => {
+    if (isConnected || !effectiveId) return
+
+    let isPolling = false
+    const pollMessages = async () => {
+      const activeChatId = currentChatId || chatId || userId || effectiveId
+      if (!activeChatId || isPolling) return
+      if (typeof document !== 'undefined' && document.hidden) return
+
+      isPolling = true
+      try {
+        await loadMessages(activeChatId, {
+          loadMeta: false,
+          silent: true,
+          scrollToBottomAfterLoad: isAtBottom()
+        })
+      } finally {
+        isPolling = false
+      }
+    }
+
+    const timer = setInterval(pollMessages, 2500)
+    pollMessages()
+    return () => clearInterval(timer)
+  }, [
+    isConnected,
+    effectiveId,
+    currentChatId,
+    chatId,
+    userId,
+    loadMessages,
+    isAtBottom
   ])
 
   // SignalR callback to listen for new messages and updates
@@ -916,7 +985,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
     loadRemindersByChatID,
     loadMessages,
     scrollToBottom,
-    userInfo?.userID
+    currentUserID
   ])
 
   useEffect(() => {
@@ -1010,7 +1079,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         return [...prev, base]
       })
       // Chỉ load lại tin nhắn nếu không phải từ chính mình
-      // if (msg.senderID !== userInfo?.userID) {
+      // if (msg.senderID !== currentUserID) {
       //   loadMessages(selectedChat)
       // }
       if (isAtBottom()) {
@@ -1023,7 +1092,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
     chatId,
     currentChatId,
     chat?.id,
-    userInfo?.userID,
+    currentUserID,
     effectiveId,
     scrollToBottom,
     isAtBottom
@@ -1059,9 +1128,9 @@ export function useChatMessages (chatId, userId, chatType, chat) {
   const handleSendMessage = useCallback(
     async rawText => {
       try {
-        if (!userInfo?.userID || !effectiveId) {
+        if (!currentUserID || !effectiveId) {
           console.error('Missing userInfo or effectiveId:', {
-            userInfo: userInfo?.userID,
+            userInfo: currentUserID,
             effectiveId
           })
           return
@@ -1088,7 +1157,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
           : currentChatId || chatId
 
         const payload = {
-          SenderID: userInfo.userID,
+          SenderID: currentUserID,
           MessageType: hasFiles
             ? ChatMessageConstants.MessageType.File
             : ChatMessageConstants.MessageType.Text,
@@ -1254,7 +1323,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       }
     },
     [
-      userInfo?.userID,
+      currentUserID,
       currentChatId,
       chatId,
       userId,
@@ -1274,7 +1343,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       try {
         // Kiểm tra nếu message đã được mark as seen rồi thì không gọi API nữa
         const currentUserId =
-          userInfo?.userID ?? userInfo?.UserID ?? userInfo?.id ?? userInfo?.ID
+          currentUserID ?? userInfo?.UserID ?? userInfo?.id ?? userInfo?.ID
         if (!currentUserId) {
           console.log('[chat-seen:popup-skip-no-current-user]', {
             messageId,
@@ -1379,7 +1448,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
     },
     [
       messages,
-      userInfo?.userID,
+      currentUserID,
       userInfo?.UserID,
       userInfo?.id,
       userInfo?.ID,
@@ -1582,7 +1651,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         const response = await acceptUserRequest(
           requestId,
           ChatAwaitConfirmConstants.Status.Accepted,
-          userInfo?.userID
+          currentUserID
         ) // 1 = Accepted
         if (response.status === 200) {
           const request = userRequests.find(req => req.id === requestId)
@@ -1614,7 +1683,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       loadIndividualUsersList,
       loadUserRequestsByChatID,
       loadMessages,
-      userInfo?.userID,
+      currentUserID,
       toast
     ]
   )
@@ -1626,7 +1695,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         const response = await acceptUserRequest(
           requestId,
           ChatAwaitConfirmConstants.Status.Rejected,
-          userInfo?.userID
+          currentUserID
         )
         if (response.status === 200) {
           const request = userRequests.find(req => req.id === requestId)
@@ -1656,7 +1725,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       userRequests,
       loadIndividualUsersList,
       loadUserRequestsByChatID,
-      userInfo?.userID,
+      currentUserID,
       toast
     ]
   )

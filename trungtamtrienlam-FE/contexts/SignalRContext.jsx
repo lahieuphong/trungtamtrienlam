@@ -173,6 +173,8 @@ export const SignalRProvider = ({ user, token, children }) => {
 
       switch (eventName) {
         case "Connected":
+          reconnectAttemptRef.current = 0;
+          setIsConnected(true);
           setOnlineUsers((prev) => [...new Set([...prev, userId])]);
           break;
 
@@ -266,6 +268,14 @@ export const SignalRProvider = ({ user, token, children }) => {
       }
     };
 
+    let connectedAckTimer = null;
+    const clearConnectedAck = () => {
+      if (connectedAckTimer) {
+        clearTimeout(connectedAckTimer);
+        connectedAckTimer = null;
+      }
+    };
+
     function connect() {
       if (stopped) return;
 
@@ -274,9 +284,13 @@ export const SignalRProvider = ({ user, token, children }) => {
       connectionRef.current = socket;
 
       socket.onopen = () => {
-        reconnectAttemptRef.current = 0;
-        setIsConnected(true);
-        console.log("Realtime WebSocket connected");
+        console.log("Realtime WebSocket opened, waiting for server acknowledgement");
+        clearConnectedAck();
+        connectedAckTimer = setTimeout(() => {
+          if (stopped || connectionRef.current !== socket || socket.readyState !== WebSocket.OPEN) return;
+          console.warn("Realtime WebSocket did not receive Connected acknowledgement. Reconnecting and using polling fallback.");
+          socket.close();
+        }, 7000);
       };
 
       socket.onmessage = (event) => {
@@ -284,6 +298,9 @@ export const SignalRProvider = ({ user, token, children }) => {
           const message = JSON.parse(event.data);
           const eventName = message.event || message.Event || message.type || message.Type;
           const payload = Object.prototype.hasOwnProperty.call(message, "data") ? message.data : message;
+          if (eventName === "Connected") {
+            clearConnectedAck();
+          }
           handleEvent(eventName, payload);
         } catch (error) {
           console.error("Realtime message parse error:", error);
@@ -295,6 +312,7 @@ export const SignalRProvider = ({ user, token, children }) => {
       };
 
       socket.onclose = () => {
+        clearConnectedAck();
         if (connectionRef.current === socket) {
           connectionRef.current = null;
         }
@@ -308,6 +326,7 @@ export const SignalRProvider = ({ user, token, children }) => {
     return () => {
       stopped = true;
       clearReconnect();
+      clearConnectedAck();
       setIsConnected(false);
       const socket = connectionRef.current;
       connectionRef.current = null;

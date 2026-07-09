@@ -13,10 +13,21 @@ class RenderFileTokenUtil {
         if (!rawPath) return "";
         if (/^(https?:|data:|blob:)/i.test(rawPath)) return rawPath;
 
-        const backendBaseUrl = normalizeBaseUrl(ApiConstants.backendBaseUrl || ApiConstants.cdnUrl || "");
-        if (!backendBaseUrl) return rawPath;
+        const normalizedPath = rawPath.replace(/\\/g, "/");
+        const cleanPath = normalizedPath.replace(/^\/+/, "");
+        const isLikelyPublicAsset = normalizedPath.startsWith("/") &&
+            !/^(media|staff|legacy_aidi|uploads|documents|files)(\/|$)/i.test(cleanPath);
 
-        return `${backendBaseUrl}${rawPath.startsWith("/") ? "" : "/"}${rawPath}`;
+        if (isLikelyPublicAsset) return normalizedPath;
+
+        const cdnBaseUrl = normalizeBaseUrl(ApiConstants.cdnUrl || ApiConstants.backendBaseUrl || "");
+        if (!cdnBaseUrl) return normalizedPath;
+
+        if (/^media\//i.test(cleanPath)) {
+            return `${cdnBaseUrl}/${cleanPath}`;
+        }
+
+        return `${cdnBaseUrl}/media/${cleanPath}`;
     }
 
     static generateUrl(pathFile, publicTokenValue, isPrivate = false) {

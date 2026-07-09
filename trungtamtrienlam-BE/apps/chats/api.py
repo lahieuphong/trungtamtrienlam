@@ -963,17 +963,17 @@ class ChatUpdateAvatarApi(APIView):
         chat_id = _string(request.data.get('chatID') or request.data.get('id'))
         avatar_upload = _collect_avatar_upload(request)
         if not chat_id:
-            return _failure('Thiáº¿u chatID')
+            return _failure('Thiếu chatID')
         if not avatar_upload:
-            return _failure('Thiáº¿u áº£nh Ä‘áº¡i diá»‡n nhÃ³m')
+            return _failure('Thiếu ảnh đại diện nhóm')
 
         current_user_id = _current_user_id(request)
         if not current_user_id:
-            return _failure('Thiáº¿u userID')
+            return _failure('Thiếu userID')
 
         chat = ManagedChat.objects.filter(id=chat_id).first()
         if not chat:
-            return _failure('KhÃ´ng tÃ¬m tháº¥y cuá»™c trÃ² chuyá»‡n', status=404)
+            return _failure('Không tìm thấy cuộc trò chuyện', status=404)
 
         try:
             with transaction.atomic():
@@ -988,7 +988,7 @@ class ChatUpdateAvatarApi(APIView):
                 message = ManagedChatMessage.objects.create(
                     sender_id=current_user_id,
                     message_type=MESSAGE_TYPE_EVENT,
-                    content=f'{display_name} Ä‘Ã£ Ä‘á»•i áº£nh Ä‘áº¡i diá»‡n nhÃ³m',
+                    content=f'{display_name} đã đổi ảnh đại diện nhóm',
                     chat_id=chat_id,
                 )
 

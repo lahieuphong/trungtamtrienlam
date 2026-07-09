@@ -30,8 +30,8 @@ class ManagedChatVote(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_votes'
         ordering = ('-is_pin', '-pin_date', '-created_date', 'id')
-        verbose_name = 'Managed chat vote'
-        verbose_name_plural = 'Managed chat votes'
+        verbose_name = 'Bình chọn cuộc trò chuyện'
+        verbose_name_plural = 'Bình chọn cuộc trò chuyện'
 
     def __str__(self):  # pragma: nocover
         return self.vote_name or self.id
@@ -62,8 +62,8 @@ class ManagedChatVoteOption(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_vote_options'
         ordering = ('created_date', 'id')
-        verbose_name = 'Managed chat vote option'
-        verbose_name_plural = 'Managed chat vote options'
+        verbose_name = 'Lựa chọn bình chọn'
+        verbose_name_plural = 'Lựa chọn bình chọn'
 
     def __str__(self):  # pragma: nocover
         return self.option_name or self.id
@@ -102,8 +102,8 @@ class ManagedChatVoteResult(models.Model):
     class Meta:
         db_table = 'aidi_managed_chat_vote_results'
         ordering = ('created_date', 'id')
-        verbose_name = 'Managed chat vote result'
-        verbose_name_plural = 'Managed chat vote results'
+        verbose_name = 'Kết quả bình chọn'
+        verbose_name_plural = 'Kết quả bình chọn'
 
     def __str__(self):  # pragma: nocover
         return f'{self.vote_id}:{self.user_id}:{self.option_id}'

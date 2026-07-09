@@ -110,12 +110,12 @@ const formatReminderTime = dateTime => {
   const timeString = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
 
   if (reminderDate.getTime() === today.getTime()) {
-    return `HÃ´m nay lÃºc ${timeString}`
+    return `Hôm nay lúc ${timeString}`
   } else if (reminderDate.getTime() === today.getTime() + 24 * 60 * 60 * 1000) {
-    return `NgÃ y mai lÃºc ${timeString}`
+    return `Ngày mai lúc ${timeString}`
   } else {
     const dateString = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    return `${dateString} lÃºc ${timeString}`
+    return `${dateString} lúc ${timeString}`
   }
 }
 
@@ -166,7 +166,7 @@ const ContextMenu = ({ position, isOwn, isPinned, onPin, onUnpin, onReply, onRec
           className='flex items-center w-full px-4 py-2 text-sm text-left text-red-500 hover:bg-gray-100'
         >
           <PinIcon className='mr-2' size={16} />
-          Bá» ghim tin nháº¯n
+          Bỏ ghim tin nhắn
         </button>
       ) : (
         <button
@@ -174,7 +174,7 @@ const ContextMenu = ({ position, isOwn, isPinned, onPin, onUnpin, onReply, onRec
           className='flex items-center w-full px-4 py-2 text-sm text-left hover:bg-gray-100'
         >
           <PinIcon className='mr-2' size={16} />
-          Ghim tin nháº¯n
+          Ghim tin nhắn
         </button>
       )}
       <button
@@ -188,7 +188,7 @@ const ContextMenu = ({ position, isOwn, isPinned, onPin, onUnpin, onReply, onRec
           height={16}
           className='mr-2'
         />
-        Tráº£ lá»i tin nháº¯n
+        Trả lời tin nhắn
       </button>
       {isOwn && (
         <button
@@ -202,7 +202,7 @@ const ContextMenu = ({ position, isOwn, isPinned, onPin, onUnpin, onReply, onRec
             height={16}
             className='mr-2'
           />
-          Thu há»“i tin nháº¯n
+          Thu hồi tin nhắn
         </button>
       )}
     </div>,
@@ -265,10 +265,10 @@ const ChatPopupMessageItem = ({
 
   // Helper function to get user display name
   const getUserDisplayName = (userId, isCurrentUser = false) => {
-    if (isCurrentUser) return 'Báº¡n'
+    if (isCurrentUser) return 'Bạn'
     const user = findUserById(userId)
     if (!user) return userId
-    // Æ¯u tiÃªn thá»© tá»±: fullName -> name -> displayName -> label -> userId
+    // Ưu tiên thứ tự: fullName -> name -> displayName -> label -> userId
     return (
       user.fullName ||
       user.FullName ||
@@ -622,7 +622,7 @@ const ChatPopupMessageItem = ({
 
   if (message.messageType === 5) {
     let displayContent = message.content
-    if (message.content && (message.content.includes('Ä‘Ã£ bá»• nhiá»‡m') || message.content.includes('thÃ nh trÆ°á»Ÿng nhÃ³m'))) {
+    if (message.content && (message.content.includes('đã bổ nhiệm') || message.content.includes('thành trưởng nhóm'))) {
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
       if (allUserIds.length >= 2) {
         const actorId = allUserIds[0].replace(/{|}/g, '')
@@ -631,10 +631,10 @@ const ChatPopupMessageItem = ({
         const isTargetCurrentUser = userInfo && String(targetId) === String(userInfo.userID)
         const actorName = getUserDisplayName(actorId, isActorCurrentUser)
         const targetName = getUserDisplayName(targetId, isTargetCurrentUser)
-        if (message.content.includes('thÃ nh trÆ°á»Ÿng nhÃ³m má»›i')) {
-          displayContent = `${actorName} Ä‘Ã£ bá»• nhiá»‡m ${targetName} thÃ nh trÆ°á»Ÿng nhÃ³m má»›i`
-        } else if (message.content.includes('Ä‘Ã£ bá»• nhiá»‡m')) {
-          displayContent = `${actorName} Ä‘Ã£ bá»• nhiá»‡m ${targetName} thÃ nh phÃ³ nhÃ³m`
+        if (message.content.includes('thành trưởng nhóm mới')) {
+          displayContent = `${actorName} đã bổ nhiệm ${targetName} thành trưởng nhóm mới`
+        } else if (message.content.includes('đã bổ nhiệm')) {
+          displayContent = `${actorName} đã bổ nhiệm ${targetName} thành phó nhóm`
         }
         return (
           <div key={message.id} className='flex justify-center mb-3 px-4'>
@@ -646,7 +646,7 @@ const ChatPopupMessageItem = ({
       }
     }
 
-    if (message.content && (message.content.includes('Ä‘Ã£ xÃ³a') || message.content.includes('khá»i nhÃ³m'))) {
+    if (message.content && (message.content.includes('đã xóa') || message.content.includes('khỏi nhóm'))) {
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
       if (allUserIds.length >= 2) {
         const actorId = allUserIds[0].replace(/{|}/g, '')
@@ -658,7 +658,7 @@ const ChatPopupMessageItem = ({
         return (
           <div key={message.id} className='flex justify-center mb-3 px-4'>
             <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-              {`${actorName} Ä‘Ã£ xÃ³a ${targetName} khá»i nhÃ³m`}
+              {`${actorName} đã xóa ${targetName} khỏi nhóm`}
             </div>
           </div>
         )
@@ -666,7 +666,7 @@ const ChatPopupMessageItem = ({
     }
 
     // handle when user is added to the group
-    if (message.content && (message.content.includes('Ä‘Æ°á»£c thÃªm vÃ o nhÃ³m') || message.content.includes('Ä‘Ã£ Ä‘Æ°á»£c thÃªm'))) {
+    if (message.content && (message.content.includes('được thêm vào nhóm') || message.content.includes('đã được thêm'))) {
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
       if (allUserIds.length >= 1) {
         const targetId = allUserIds[0].replace(/{|}/g, '')
@@ -675,7 +675,7 @@ const ChatPopupMessageItem = ({
         return (
           <div key={message.id} className='flex justify-center mb-3 px-4'>
             <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-              {`${targetName} Ä‘Ã£ Ä‘Æ°á»£c thÃªm vÃ o nhÃ³m`}
+              {`${targetName} đã được thêm vào nhóm`}
             </div>
           </div>
         )
@@ -683,13 +683,13 @@ const ChatPopupMessageItem = ({
     }
 
     // handle message for voting
-    if (message.content && message.content.includes('Ä‘Ã£ tham gia bÃ¬nh chá»n')) {
+    if (message.content && message.content.includes('đã tham gia bình chọn')) {
       let displayContent = message.content
       // separate user name from content
-      const beforeVoteText = message.content.split('Ä‘Ã£ tham gia bÃ¬nh chá»n')[0].trim()
+      const beforeVoteText = message.content.split('đã tham gia bình chọn')[0].trim()
       if (beforeVoteText) {
         const isCurrentUser = userInfo && userInfo.fullName && beforeVoteText === userInfo.fullName
-        if (isCurrentUser) displayContent = message.content.replace(beforeVoteText, 'Báº¡n')
+        if (isCurrentUser) displayContent = message.content.replace(beforeVoteText, 'Bạn')
       }
       return (
         <div key={message.id} className='flex justify-center mb-3 px-4'>
@@ -700,15 +700,15 @@ const ChatPopupMessageItem = ({
       )
     }
 
-    // handle message "xÃ¡c nháº­n: Tham gia" or "xÃ¡c nháº­n: KhÃ´ng tham gia"
-    if (message.content && (message.content.includes('xÃ¡c nháº­n: Tham gia') || message.content.includes('xÃ¡c nháº­n: KhÃ´ng tham gia'))) {
+    // handle message "xác nhận: Tham gia" or "xác nhận: Không tham gia"
+    if (message.content && (message.content.includes('xác nhận: Tham gia') || message.content.includes('xác nhận: Không tham gia'))) {
       let displayContent = message.content
       // separate user name from content
-      const beforeConfirmText = message.content.split('xÃ¡c nháº­n:')[0].trim()
+      const beforeConfirmText = message.content.split('xác nhận:')[0].trim()
       if (beforeConfirmText) {
         const isCurrentUser = userInfo && userInfo.fullName && beforeConfirmText === userInfo.fullName
         if (isCurrentUser) {
-          displayContent = message.content.replace(beforeConfirmText, 'Báº¡n')
+          displayContent = message.content.replace(beforeConfirmText, 'Bạn')
         } else {
           displayContent = message.content
         }
@@ -723,26 +723,26 @@ const ChatPopupMessageItem = ({
       )
     }
 
-    if (message.eventType === 2 && message.content && message.content.toLowerCase().includes('táº¡o bÃ¬nh chá»n')) {
+    if (message.eventType === 2 && message.content && message.content.toLowerCase().includes('tạo bình chọn')) {
       let displayContent = message.content
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
       if (allUserIds.length > 0) {
         const actorId = allUserIds[0].replace(/{|}/g, '')
         const isActorCurrentUser = userInfo && actorId === userInfo.userID
         const actorName = getUserDisplayName(actorId, isActorCurrentUser)
-        displayContent = `${actorName} Ä‘Ã£ táº¡o bÃ¬nh chá»n má»›i`
+        displayContent = `${actorName} đã tạo bình chọn mới`
       } else {
-        // Náº¿u khÃ´ng cÃ³ {userId}, tÃ¬m tÃªn user tá»« content
-        const beforeCreateText = message.content.split('Ä‘Ã£ táº¡o bÃ¬nh chá»n')[0]?.trim() || message.content.split('táº¡o bÃ¬nh chá»n')[0]?.trim()
+        // Nếu không có {userId}, tìm tên user từ content
+        const beforeCreateText = message.content.split('đã tạo bình chọn')[0]?.trim() || message.content.split('tạo bình chọn')[0]?.trim()
         if (beforeCreateText && beforeCreateText !== message.content) {
           const isCurrentUser = userInfo && userInfo.fullName && beforeCreateText === userInfo.fullName
           if (isCurrentUser) {
-            displayContent = message.content.replace(beforeCreateText, 'Báº¡n')
+            displayContent = message.content.replace(beforeCreateText, 'Bạn')
           } else {
             displayContent = message.content
           }
         } else {
-          displayContent = 'ÄÃ£ táº¡o bÃ¬nh chá»n má»›i'
+          displayContent = 'Đã tạo bình chọn mới'
         }
       }
 
@@ -783,26 +783,26 @@ const ChatPopupMessageItem = ({
       )
     }
 
-    if (message.content && message.content.toLowerCase().includes('táº¡o ghi chÃº')) {
+    if (message.content && message.content.toLowerCase().includes('tạo ghi chú')) {
       let displayContent = message.content
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
       if (allUserIds.length > 0) {
         const actorId = allUserIds[0].replace(/{|}/g, '')
         const isActorCurrentUser = userInfo && actorId === userInfo.userID
         const actorName = getUserDisplayName(actorId, isActorCurrentUser)
-        displayContent = `${actorName} Ä‘Ã£ táº¡o ghi chÃº má»›i`
+        displayContent = `${actorName} đã tạo ghi chú mới`
       } else {
-        // Náº¿u khÃ´ng cÃ³ {userId}, tÃ¬m tÃªn user tá»« content
-        const beforeCreateText = message.content.split('Ä‘Ã£ táº¡o ghi chÃº')[0]?.trim() || message.content.split('táº¡o ghi chÃº')[0]?.trim()
+        // Nếu không có {userId}, tìm tên user từ content
+        const beforeCreateText = message.content.split('đã tạo ghi chú')[0]?.trim() || message.content.split('tạo ghi chú')[0]?.trim()
         if (beforeCreateText && beforeCreateText !== message.content) {
-          // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+          // Kiểm tra xem có phải user hiện tại không
           const isCurrentUser = userInfo && userInfo.fullName && beforeCreateText === userInfo.fullName
           if (isCurrentUser) {
-            displayContent = message.content.replace(beforeCreateText, 'Báº¡n')
+            displayContent = message.content.replace(beforeCreateText, 'Bạn')
           }
           displayContent = message.content
         } else {
-          displayContent = 'ÄÃ£ táº¡o ghi chÃº má»›i'
+          displayContent = 'Đã tạo ghi chú mới'
         }
       }
 
@@ -839,33 +839,33 @@ const ChatPopupMessageItem = ({
       )
     }
 
-    // Xá»­ lÃ½ thÃ´ng bÃ¡o cáº­p nháº­t ghi chÃº
+    // Xử lý thông báo cập nhật ghi chú
     if (
       message.content &&
-      message.content.toLowerCase().includes('Ä‘Ã£ cáº­p nháº­t ghi chÃº')
+      message.content.toLowerCase().includes('đã cập nhật ghi chú')
     ) {
       let displayContent = message.content
 
-      // Kiá»ƒm tra náº¿u cÃ³ {userId} pattern
+      // Kiểm tra nếu có {userId} pattern
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
 
       if (allUserIds.length > 0) {
         const actorId = allUserIds[0].replace(/{|}/g, '')
         const isActorCurrentUser = userInfo && actorId === userInfo.userID
         const actorName = getUserDisplayName(actorId, isActorCurrentUser)
-        displayContent = `${actorName} Ä‘Ã£ cáº­p nháº­t ghi chÃº`
+        displayContent = `${actorName} đã cập nhật ghi chú`
       } else {
-        // Náº¿u khÃ´ng cÃ³ {userId}, tÃ¬m tÃªn user tá»« content
-        const beforeUpdateText = message.content.split('Ä‘Ã£ cáº­p nháº­t ghi chÃº')[0]?.trim()
+        // Nếu không có {userId}, tìm tên user từ content
+        const beforeUpdateText = message.content.split('đã cập nhật ghi chú')[0]?.trim()
 
         if (beforeUpdateText && beforeUpdateText !== message.content) {
-          // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+          // Kiểm tra xem có phải user hiện tại không
           const isCurrentUser = userInfo && userInfo.fullName && beforeUpdateText === userInfo.fullName
 
           if (isCurrentUser) {
-            displayContent = message.content.replace(beforeUpdateText, 'Báº¡n')
+            displayContent = message.content.replace(beforeUpdateText, 'Bạn')
           } else {
-            // Kiá»ƒm tra trong ListUsers Ä‘á»ƒ xÃ¡c nháº­n
+            // Kiểm tra trong ListUsers để xác nhận
             let foundUser = null
             if (Array.isArray(ListUsers)) {
               foundUser = ListUsers.find(user => user && user.name === beforeUpdateText)
@@ -875,11 +875,11 @@ const ChatPopupMessageItem = ({
               }
             }
 
-            // Náº¿u tÃ¬m tháº¥y user trong ListUsers thÃ¬ giá»¯ nguyÃªn tÃªn, náº¿u khÃ´ng tÃ¬m tháº¥y thÃ¬ cÅ©ng giá»¯ nguyÃªn
+            // Nếu tìm thấy user trong ListUsers thì giữ nguyên tên, nếu không tìm thấy thì cũng giữ nguyên
             displayContent = message.content
           }
         } else {
-          displayContent = 'ÄÃ£ cáº­p nháº­t ghi chÃº'
+          displayContent = 'Đã cập nhật ghi chú'
         }
       }
 
@@ -913,7 +913,7 @@ const ChatPopupMessageItem = ({
     if (
       (message.eventType === 3 &&
         message.content &&
-        message.content.toLowerCase().includes('nháº¯c háº¹n') &&
+        message.content.toLowerCase().includes('nhắc hẹn') &&
         message.ListUserJoinReminder &&
         Array.isArray(message.ListUserJoinReminder) &&
         message.ListUserJoinReminder.length > 0) ||
@@ -925,7 +925,7 @@ const ChatPopupMessageItem = ({
         userInfo
       )
 
-      // Chá»‰ hiá»ƒn thá»‹ thÃ´ng bÃ¡o náº¿u user náº±m trong danh sÃ¡ch
+      // Chỉ hiển thị thông báo nếu user nằm trong danh sách
       if (!isUserInReminderList) {
         return null
       }
@@ -933,11 +933,11 @@ const ChatPopupMessageItem = ({
       // find reminder that matches current message
       const matchingReminder = reminders.find(reminder => String(reminder.id) === String(message.eventID))
 
-      const displayContent = `Nháº¯c háº¹n: ${matchingReminder?.remindContent || message.content}`
+      const displayContent = `Nhắc hẹn: ${matchingReminder?.remindContent || message.content}`
 
       return (
         <>
-          {/* ThÃ´ng bÃ¡o nháº¯c háº¹n selective */}
+          {/* Thông báo nhắc hẹn selective */}
           <div key={message.id} className='flex justify-center mb-3 px-4'>
             <div className={`bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex items-center gap-2 ${message.isPin ? 'border border-yellow-300' : ''}`}>
               <Bell className='text-yellow-600' size={16} />
@@ -952,7 +952,7 @@ const ChatPopupMessageItem = ({
               </span>
             </div>
           </div>
-          {/* ReminderCard hiá»ƒn thá»‹ giao diá»‡n nháº¯c háº¹n */}
+          {/* ReminderCard hiển thị giao diện nhắc hẹn */}
           {matchingReminder && (
             <div className='flex justify-center mb-3 px-2 sm:px-4 cursor-pointer'>
               <div
@@ -980,30 +980,30 @@ const ChatPopupMessageItem = ({
       )
     }
 
-    // TrÆ°á»ng há»£p thÃ´ng thÆ°á»ng: Nháº¯c háº¹n khÃ´ng cÃ³ ListUserJoinReminder (public notification)
-    if (message.eventType === 3 && message.content && message.content.toLowerCase().includes('nháº¯c háº¹n')) {
+    // Trường hợp thông thường: Nhắc hẹn không có ListUserJoinReminder (public notification)
+    if (message.eventType === 3 && message.content && message.content.toLowerCase().includes('nhắc hẹn')) {
       let displayContent = message.content
-      // TÃ¬m reminder phÃ¹ há»£p vá»›i message hiá»‡n táº¡i
+      // Tìm reminder phù hợp với message hiện tại
       const matchingReminder = reminders.find(reminder => String(reminder.id) === String(message.eventID))
-      // Kiá»ƒm tra náº¿u cÃ³ {userId} pattern
+      // Kiểm tra nếu có {userId} pattern
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
       if (allUserIds.length > 0) {
         const actorId = allUserIds[0].replace(/{|}/g, '')
         const isActorCurrentUser = userInfo && actorId === userInfo.userID
         const actorName = getUserDisplayName(actorId, isActorCurrentUser)
-        displayContent = `${actorName} Ä‘Ã£ táº¡o nháº¯c háº¹n ${matchingReminder?.remindContent || 'má»›i'} vÃ o ${formatReminderTime(matchingReminder?.remindTime || matchingReminder?.remindTime)}`
+        displayContent = `${actorName} đã tạo nhắc hẹn ${matchingReminder?.remindContent || 'mới'} vào ${formatReminderTime(matchingReminder?.remindTime || matchingReminder?.remindTime)}`
       } else {
-        // Náº¿u khÃ´ng cÃ³ {userId}, tÃ¬m tÃªn user tá»« content
-        const beforeCreateText = message.content.split('Ä‘Ã£ táº¡o nháº¯c háº¹n')[0]?.trim()
+        // Nếu không có {userId}, tìm tên user từ content
+        const beforeCreateText = message.content.split('đã tạo nhắc hẹn')[0]?.trim()
         if (beforeCreateText && beforeCreateText !== message.content) {
-          // Kiá»ƒm tra xem cÃ³ pháº£i user hiá»‡n táº¡i khÃ´ng
+          // Kiểm tra xem có phải user hiện tại không
           const isCurrentUser = userInfo && userInfo.fullName && beforeCreateText === userInfo.fullName
 
           if (isCurrentUser) {
-            displayContent = message.content.replace(beforeCreateText, 'Báº¡n')
+            displayContent = message.content.replace(beforeCreateText, 'Bạn')
           }
         } else {
-          displayContent = 'ÄÃ£ táº¡o nháº¯c háº¹n má»›i'
+          displayContent = 'Đã tạo nhắc hẹn mới'
         }
       }
 
@@ -1050,14 +1050,14 @@ const ChatPopupMessageItem = ({
       )
     }
 
-    // handle message "Ä‘Ã£ rá»i nhÃ³m" or "rá»i nhÃ³m"
-    if (message.content && (message.content.includes('Ä‘Ã£ rá»i nhÃ³m') || message.content.includes('rá»i nhÃ³m'))) {
+    // handle message "đã rời nhóm" or "rời nhóm"
+    if (message.content && (message.content.includes('đã rời nhóm') || message.content.includes('rời nhóm'))) {
       const allUserIds = message.content.match(/{([^}]+)}/g) || []
       if (allUserIds.length >= 1) {
         const targetId = allUserIds[0].replace(/{|}/g, '')
         const isTargetCurrentUser = userInfo && targetId === userInfo.userID
         const targetName = getUserDisplayName(targetId, isTargetCurrentUser)
-        displayContent = `${targetName} Ä‘Ã£ rá»i nhÃ³m`
+        displayContent = `${targetName} đã rời nhóm`
         return (
           <div key={message.id} className='flex justify-center mb-3 px-4'>
             <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
@@ -1072,7 +1072,7 @@ const ChatPopupMessageItem = ({
       displayContent = replaceUserPlaceholders(message.content)
     } else if (message.senderID && message.content.includes(message.senderID)) {
       const isCurrentUser = isCurrentUserMessage(message, userInfo)
-      const displayName = isCurrentUser ? 'Báº¡n' : message.senderName
+      const displayName = isCurrentUser ? 'Bạn' : message.senderName
       displayContent = message.content.replace(message.senderID, displayName)
       displayContent = displayContent.replace(/[{}]/g, '')
     }
@@ -1098,7 +1098,7 @@ const ChatPopupMessageItem = ({
               </div>
             )}
             <div className={`min-w-0 max-w-full p-3 rounded-2xl italic text-sm ${isOwn ? 'bg-[#597EF7] text-white' : 'bg-gray-100 text-gray-500'}`}>
-              Tin nháº¯n Ä‘Ã£ Ä‘Æ°á»£c thu há»“i
+              Tin nhắn đã được thu hồi
             </div>
             <div className={getTimestampClass(isOwn)}>
               {formatMessageTime(message.createdDate)}
@@ -1162,11 +1162,11 @@ const ChatPopupMessageItem = ({
                 }}
               >
                 <div className='text-xs text-blue-600 font-medium mb-1'>
-                  Tráº£ lá»i{' '}
-                  {message.replyToMessage.senderName || (message.replyToMessage.sender === 'me' ? 'chÃ­nh mÃ¬nh' : message.replyToMessage.sender)}
+                  Trả lời{' '}
+                  {message.replyToMessage.senderName || (message.replyToMessage.sender === 'me' ? 'chính mình' : message.replyToMessage.sender)}
                 </div>
                 <div className='text-xs text-gray-500 line-clamp-2'>
-                  {message.replyToMessage.content || (message.replyToMessage.files?.length > 0 ? '[Tá»‡p Ä‘Ã­nh kÃ¨m]' : '')}
+                  {message.replyToMessage.content || (message.replyToMessage.files?.length > 0 ? '[Tệp đính kèm]' : '')}
                 </div>
               </div>
             )}
@@ -1277,7 +1277,7 @@ const ChatPopupMessageItem = ({
           <div className='mx-4 flex items-center'>
             <div className='w-2 h-2 rounded-full bg-blue-500 mr-2'></div>
             <span className='text-xs font-medium text-blue-500'>
-              Tin nháº¯n chÆ°a Ä‘á»c
+              Tin nhắn chưa đọc
             </span>
           </div>
           <div className='flex-grow border-t border-gray-300'></div>
