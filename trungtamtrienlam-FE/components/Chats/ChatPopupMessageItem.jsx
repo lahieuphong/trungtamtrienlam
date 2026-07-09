@@ -23,6 +23,7 @@ import { ApiConstants } from '@/constants/apiConstants'
 import ReminderCard from './ReminderCard'
 import { ImageAdvanced } from '@/components/Form'
 import { isReminderForUser } from './reminderUserList'
+import { getChatFileDisplayName, getChatFileIdentity } from '@/helpers/chatFileHelpers'
 
 const CONTEXT_MENU_WIDTH = 208
 const CONTEXT_MENU_HEIGHT = 120
@@ -33,10 +34,16 @@ const normalizeChatIdentity = value => {
 }
 
 const getFileType = fileName => {
-  if (!fileName) return { isPdf: false, isWord: false, isSupported: false, isImage: false }
+  if (!fileName) {
+    return { isPdf: false, isWord: false, isSupported: false, isImage: false, isVideo: false }
+  }
+
   const isPdf = FileHelpers.isFilePdf(fileName)
-  const isWord = FileHelpers.isFileDocDocument(fileName) || FileHelpers.isFileDocxDocument(fileName)
-  const isImage = /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName)
+  const isWord =
+    FileHelpers.isFileDocDocument(fileName) ||
+    FileHelpers.isFileDocxDocument(fileName)
+  const isImage = FileHelpers.isFileImage(fileName) || /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(fileName)
+  const isVideo = FileHelpers.isFileVideo(fileName) || /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(fileName)
   const isSupported =
     isPdf ||
     isWord ||
@@ -45,8 +52,9 @@ const getFileType = fileName => {
     FileHelpers.isFilePowerPointDocument(fileName) ||
     FileHelpers.isFilePowerPointxDocument(fileName) ||
     FileHelpers.isFileTxtDocument(fileName) ||
-    isImage
-  return { isPdf, isWord, isSupported, isImage }
+    isImage ||
+    isVideo
+  return { isPdf, isWord, isSupported, isImage, isVideo }
 }
 
 const getMessageColumnClass = isOwn => `min-w-0 max-w-[85%] sm:max-w-[75%] md:max-w-[70%] ${isOwn ? 'order-1' : ''}`
@@ -324,13 +332,13 @@ const ChatPopupMessageItem = ({
       return []
     }
   }
-  const onlyOfficeType = getTypeOnlyOffice(selectFile?.file)
+  const selectedFilePath = selectFile?.file || selectFile?.File
+  const selectedFileName = getChatFileDisplayName(selectFile)
+  const onlyOfficeType = getTypeOnlyOffice(getChatFileIdentity(selectFile))
   const renderFileViewer = () => {
     if (!selectFile || !showFileViewerModal) return null
-    const selectedFileType = selectFile
-      ? getFileType(selectFile.file || selectFile.name || selectFile.fileName)
-      : null
-    const fileName = selectFile?.name || selectFile?.fileName
+    const selectedFileType = getFileType(getChatFileIdentity(selectFile))
+    const fileName = selectedFileName
 
     if (selectedFileType?.isPdf) {
       return (
@@ -342,7 +350,7 @@ const ChatPopupMessageItem = ({
           <RenderFileToken
             key={`pdf-${selectFile?.id || selectFile?.file}-${Date.now()}`}
             isPrivate={true}
-            pathFile={selectFile?.file}
+            pathFile={selectedFilePath}
             Component={({ src }) => (
               <PdfConverter
                 key={`pdf-converter-${selectFile?.id || selectFile?.file
@@ -372,7 +380,7 @@ const ChatPopupMessageItem = ({
           <RenderFileToken
             key={`office-${selectFile?.id || selectFile?.file}-${Date.now()}`}
             isPrivate={true}
-            pathFile={selectFile?.file}
+            pathFile={selectedFilePath}
             Component={({ src }) => (
               <OnlyOfficeComponent
                 key={`office-${selectFile?.id || selectFile?.file
@@ -389,7 +397,7 @@ const ChatPopupMessageItem = ({
                 fileUrl={src}
                 callbackUrl={
                   ApiConstants.onlyOfficeServerUrlCallBack +
-                  `?savePath=${selectFile?.file}&isPrivate=true`
+                  `?savePath=${selectedFilePath}&isPrivate=true`
                 }
               />
             )}
@@ -594,14 +602,15 @@ const ChatPopupMessageItem = ({
 
   const handleDowloadFile = file => {
     if (file) {
-      const fileName = file.FileName || file.name || ''
-      const fileExtension = file.Extension || fileName.split('.').pop().toLowerCase()
+      const fileName = getChatFileDisplayName(file) || ''
+      const filePath = file.file || file.File
+      const fileExtension = file.Extension || file.extension || fileName.split('.').pop().toLowerCase()
       const zipId = v4().toString()
       if (fileExtension === 'zip') {
         // handle zip file
         progressContext.addProgress({
           file,
-          path: file.file || file.File,
+          path: filePath,
           isPrivate: true,
           id: zipId,
           downloadType: FolderConstants.downloadTypes.zip,
@@ -612,7 +621,7 @@ const ChatPopupMessageItem = ({
         // handle regular files
         progressContext.addProgress({
           file,
-          path: file.file || file.File,
+          path: filePath,
           isPrivate: true,
           name: fileName || 'file'
         })
@@ -1205,7 +1214,9 @@ const ChatPopupMessageItem = ({
                 {message.files && message.files.length > 0 && (
                   <div className='mt-2 space-y-2'>
                     {message.files.map((file, index) => {
-                      const fileType = getFileType(file.file || file.name || file.fileName)
+                      const fileType = getFileType(getChatFileIdentity(file))
+                      const filePath = file.file || file.File
+                      const fileName = getChatFileDisplayName(file)
                       if (fileType.isImage) {
                         return (
                           <div
@@ -1213,12 +1224,12 @@ const ChatPopupMessageItem = ({
                             className={`${getAttachmentCardClass(isOwn)} relative group`}
                           >
                             <RenderFileToken
-                              pathFile={file.file}
+                              pathFile={filePath}
                               isPrivate={true}
                               Component={({ src }) => (
                                 <ImageAdvanced
                                   src={src}
-                                  alt={file.name || 'Image'}
+                                  alt={fileName || 'Image'}
                                   className='max-w-full h-auto rounded-lg object-cover border border-gray-200 shadow-sm cursor-pointer hover:opacity-95 transition-opacity'
                                   style={{ maxHeight: '300px' }}
                                   width={500}
@@ -1227,6 +1238,39 @@ const ChatPopupMessageItem = ({
                                   onError={e => {
                                     e.target.src = '/placeholder.svg'
                                   }}
+                                />
+                              )}
+                            />
+                            <div className='absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity'>
+                              <button
+                                className='p-1.5 hover:bg-gray-100 rounded-full bg-white shadow-sm border border-gray-200 text-blue-600 hover:text-blue-700 transition-all duration-200'
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  handleDowloadFile(file)
+                                }}
+                              >
+                                <Download size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      }
+                      if (fileType.isVideo) {
+                        return (
+                          <div
+                            key={index}
+                            className={`${getAttachmentCardClass(isOwn)} relative group`}
+                          >
+                            <RenderFileToken
+                              pathFile={filePath}
+                              isPrivate={true}
+                              Component={({ src }) => (
+                                <video
+                                  src={src}
+                                  controls
+                                  preload='metadata'
+                                  className='max-w-full max-h-[300px] rounded-lg border border-gray-200 shadow-sm bg-black cursor-pointer'
+                                  onClick={() => handleOnSelectFile(file)}
                                 />
                               )}
                             />

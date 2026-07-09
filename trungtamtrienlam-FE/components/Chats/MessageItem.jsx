@@ -35,6 +35,7 @@ import { FolderConstants } from '@/constants/dataConstants'
 import { ImageAdvanced } from '@/components/Form'
 import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
 import { isReminderForUser } from './reminderUserList'
+import { getChatFileDisplayName, getChatFileIdentity } from '@/helpers/chatFileHelpers'
 export default function MessageItem ({
   message,
   isAI,
@@ -143,13 +144,16 @@ export default function MessageItem ({
   }
 
   const getFileType = fileName => {
-    if (!fileName)
-      return { isPdf: false, isWord: false, isSupported: false, isImage: false }
+    if (!fileName) {
+      return { isPdf: false, isWord: false, isSupported: false, isImage: false, isVideo: false }
+    }
+
     const isPdf = FileHelpers.isFilePdf(fileName)
     const isWord =
       FileHelpers.isFileDocDocument(fileName) ||
       FileHelpers.isFileDocxDocument(fileName)
-    const isImage = /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName)
+    const isImage = FileHelpers.isFileImage(fileName) || /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(fileName)
+    const isVideo = FileHelpers.isFileVideo(fileName) || /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(fileName)
     const isSupported =
       isPdf ||
       isWord ||
@@ -158,8 +162,9 @@ export default function MessageItem ({
       FileHelpers.isFilePowerPointDocument(fileName) ||
       FileHelpers.isFilePowerPointxDocument(fileName) ||
       FileHelpers.isFileTxtDocument(fileName) ||
-      isImage
-    return { isPdf, isWord, isSupported, isImage }
+      isImage ||
+      isVideo
+    return { isPdf, isWord, isSupported, isImage, isVideo }
   }
 
   // Format thời gian hiển thị
@@ -211,13 +216,13 @@ export default function MessageItem ({
       return []
     }
   }
-  const onlyOfficeType = getTypeOnlyOffice(selectFile?.file)
+  const selectedFilePath = selectFile?.file || selectFile?.File
+  const selectedFileName = getChatFileDisplayName(selectFile)
+  const onlyOfficeType = getTypeOnlyOffice(getChatFileIdentity(selectFile))
   const renderFileViewer = () => {
     if (!selectFile || !showFileViewerModal) return null
-    const selectedFileType = selectFile
-      ? getFileType(selectFile.file || selectFile.name || selectFile.fileName)
-      : null
-    const fileName = selectFile?.name || selectFile?.fileName
+    const selectedFileType = getFileType(getChatFileIdentity(selectFile))
+    const fileName = selectedFileName
 
     if (selectedFileType?.isPdf) {
       return (
@@ -229,7 +234,7 @@ export default function MessageItem ({
           <RenderFileToken
             key={`pdf-${selectFile?.id || selectFile?.file}-${Date.now()}`}
             isPrivate={true}
-            pathFile={selectFile?.file}
+            pathFile={selectedFilePath}
             Component={({ src }) => (
               <PdfConverter
                 key={`pdf-converter-${
@@ -261,7 +266,7 @@ export default function MessageItem ({
           <RenderFileToken
             key={`office-${selectFile?.id || selectFile?.file}-${Date.now()}`}
             isPrivate={true}
-            pathFile={selectFile?.file}
+            pathFile={selectedFilePath}
             Component={({ src }) => (
               <OnlyOfficeComponent
                 key={`office-${
@@ -280,7 +285,7 @@ export default function MessageItem ({
                 fileUrl={src}
                 callbackUrl={
                   ApiConstants.onlyOfficeServerUrlCallBack +
-                  `?savePath=${selectFile?.file}&isPrivate=true`
+                  `?savePath=${selectedFilePath}&isPrivate=true`
                 }
               />
             )}
@@ -481,15 +486,16 @@ export default function MessageItem ({
   const handleDowloadFile = file => {
     if (file) {
       // Kiểm tra nếu là file zip
-      const fileName = file.FileName || file.name || ''
+      const fileName = getChatFileDisplayName(file) || ''
+      const filePath = file.file || file.File
       const fileExtension =
-        file.Extension || fileName.split('.').pop().toLowerCase()
+        file.Extension || file.extension || fileName.split('.').pop().toLowerCase()
       const zipId = v4().toString()
       if (fileExtension === 'zip') {
         // Xử lý đặc biệt cho file zip
         progressContext.addProgress({
           file,
-          path: file.file || file.File,
+          path: filePath,
           isPrivate: true,
           id: zipId,
           downloadType: FolderConstants.downloadTypes.zip,
@@ -503,7 +509,7 @@ export default function MessageItem ({
         // Xử lý cho file thường
         progressContext.addProgress({
           file,
-          path: file.file || file.File,
+          path: filePath,
           isPrivate: true,
           name: fileName || 'file'
         })
@@ -1371,9 +1377,9 @@ export default function MessageItem ({
                 {message.files && message.files.length > 0 && (
                   <div className='mt-2 space-y-2'>
                     {message.files.map((file, index) => {
-                      const fileType = getFileType(
-                        file.file || file.name || file.fileName
-                      )
+                      const fileType = getFileType(getChatFileIdentity(file))
+                      const filePath = file.file || file.File
+                      const fileName = getChatFileDisplayName(file)
                       if (fileType.isImage) {
                         return (
                           <div
@@ -1383,12 +1389,12 @@ export default function MessageItem ({
                             } rounded-lg relative group`}
                           >
                             <RenderFileToken
-                              pathFile={file.file}
+                              pathFile={filePath}
                               isPrivate={true}
                               Component={({ src }) => (
                                 <ImageAdvanced
                                   src={src}
-                                  alt={file.name || 'Image'}
+                                  alt={fileName || 'Image'}
                                   className='max-w-full h-auto rounded-lg object-cover border border-gray-200 shadow-sm cursor-pointer hover:opacity-95 transition-opacity'
                                   style={{ maxHeight: '300px' }}
                                   width={500}
@@ -1397,6 +1403,41 @@ export default function MessageItem ({
                                   onError={e => {
                                     e.target.src = '/placeholder.svg'
                                   }}
+                                />
+                              )}
+                            />
+                            <div className='absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity'>
+                              <button
+                                className='p-1.5 hover:bg-gray-100 rounded-full bg-white shadow-sm border border-gray-200 text-blue-600 hover:text-blue-700 transition-all duration-200'
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  handleDowloadFile(file)
+                                }}
+                              >
+                                <Download size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      }
+                      if (fileType.isVideo) {
+                        return (
+                          <div
+                            key={index}
+                            className={`${
+                              isOwn ? 'bg-white text-black' : 'bg-gray-100'
+                            } rounded-lg relative group`}
+                          >
+                            <RenderFileToken
+                              pathFile={filePath}
+                              isPrivate={true}
+                              Component={({ src }) => (
+                                <video
+                                  src={src}
+                                  controls
+                                  preload='metadata'
+                                  className='max-w-full max-h-[300px] rounded-lg border border-gray-200 shadow-sm bg-black cursor-pointer'
+                                  onClick={() => handleOnSelectFile(file)}
                                 />
                               )}
                             />

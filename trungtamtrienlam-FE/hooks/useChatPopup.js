@@ -38,6 +38,7 @@ import {
   ChatMessageConstants
 } from '@/constants/chatConstants'
 import { parseTextToParts } from '@/helpers/stringHelpers'
+import { normalizeChatFiles } from '@/helpers/chatFileHelpers'
 
 const POPUP_MESSAGE_PAGE_SIZE = 30
 const OLDER_MESSAGES_SPINNER_MIN_MS = 250
@@ -541,18 +542,9 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       if (!msg) return null
 
       const files = msg.chatFiles
-        ? safeParseFiles(msg.chatFiles).map(file => ({
-            id: file.ID || file.id,
-            name: file.FileName || file.name || file.fileName,
-            type: file.Extension
-              ? `file/${file.Extension}`
-              : file.type || 'application/octet-stream',
-            size: file.Size || file.size,
-            file: file.File || file.file || '',
-            extension: file.Extension || file.extension || ''
-          }))
+        ? normalizeChatFiles(safeParseFiles(msg.chatFiles))
         : Array.isArray(msg.files)
-        ? msg.files
+        ? normalizeChatFiles(msg.files)
         : []
 
       const seenBy = normalizeSeenUsers(msg.seenBy)
@@ -697,14 +689,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
   const normalizeMessages = useCallback(
     rawMsgs => {
       const mapped = rawMsgs.map(m => {
-        const files = safeParseFiles(m.chatFiles).map(f => ({
-          id: f.ID,
-          name: f.FileName,
-          type: f.Extension ? `file/${f.Extension}` : 'application/octet-stream',
-          size: f.Size,
-          file: f.File,
-          extension: f.Extension
-        }))
+        const files = normalizeChatFiles(safeParseFiles(m.chatFiles))
         const seenBy = normalizeSeenUsers(m.seenBy)
 
         return {
@@ -1175,17 +1160,10 @@ export function useChatMessages (chatId, userId, chatType, chat) {
           .slice(2, 10)}`
         const sentAt = new Date().toISOString()
         const optimisticFiles = hasFiles
-          ? attachedFiles.map((file, index) => ({
+          ? normalizeChatFiles(attachedFiles).map((file, index) => ({
+              ...file,
               id: `${clientTempId}-${index}`,
-              name: file.name || file.FileName || `File ${index + 1}`,
-              fileName: file.name || file.FileName || `File ${index + 1}`,
-              type: file.type || 'application/octet-stream',
-              size: file.size || file.Size || 0,
-              file: file.File || file.file || '',
-              extension:
-                file.Extension ||
-                file.extension ||
-                (file.name ? file.name.split('.').pop() : '')
+              ID: `${clientTempId}-${index}`
             }))
           : []
 

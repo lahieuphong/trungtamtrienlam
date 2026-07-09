@@ -76,6 +76,7 @@ import LoadingContext from '@/contexts/LoadingContext'
 import { Loader2, UserIcon } from 'lucide-react'
 import { parseTextToParts } from '@/helpers/stringHelpers'
 import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
+import { normalizeChatFiles } from '@/helpers/chatFileHelpers'
 import { se } from 'date-fns/locale'
 
 const CHAT_MESSAGE_PAGE_SIZE = 30
@@ -668,21 +669,12 @@ const ChatsPage = () => {
             const parsedFiles = safeParseFiles(msg.chatFiles)
 
             if (Array.isArray(parsedFiles)) {
-              files = parsedFiles.map(file => ({
-                id: file.ID,
-                name: file.FileName,
-                type: file.Extension
-                  ? `file/${file.Extension}`
-                  : 'application/octet-stream',
-                size: file.Size,
-                file: file.File,
-                extension: file.Extension
-              }))
+              files = normalizeChatFiles(parsedFiles)
             }
           }
           // Nếu đã có files được xử lý
           else if (msg.files && Array.isArray(msg.files)) {
-            files = msg.files
+            files = normalizeChatFiles(msg.files)
           }
 
           const seenBy = normalizeSeenUsers(msg.seenBy)
@@ -1267,18 +1259,9 @@ const ChatsPage = () => {
 
     const clientTempId = getMessageClientTempId(msg)
     const files = msg.chatFiles
-      ? safeParseFiles(msg.chatFiles).map(file => ({
-          id: file.ID || file.id,
-          name: file.FileName || file.name || file.fileName,
-          type: file.Extension
-            ? `file/${file.Extension}`
-            : file.type || 'application/octet-stream',
-          size: file.Size || file.size,
-          file: file.File || file.file || '',
-          extension: file.Extension || file.extension || ''
-        }))
+      ? normalizeChatFiles(safeParseFiles(msg.chatFiles))
       : Array.isArray(msg.files)
-      ? msg.files
+      ? normalizeChatFiles(msg.files)
       : []
 
     return {
@@ -1811,16 +1794,7 @@ const ChatsPage = () => {
           const parsedFiles = safeParseFiles(msg.chatFiles)
 
           if (Array.isArray(parsedFiles)) {
-            files = parsedFiles.map(file => ({
-              id: file.ID,
-              name: file.FileName,
-              type: file.Extension
-                ? `file/${file.Extension}`
-                : 'application/octet-stream',
-              size: file.Size,
-              file: file.File,
-              extension: file.Extension
-            }))
+            files = normalizeChatFiles(parsedFiles)
           }
         }
 
@@ -2499,17 +2473,10 @@ const ChatsPage = () => {
           .slice(2, 10)}`
         const sentAt = new Date().toISOString()
         const optimisticFiles = hasFiles
-          ? pendingAttachedFiles.map((file, index) => ({
+          ? normalizeChatFiles(pendingAttachedFiles).map((file, index) => ({
+              ...file,
               id: `${clientTempId}-${index}`,
-              name: file.name || file.FileName || `File ${index + 1}`,
-              fileName: file.name || file.FileName || `File ${index + 1}`,
-              type: file.type || 'application/octet-stream',
-              size: file.size || file.Size || 0,
-              file: file.File || file.file || '',
-              extension:
-                file.Extension ||
-                file.extension ||
-                (file.name ? file.name.split('.').pop() : '')
+              ID: `${clientTempId}-${index}`
             }))
           : []
 
