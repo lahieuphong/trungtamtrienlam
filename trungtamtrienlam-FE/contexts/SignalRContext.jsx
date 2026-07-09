@@ -290,7 +290,7 @@ export const SignalRProvider = ({ user, token, children }) => {
       };
 
       socket.onerror = (error) => {
-        console.error("Realtime WebSocket error:", error);
+        console.warn("Realtime WebSocket connection failed. Check that backend is running with start-be.bat.", error);
       };
 
       socket.onclose = () => {
