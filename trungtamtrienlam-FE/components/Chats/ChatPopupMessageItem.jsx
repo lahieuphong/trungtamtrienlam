@@ -1121,8 +1121,18 @@ const ChatPopupMessageItem = ({
   }
   // Normal message render. Message read status will be handled by IntersectionObserver in MessageList
   const fileViewer = renderFileViewer()
+  const deliveryText = message.isFailed
+    ? 'Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c'
+    : message.isPending
+    ? '\u0110ang g\u1eedi...'
+    : formatMessageTime(message.timestamp)
+
   return (
-    <div key={message.id} className='mb-4' onContextMenu={handleContextMenu}>
+    <div
+      key={message.id}
+      className={`mb-4 transition-all duration-200 ${message.isPending ? 'opacity-80 translate-y-[1px]' : 'opacity-100 translate-y-0'}`}
+      onContextMenu={message.isPending ? undefined : handleContextMenu}
+    >
       {showContextMenu && (
         <ContextMenu
           position={contextMenuPosition}
@@ -1147,8 +1157,8 @@ const ChatPopupMessageItem = ({
             </div>
           )}
           <div
-            onContextMenu={handleContextMenu}
-            className={getBubbleClass(isOwn, hasFileAttachments)}
+            onContextMenu={message.isPending ? undefined : handleContextMenu}
+            className={`${getBubbleClass(isOwn, hasFileAttachments)} transition-colors duration-200 ${message.isPending ? 'shadow-sm' : ''}`}
           >
             {/* Reply indicator */}
             {message.replyToMessage && (
@@ -1264,7 +1274,7 @@ const ChatPopupMessageItem = ({
             )}
           </div>
           <div className={getTimestampClass(isOwn)}>
-            {formatMessageTime(message.timestamp)}
+            {deliveryText}
           </div>
           {/* Render seen by avatars for own messages */}
           {renderSeenByAvatars()}

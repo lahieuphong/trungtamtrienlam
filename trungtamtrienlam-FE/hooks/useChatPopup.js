@@ -52,16 +52,31 @@ const dispatchChatListRefresh = chatId => {
 }
 
 const getSendChatResultPayload = response => {
-  const payload = response?.data?.data ?? response?.data ?? response
-  if (
+  let payload = response?.data ?? response
+  let guard = 0
+
+  while (
     payload &&
     typeof payload === 'object' &&
     Object.prototype.hasOwnProperty.call(payload, 'data') &&
-    (Object.prototype.hasOwnProperty.call(payload, 'status') ||
-      Object.prototype.hasOwnProperty.call(payload, 'message'))
+    guard < 4
   ) {
-    return payload.data
+    const hasResultFields = Boolean(
+      payload.chatID ||
+        payload.chatId ||
+        payload.ChatID ||
+        payload.id ||
+        payload.ID ||
+        payload.message ||
+        payload.Message ||
+        payload.messageID ||
+        payload.messageId
+    )
+    if (hasResultFields) break
+    payload = payload.data
+    guard += 1
   }
+
   return payload
 }
 
@@ -349,12 +364,32 @@ const withReplyInfo = list => {
   })
 }
 
+const getMessageClientTempId = message =>
+  message?.clientTempId || message?.ClientTempID || message?.clientTempID || ''
+
 const mergeMessages = (...messageGroups) => {
   const byId = new Map()
 
   messageGroups.flat().forEach(message => {
     if (!message?.id) return
-    byId.set(message.id, { ...(byId.get(message.id) || {}), ...message })
+
+    const clientTempId = getMessageClientTempId(message)
+    const matchingKey = clientTempId
+      ? Array.from(byId.entries()).find(
+          ([, item]) => getMessageClientTempId(item) === clientTempId
+        )?.[0]
+      : null
+
+    const key = matchingKey || message.id
+    const merged = { ...(byId.get(key) || {}), ...message }
+
+    if (matchingKey && matchingKey !== message.id && !String(message.id).startsWith('tmp-')) {
+      byId.delete(matchingKey)
+      byId.set(message.id, merged)
+      return
+    }
+
+    byId.set(key, merged)
   })
 
   return withReplyInfo(sortMessagesByTime(Array.from(byId.values())))
@@ -476,7 +511,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       requestAnimationFrame(() => {
         box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' })
       })
-    }, 200)
+    }, 40)
   }, [])
 
   const scrollToBottomInstantly = useCallback(() => {
@@ -500,6 +535,88 @@ export function useChatMessages (chatId, userId, chatType, chat) {
     if (!box) return false
     return box.scrollHeight - box.scrollTop - box.clientHeight < 100
   }, [])
+
+  const normalizeIncomingMessage = useCallback(
+    msg => {
+      if (!msg) return null
+
+      const files = msg.chatFiles
+        ? safeParseFiles(msg.chatFiles).map(file => ({
+            id: file.ID || file.id,
+            name: file.FileName || file.name || file.fileName,
+            type: file.Extension
+              ? `file/${file.Extension}`
+              : file.type || 'application/octet-stream',
+            size: file.Size || file.size,
+            file: file.File || file.file || '',
+            extension: file.Extension || file.extension || ''
+          }))
+        : Array.isArray(msg.files)
+        ? msg.files
+        : []
+
+      const seenBy = normalizeSeenUsers(msg.seenBy)
+      const clientTempId = getMessageClientTempId(msg)
+
+      return {
+        ...msg,
+        id: msg.id || msg.ID || clientTempId,
+        clientTempId,
+        ClientTempID: clientTempId,
+        content: msg.content ?? msg.Content ?? '',
+        message: msg.messageType ?? msg.MessageType,
+        messageType: msg.messageType ?? msg.MessageType,
+        sender: isCurrentUserMessage(msg.senderID ?? msg.SenderID, userInfo)
+          ? 'me'
+          : 'other',
+        senderID: msg.senderID ?? msg.SenderID,
+        timestamp:
+          msg.createdDate || msg.CreatedDate || msg.timestamp || new Date(),
+        createdDate:
+          msg.createdDate || msg.CreatedDate || msg.timestamp || new Date(),
+        avatar: msg.avatar || msg.Avatar || msg.senderAvatar || msg.SenderAvatar,
+        senderName: msg.senderName || msg.SenderName,
+        files,
+        chatLinks: msg.chatLinks || msg.ChatLinks || '',
+        isUnsend: msg.isUnsend || msg.IsUnsend || false,
+        eventID: msg.eventID || msg.EventID || null,
+        eventType: msg.eventType ?? msg.EventType ?? null,
+        isPin: msg.isPin || msg.IsPin || false,
+        NotePin: msg.notePin || msg.NotePin || false,
+        seenBy,
+        ListUserJoinReminder:
+          msg.listUserJoinRemind || msg.ListUserJoinReminder || [],
+        replyToID: msg.replyToID || msg.ReplyToID || null,
+        replyToMessage: msg.replyToMessage
+      }
+    },
+    [userInfo]
+  )
+
+  const upsertMessage = useCallback(
+    (incomingMessage, { scroll = false, instant = false } = {}) => {
+      const nextMessage = normalizeIncomingMessage(incomingMessage)
+      if (!nextMessage?.id) return
+
+      setMessages(prev => {
+        const next = mergeMessages(prev, [nextMessage])
+        messageHistoryRef.current = mergeMessages(
+          messageHistoryRef.current,
+          [nextMessage]
+        )
+        return next
+      })
+
+      if (scroll) {
+        if (instant) {
+          scrollToBottomInstantly()
+        } else {
+          setTimeout(scrollToBottom, 40)
+        }
+      }
+    },
+    [normalizeIncomingMessage, scrollToBottom, scrollToBottomInstantly]
+  )
 
   const loadGroupMembers = useCallback(async () => {
     if (!isGroup || !effectiveId) {
@@ -846,7 +963,11 @@ export function useChatMessages (chatId, userId, chatType, chat) {
           msg
         })
         setMessages(prev => {
-          const idx = prev.findIndex(c => c.id === msg.id)
+          const incomingTempId = getMessageClientTempId(msg)
+          const idx = prev.findIndex(c =>
+            c.id === msg.id ||
+            (incomingTempId && getMessageClientTempId(c) === incomingTempId)
+          )
           if (idx === -1) {
             console.log('[chat-seen:realtime-popup-miss]', {
               messageId: msg?.id,
@@ -912,98 +1033,10 @@ export function useChatMessages (chatId, userId, chatType, chat) {
 
       // Handle regular messages
       if (msg.messageType !== 5) {
-        // Not system message
-        // Add new message to messages list
-        setMessages(prev => {
-          const idx = prev.findIndex(c => c.id === msg.id)
-          if (idx !== -1) {
-            const next = [...prev]
-            next[idx] = { ...next[idx], ...msg }
-            messageHistoryRef.current = mergeMessages(
-              messageHistoryRef.current,
-              [next[idx]]
-            )
-            return next
-          }
-
-          // Process files if any
-          let files = []
-          if (msg.chatFiles) {
-            const parsedFiles = safeParseFiles(msg.chatFiles)
-            if (Array.isArray(parsedFiles)) {
-              files = parsedFiles.map(file => ({
-                id: file.ID,
-                name: file.FileName,
-                type: file.Extension
-                  ? `file/${file.Extension}`
-                  : 'application/octet-stream',
-                size: file.Size,
-                file: file.File,
-                extension: file.Extension
-              }))
-            }
-          } else if (msg.files && Array.isArray(msg.files)) {
-            files = msg.files
-          }
-
-          // Process seenBy if any
-          const seenBy = normalizeSeenUsers(msg.seenBy)
-
-          const newMessage = {
-            ...msg,
-            content: msg.content,
-            message: msg.messageType,
-            sender: isCurrentUserMessage(msg.senderID, userInfo) ? 'me' : 'other',
-            timestamp: msg.createdDate || msg.timestamp || new Date(),
-            avatar: msg.avatar,
-            senderName: msg.senderName,
-            files: files,
-            isUnsend: msg.isUnsend || false,
-            eventID: msg.eventID || null,
-            eventType: msg.eventType || null,
-            isPin: msg.isPin || false,
-            NotePin: msg.notePin || false,
-            seenBy: seenBy,
-            ListUserJoinReminder: msg.listUserJoinRemind,
-            replyToID: msg.replyToID || null,
-            replyToMessage: undefined
-          }
-          messageHistoryRef.current = mergeMessages(
-            messageHistoryRef.current,
-            [newMessage]
-          )
-
-          // First, add the new message to get updated array
-          const updatedMessages = [...prev, newMessage]
-
-          // Process reply messages - find parent message if this is a reply
-          if (newMessage.replyToID) {
-            const parentMessage = prev.find(m => m.id === newMessage.replyToID)
-            if (parentMessage) {
-              // Update the new message with reply info
-              const messageWithReply = {
-                ...newMessage,
-                replyToMessage: {
-                  id: parentMessage.id,
-                  content: parentMessage.content,
-                  sender: parentMessage.sender,
-                  senderName: parentMessage.senderName,
-                  files: parentMessage.files
-                }
-              }
-
-              // Replace the new message in the array with the updated one
-              const finalMessages = [...prev, messageWithReply]
-              console.log('📬 Reply message processed:', messageWithReply)
-              return finalMessages
-            }
-          }
-
-          return updatedMessages
-        })
-
-        // Scroll to bottom for new messages (with delay for reply messages)
-        setTimeout(() => scrollToBottom(), msg.replyToID ? 200 : 100)
+        upsertMessage(
+          { ...msg, isPending: false },
+          { scroll: true, instant: false }
+        )
       }
     })
 
@@ -1014,7 +1047,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
     loadPollsByChatID,
     loadRemindersByChatID,
     loadMessages,
-    scrollToBottom,
+    upsertMessage,
     currentUserID
   ])
 
@@ -1042,7 +1075,11 @@ export function useChatMessages (chatId, userId, chatType, chat) {
 
       if (msg.isSeenUpdate || msg.IsSeenUpdate) {
         setMessages(prev => {
-          const idx = prev.findIndex(m => m.id === msg.id)
+          const incomingTempId = getMessageClientTempId(msg)
+          const idx = prev.findIndex(m =>
+            m.id === msg.id ||
+            (incomingTempId && getMessageClientTempId(m) === incomingTempId)
+          )
           if (idx === -1) return prev
 
           const next = [...prev]
@@ -1056,65 +1093,10 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         return
       }
 
-      const files = msg.chatFiles
-        ? safeParseFiles(msg.chatFiles).map(f => ({
-            id: f.ID,
-            name: f.FileName,
-            type: f.Extension
-              ? `file/${f.Extension}`
-              : 'application/octet-stream',
-            size: f.Size,
-            file: f.File,
-            extension: f.Extension
-          }))
-        : Array.isArray(msg.files)
-        ? msg.files
-        : []
-
-      const seenBy = normalizeSeenUsers(msg.seenBy)
-
-      setMessages(prev => {
-        const idx = prev.findIndex(m => m.id === msg.id)
-        const base = {
-          ...msg,
-          id: msg.id,
-          content: msg.content,
-          timestamp:
-            msg.createdDate || msg.timestamp || new Date().toISOString(),
-          sender: isCurrentUserMessage(msg.senderID, userInfo) ? 'me' : 'other',
-          avatar: msg.avatar || msg.senderAvatar,
-          senderName: msg.senderName,
-          files,
-          isUnsend: msg.isUnsend || false,
-          eventID: msg.eventID || null,
-          eventType: msg.eventType || null,
-          isPin: msg.isPin || false,
-          NotePin: msg.notePin || false,
-          seenBy,
-          ListUserJoinReminder: msg.listUserJoinRemind || []
-        }
-        if (idx !== -1) {
-          const next = [...prev]
-          next[idx] = { ...next[idx], ...base }
-          messageHistoryRef.current = mergeMessages(
-            messageHistoryRef.current,
-            [next[idx]]
-          )
-          return next
-        }
-        messageHistoryRef.current = mergeMessages(
-          messageHistoryRef.current,
-          [base]
-        )
-        return [...prev, base]
-      })
-      // Chỉ load lại tin nhắn nếu không phải từ chính mình
-      // if (msg.senderID !== currentUserID) {
-      //   loadMessages(selectedChat)
-      // }
-      if (isAtBottom()) {
-        setTimeout(scrollToBottom, 100)
-      }
+      upsertMessage(
+        { ...msg, isPending: false },
+        { scroll: isAtBottom(), instant: false }
+      )
     })
     return unregister
   }, [
@@ -1125,7 +1107,8 @@ export function useChatMessages (chatId, userId, chatType, chat) {
     currentUserID,
     effectiveId,
     scrollToBottom,
-    isAtBottom
+    isAtBottom,
+    upsertMessage
   ])
 
   const handleFileUpload = useCallback(
@@ -1157,6 +1140,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
 
   const handleSendMessage = useCallback(
     async rawText => {
+      let clientTempId = ''
       try {
         if (!currentUserID || !effectiveId) {
           console.error('Missing userInfo or effectiveId:', {
@@ -1186,6 +1170,25 @@ export function useChatMessages (chatId, userId, chatType, chat) {
           ? chat?.id || currentChatId || chatId
           : currentChatId || chatId
 
+        clientTempId = `tmp-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 10)}`
+        const sentAt = new Date().toISOString()
+        const optimisticFiles = hasFiles
+          ? attachedFiles.map((file, index) => ({
+              id: `${clientTempId}-${index}`,
+              name: file.name || file.FileName || `File ${index + 1}`,
+              fileName: file.name || file.FileName || `File ${index + 1}`,
+              type: file.type || 'application/octet-stream',
+              size: file.size || file.Size || 0,
+              file: file.File || file.file || '',
+              extension:
+                file.Extension ||
+                file.extension ||
+                (file.name ? file.name.split('.').pop() : '')
+            }))
+          : []
+
         const payload = {
           SenderID: currentUserID,
           MessageType: hasFiles
@@ -1204,11 +1207,45 @@ export function useChatMessages (chatId, userId, chatType, chat) {
             : null,
           ChatFiles: hasFiles ? attachedFiles : '',
           ChatLinks: links.length ? JSON.stringify(links) : '',
+          ClientTempID: clientTempId,
           IsAI: isAI
         }
+
+        upsertMessage(
+          {
+            id: clientTempId,
+            clientTempId,
+            ClientTempID: clientTempId,
+            senderID: currentUserID,
+            senderName: userInfo?.fullName || userInfo?.FullName || 'B\u1ea1n',
+            avatar: userInfo?.avatar || '',
+            content: text,
+            messageType: payload.MessageType,
+            chatID: activeChatId || effectiveId,
+            createdDate: sentAt,
+            timestamp: sentAt,
+            files: optimisticFiles,
+            chatLinks: payload.ChatLinks,
+            replyToID: replyToMessage ? replyToMessage.id : null,
+            replyToMessage,
+            seenBy: [],
+            isPending: true
+          },
+          { scroll: true, instant: true }
+        )
+
         const res = await sendMessageApi(payload)
         setAttachedFiles([])
         setReplyToMessage(null)
+
+        const responsePayload = getSendChatResultPayload(res)
+        const responseMessage = responsePayload?.message || responsePayload?.Message
+        if (responseMessage) {
+          upsertMessage(
+            { ...responseMessage, clientTempId, ClientTempID: clientTempId, isPending: false },
+            { scroll: true, instant: true }
+          )
+        }
 
         const newChatID = getSendChatId(res, activeChatId)
         dispatchChatListRefresh(newChatID)
@@ -1348,6 +1385,21 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         setTimeout(scrollToBottom, 80)
       } catch (error) {
         console.error('Error in handleSendMessage:', error)
+        if (clientTempId) {
+          setMessages(prev => {
+            const next = prev.map(item =>
+              item.id === clientTempId ||
+              getMessageClientTempId(item) === clientTempId
+                ? { ...item, isPending: false, isFailed: true }
+                : item
+            )
+            messageHistoryRef.current = mergeMessages(
+              messageHistoryRef.current,
+              next
+            )
+            return next
+          })
+        }
         setIsSending(false)
         toast.error('Không thể gửi tin nhắn. Vui lòng thử lại.')
       }
@@ -1364,7 +1416,9 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       isAIChat,
       messages,
       loadMessages,
-      scrollToBottom
+      scrollToBottom,
+      upsertMessage,
+      userInfo
     ]
   )
 

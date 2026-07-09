@@ -1919,11 +1919,18 @@ class ChatSendApi(GenericAPIView):
                     [{'UserID': user_id} for user_id in target_user_ids],
                     ensure_ascii=False,
                 )
+                client_temp_id = _optional_string(
+                    request.data.get('ClientTempID')
+                    or request.data.get('clientTempId')
+                    or request.data.get('clientTempID')
+                )
                 message_payload.update({
                     'ChatType': chat.type,
                     'chatType': chat.type,
                     'ChatUsers': chat_users_payload,
                     'chatUsers': chat_users_payload,
+                    'ClientTempID': client_temp_id,
+                    'clientTempId': client_temp_id,
                 })
 
                 def publish_chat_events(chat_obj=chat, user_ids=target_user_ids, payload=message_payload):

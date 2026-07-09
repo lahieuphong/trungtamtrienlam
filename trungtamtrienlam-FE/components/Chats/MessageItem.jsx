@@ -1259,9 +1259,17 @@ export default function MessageItem ({
 
   // Normal message render
   // Message read status will be handled by IntersectionObserver in MessageList
+  const deliveryText = message.isFailed
+    ? 'Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c'
+    : message.isPending
+    ? '\u0110ang g\u1eedi...'
+    : formatMessageTime(message.timestamp)
 
   return (
-    <div key={message.id} className='mb-4'>
+    <div
+      key={message.id}
+      className={`mb-4 transition-all duration-200 ${message.isPending ? 'opacity-80 translate-y-[1px]' : 'opacity-100 translate-y-0'}`}
+    >
       {showContextMenu && <ContextMenu />}
       <div
         className={`flex ${
@@ -1303,8 +1311,8 @@ export default function MessageItem ({
           )}
 
           <div
-            onContextMenu={handleContextMenu}
-            className={`p-3 rounded-2xl ${
+            onContextMenu={message.isPending ? undefined : handleContextMenu}
+            className={`p-3 rounded-2xl transition-colors duration-200 ${message.isPending ? 'shadow-sm' : ''} ${
               isOwn
                 ? 'bg-[#F0F5FF] text-[#1F1F1F] ml-auto'
                 : 'bg-gray-100 text-gray-900'
@@ -1444,7 +1452,7 @@ export default function MessageItem ({
               isOwn ? 'text-right' : 'text-left'
             } flex items-center ${isOwn ? 'justify-end' : 'justify-start'}`}
           >
-            {formatMessageTime(message.timestamp)}
+            {deliveryText}
 
             {/* Read status indicators - only show for own messages */}
             {/* {isOwn && (

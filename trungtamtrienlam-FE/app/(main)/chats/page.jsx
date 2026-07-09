@@ -138,6 +138,54 @@ const getChatMemberRole = member =>
 const getCurrentUserId = user =>
   normalizeChatId(user?.userID ?? user?.UserID ?? user?.id ?? user?.ID)
 
+const getSendChatResultPayload = response => {
+  let payload = response?.data ?? response
+  let guard = 0
+
+  while (
+    payload &&
+    typeof payload === 'object' &&
+    Object.prototype.hasOwnProperty.call(payload, 'data') &&
+    guard < 4
+  ) {
+    const hasResultFields = Boolean(
+      payload.chatID ||
+        payload.chatId ||
+        payload.ChatID ||
+        payload.id ||
+        payload.ID ||
+        payload.message ||
+        payload.Message ||
+        payload.messageID ||
+        payload.messageId
+    )
+    if (hasResultFields) break
+    payload = payload.data
+    guard += 1
+  }
+
+  return payload
+}
+
+const getSendChatId = (response, fallback = '') => {
+  const payload = getSendChatResultPayload(response)
+  if (payload && typeof payload === 'object') {
+    return String(
+      payload.chatID ??
+        payload.chatId ??
+        payload.ChatID ??
+        payload.id ??
+        payload.ID ??
+        fallback ??
+        ''
+    ).trim()
+  }
+  return String(payload || fallback || '').trim()
+}
+
+const getMessageClientTempId = message =>
+  message?.clientTempId || message?.ClientTempID || message?.clientTempID || ''
+
 const normalizeSeenUser = user => {
   const id = user?.id ?? user?.ID ?? user?.userID ?? user?.UserID ?? ''
   const userID = user?.userID ?? user?.UserID ?? user?.id ?? user?.ID ?? ''
@@ -570,7 +618,12 @@ const ChatsPage = () => {
           isAtBottom() || isCurrentUserMessage(msg, userInfo)
 
         setChatMessages(prev => {
-          const idx = prev.findIndex(c => c.id === msg.id)
+          const incomingTempId = getMessageClientTempId(msg)
+          const idx = prev.findIndex(
+            c =>
+              c.id === msg.id ||
+              (incomingTempId && getMessageClientTempId(c) === incomingTempId)
+          )
           if (idx !== -1) {
             if (msg.isSeenUpdate || msg.IsSeenUpdate) {
               console.log('[chat-seen:realtime-page-received]', {
@@ -581,7 +634,7 @@ const ChatsPage = () => {
               })
             }
             const next = [...prev]
-            next[idx] = { ...next[idx], ...msg }
+            next[idx] = { ...next[idx], ...msg, isPending: false }
             if (msg.isSeenUpdate || msg.IsSeenUpdate) {
               console.log('[chat-seen:realtime-page-merged]', {
                 messageId: msg?.id,
@@ -636,8 +689,12 @@ const ChatsPage = () => {
 
           const isCurrentUserSender = isCurrentUserMessage(msg, userInfo)
 
+          const clientTempId = getMessageClientTempId(msg)
           const newMessage = {
             ...msg,
+            id: msg.id || msg.ID || clientTempId,
+            clientTempId,
+            ClientTempID: clientTempId,
             content: msg.content,
             message: msg.messageType,
             sender: isCurrentUserSender ? 'me' : 'other',
@@ -652,7 +709,8 @@ const ChatsPage = () => {
             isPin: msg.isPin || false,
             NotePin: msg.notePin || false,
             seenBy: seenBy,
-            ListUserJoinReminder: msg.listUserJoinRemind
+            ListUserJoinReminder: msg.listUserJoinRemind,
+            isPending: false
           }
           chatMessageHistoryRef.current = mergeChatMessagesById(
             chatMessageHistoryRef.current,
@@ -1204,6 +1262,58 @@ const ChatsPage = () => {
       .map(normalizeSeenUser)
       .filter(user => user.userID || user.id)
 
+  const normalizeIncomingChatMessage = msg => {
+    if (!msg) return null
+
+    const clientTempId = getMessageClientTempId(msg)
+    const files = msg.chatFiles
+      ? safeParseFiles(msg.chatFiles).map(file => ({
+          id: file.ID || file.id,
+          name: file.FileName || file.name || file.fileName,
+          type: file.Extension
+            ? `file/${file.Extension}`
+            : file.type || 'application/octet-stream',
+          size: file.Size || file.size,
+          file: file.File || file.file || '',
+          extension: file.Extension || file.extension || ''
+        }))
+      : Array.isArray(msg.files)
+      ? msg.files
+      : []
+
+    return {
+      ...msg,
+      id: msg.id || msg.ID || clientTempId,
+      clientTempId,
+      ClientTempID: clientTempId,
+      content: msg.content ?? msg.Content ?? '',
+      message: msg.messageType ?? msg.MessageType,
+      messageType: msg.messageType ?? msg.MessageType,
+      sender: isCurrentUserMessage(msg.senderID ?? msg.SenderID, userInfo)
+        ? 'me'
+        : 'other',
+      senderID: msg.senderID ?? msg.SenderID,
+      timestamp:
+        msg.createdDate || msg.CreatedDate || msg.timestamp || new Date(),
+      createdDate:
+        msg.createdDate || msg.CreatedDate || msg.timestamp || new Date(),
+      avatar: msg.avatar || msg.Avatar || msg.senderAvatar || msg.SenderAvatar,
+      senderName: msg.senderName || msg.SenderName,
+      files,
+      chatLinks: msg.chatLinks || msg.ChatLinks || '',
+      isUnsend: msg.isUnsend || msg.IsUnsend || false,
+      eventID: msg.eventID || msg.EventID || null,
+      eventType: msg.eventType ?? msg.EventType ?? null,
+      isPin: msg.isPin || msg.IsPin || false,
+      NotePin: msg.notePin || msg.NotePin || false,
+      seenBy: normalizeSeenUsers(msg.seenBy),
+      ListUserJoinReminder:
+        msg.listUserJoinRemind || msg.ListUserJoinReminder || [],
+      replyToID: msg.replyToID || msg.ReplyToID || null,
+      replyToMessage: msg.replyToMessage
+    }
+  }
+
   const messageListRef = useRef(null)
 
   const scrollToBottom = ({ smooth = true } = {}) => {
@@ -1226,7 +1336,7 @@ const ChatsPage = () => {
     if (smooth) {
       setTimeout(() => {
         requestAnimationFrame(scrollLatest)
-      }, 200)
+      }, 40)
       return
     }
 
@@ -1264,13 +1374,60 @@ const ChatsPage = () => {
     const byId = new Map()
 
     messageGroups.flat().forEach(msg => {
-      if (!msg?.id) return
-      byId.set(msg.id, { ...(byId.get(msg.id) || {}), ...msg })
+      const messageId = msg?.id || msg?.ID || getMessageClientTempId(msg)
+      if (!messageId) return
+
+      const message = { ...msg, id: messageId }
+      const clientTempId = getMessageClientTempId(message)
+      const matchingKey = clientTempId
+        ? Array.from(byId.entries()).find(
+            ([, item]) => getMessageClientTempId(item) === clientTempId
+          )?.[0]
+        : null
+
+      const key = matchingKey || String(messageId)
+      const merged = { ...(byId.get(key) || {}), ...message }
+
+      if (matchingKey && !String(messageId).startsWith('tmp-')) {
+        byId.delete(matchingKey)
+        byId.set(String(messageId), merged)
+        return
+      }
+
+      byId.set(key, merged)
     })
 
     return Array.from(byId.values()).sort(
-      (a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0)
+      (a, b) =>
+        new Date(a.timestamp || a.createdDate || 0) -
+        new Date(b.timestamp || b.createdDate || 0)
     )
+  }
+
+  const upsertChatMessage = (incomingMessage, { scroll = false, instant = false } = {}) => {
+    const nextMessage = normalizeIncomingChatMessage(incomingMessage)
+    if (!nextMessage?.id) return null
+
+    setChatMessages(() => {
+      const nextHistory = mergeChatMessagesById(
+        chatMessageHistoryRef.current,
+        [nextMessage]
+      )
+      const nextVisible = getPagedChatMessages(nextHistory, messagePage)
+      chatMessageHistoryRef.current = nextHistory
+      setHasMoreMessages(nextVisible.length < nextHistory.length)
+      return nextVisible
+    })
+
+    if (scroll) {
+      if (instant) {
+        scrollToBottom({ smooth: false })
+      } else {
+        setTimeout(() => scrollToBottom(), 40)
+      }
+    }
+
+    return nextMessage
   }
 
   useEffect(() => {
@@ -2316,14 +2473,19 @@ const ChatsPage = () => {
   }
 
   const handleSendMessage = async () => {
+    let clientTempId = ''
+    const messageText = message.trim()
+    const pendingAttachedFiles = attachedFiles
+    const hasFiles = pendingAttachedFiles.length > 0
+
     if (
-      (message.trim() || attachedFiles.length > 0) &&
+      (messageText || hasFiles) &&
       selectedChat &&
       userInfo?.userID
     ) {
       try {
         // Show loading if sending files
-        if (attachedFiles.length > 0) {
+        if (hasFiles) {
           loadingContext.show()
         }
 
@@ -2332,8 +2494,26 @@ const ChatsPage = () => {
         const isExistingChat = !!existingChat
 
         const isAI = isChatsAI || selectedChat === 'heritage-assistant'
+        clientTempId = `tmp-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 10)}`
+        const sentAt = new Date().toISOString()
+        const optimisticFiles = hasFiles
+          ? pendingAttachedFiles.map((file, index) => ({
+              id: `${clientTempId}-${index}`,
+              name: file.name || file.FileName || `File ${index + 1}`,
+              fileName: file.name || file.FileName || `File ${index + 1}`,
+              type: file.type || 'application/octet-stream',
+              size: file.size || file.Size || 0,
+              file: file.File || file.file || '',
+              extension:
+                file.Extension ||
+                file.extension ||
+                (file.name ? file.name.split('.').pop() : '')
+            }))
+          : []
 
-        const _message = parseTextToParts(message)
+        const _message = parseTextToParts(messageText)
 
         let listLink = []
         _message.forEach(part => {
@@ -2345,11 +2525,11 @@ const ChatsPage = () => {
         const messageData = {
           SenderID: userInfo.userID,
           MessageType:
-            attachedFiles.length > 0
+            hasFiles
               ? ChatMessageConstants.MessageType.File
               : ChatMessageConstants.MessageType.Text,
           ReplyToID: replyToMessage ? replyToMessage.id : null,
-          Content: message.trim(),
+          Content: messageText,
           ChatID:
             activeTab === 'individual' && isExistingChat
               ? selectedChat
@@ -2368,36 +2548,84 @@ const ChatsPage = () => {
                 }
               ])
               : null,
-          ChatFiles: attachedFiles.length > 0 ? attachedFiles : '',
+          ChatFiles: hasFiles ? pendingAttachedFiles : '',
           ChatLinks: listLink.length > 0 ? JSON.stringify(listLink) : '',
+          ClientTempID: clientTempId,
           IsAI: isAI
         }
 
+        upsertChatMessage(
+          {
+            id: clientTempId,
+            clientTempId,
+            ClientTempID: clientTempId,
+            senderID: userInfo.userID,
+            senderName: userInfo?.fullName || userInfo?.FullName || 'B\u1ea1n',
+            avatar: userInfo?.avatar || '',
+            content: messageText,
+            messageType: messageData.MessageType,
+            chatID: selectedChat,
+            createdDate: sentAt,
+            timestamp: sentAt,
+            files: optimisticFiles,
+            chatLinks: messageData.ChatLinks,
+            replyToID: replyToMessage ? replyToMessage.id : null,
+            replyToMessage,
+            seenBy: [],
+            isPending: true
+          },
+          { scroll: true, instant: true }
+        )
+
+        setMessage('')
+        setAttachedFiles([])
+        setReplyToMessage(null)
+
         const response = await sendMessage(messageData)
         if (response.status == 200) {
-          const actualChatId =
-            response?.data?.data?.chatID ||
-            response?.data?.data?.id ||
-            response?.data?.data ||
-            response?.data?.chatID ||
-            response?.data?.id ||
-            ''
+          const responsePayload = getSendChatResultPayload(response)
+          const responseMessage = responsePayload?.message || responsePayload?.Message
+          const actualChatId = getSendChatId(response, selectedChat)
           const targetChatId = actualChatId || selectedChat
+
+          if (responseMessage) {
+            upsertChatMessage(
+              {
+                ...responseMessage,
+                clientTempId,
+                ClientTempID: clientTempId,
+                isPending: false
+              },
+              { scroll: true, instant: true }
+            )
+          }
           if (actualChatId) {
             knownChatIdsRef.current.add(actualChatId)
           }
 
-          if (attachedFiles.length > 0) {
+          if (hasFiles) {
             loadingContext.hide()
           }
 
-          setMessage('')
-          setAttachedFiles([])
-          setReplyToMessage(null)
-          await loadMessages(targetChatId, { force: true })
+          if (!responseMessage) {
+            setTimeout(() => {
+              const stillPending = chatMessageHistoryRef.current.some(
+                item =>
+                  item.id === clientTempId ||
+                  getMessageClientTempId(item) === clientTempId
+              )
+              if (stillPending) {
+                loadMessages(targetChatId, {
+                  force: true,
+                  silent: true,
+                  scrollToBottomAfterLoad: true
+                })
+              }
+            }, 700)
+          }
 
           // Trigger reload attachments nếu có files hoặc links
-          const hasAttachments = attachedFiles.length > 0 || listLink.length > 0
+          const hasAttachments = hasFiles || listLink.length > 0
           if (hasAttachments) {
             setTimeout(() => {
               triggerReloadAttachments(targetChatId, messageData.MessageType)
@@ -2455,7 +2683,7 @@ const ChatsPage = () => {
             setSelectedChat(actualChatId)
           }
 
-          setTimeout(() => scrollToBottom(), 100)
+          setTimeout(() => scrollToBottom(), 40)
 
           const messageTime = new Date().toISOString()
           const senderName = userInfo.fullName || 'You'
@@ -2538,7 +2766,7 @@ const ChatsPage = () => {
           }
 
           if (isAI) {
-            if (message.trim()) {
+            if (messageText) {
               const messageAll = [
                 {
                   role: 'system',
@@ -2554,14 +2782,14 @@ const ChatsPage = () => {
                   })),
                 {
                   role: 'user',
-                  content: message.trim()
+                  content: messageText
                 }
               ]
 
-              const chatID_AI = response?.data?.data
+              const chatID_AI = targetChatId
               loadingContext.show()
               const res = await sendMessageAI(
-                message.trim(),
+                messageText,
                 selectedChatLinkId,
                 messageAll
               )
@@ -2609,6 +2837,22 @@ const ChatsPage = () => {
       } catch (error) {
         console.error('Error sending message:', error)
 
+        if (clientTempId) {
+          setChatMessages(prev => {
+            const next = prev.map(item =>
+              item.id === clientTempId ||
+              getMessageClientTempId(item) === clientTempId
+                ? { ...item, isPending: false, isFailed: true }
+                : item
+            )
+            chatMessageHistoryRef.current = mergeChatMessagesById(
+              chatMessageHistoryRef.current,
+              next
+            )
+            return next
+          })
+        }
+
         if (error.response?.status === 400) {
           if (
             error.response?.data?.title ===
@@ -2625,7 +2869,7 @@ const ChatsPage = () => {
         }
 
         // Hide loading in case of error
-        if (attachedFiles.length > 0) {
+        if (hasFiles) {
           loadingContext.hide()
         }
       }
