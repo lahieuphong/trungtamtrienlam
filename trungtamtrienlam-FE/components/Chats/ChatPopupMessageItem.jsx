@@ -17,7 +17,7 @@ import OnlyOfficeComponent, { getTypeOnlyOffice } from '../onlyOffices/OnlyOffic
 import RenderFileToken from '../controls/renderFileTokens/RenderFileToken'
 import { OnlyOfficeConstants } from '@/constants/configConstants'
 import { Modal } from '@/components/ui/modal'
-import PreviewFileModal from '../files/PreviewFileModal'
+import UniversalFilePreviewModal from '../files/UniversalFilePreviewModal'
 import { FileHelpers } from '@/helpers/fileHelpers'
 import { ApiConstants } from '@/constants/apiConstants'
 import ReminderCard from './ReminderCard'
@@ -33,7 +33,26 @@ const normalizeChatIdentity = value => {
   return String(value).trim().toLowerCase()
 }
 
-const getFileType = fileName => {
+const getFileType = file => {
+  const fileName = typeof file === 'string'
+    ? file
+    : [
+        file?.type,
+        file?.Type,
+        file?.name,
+        file?.Name,
+        file?.fileName,
+        file?.FileName,
+        file?.extension,
+        file?.Extension,
+        file?.file,
+        file?.File,
+        file?.path,
+        file?.Path
+      ]
+        .filter(Boolean)
+        .join('.')
+
   if (!fileName) {
     return { isPdf: false, isWord: false, isSupported: false, isImage: false, isVideo: false }
   }
@@ -42,8 +61,8 @@ const getFileType = fileName => {
   const isWord =
     FileHelpers.isFileDocDocument(fileName) ||
     FileHelpers.isFileDocxDocument(fileName)
-  const isImage = FileHelpers.isFileImage(fileName) || /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(fileName)
-  const isVideo = FileHelpers.isFileVideo(fileName) || /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(fileName)
+  const isImage = /(^|\.)image\//i.test(fileName) || FileHelpers.isFileImage(fileName) || /\.(jpg|jpeg|png|gif|bmp|webp|jfif|svg|tif|tiff|ico|avif|heic|heif|apng|arw|dng)(\?|#|$)/i.test(fileName)
+  const isVideo = /(^|\.)video\//i.test(fileName) || FileHelpers.isFileVideo(fileName) || /\.(mp4|mov|webm|mkv|avi|m4v)(\?|#|$)/i.test(fileName)
   const isSupported =
     isPdf ||
     isWord ||
@@ -337,7 +356,7 @@ const ChatPopupMessageItem = ({
   const onlyOfficeType = getTypeOnlyOffice(getChatFileIdentity(selectFile))
   const renderFileViewer = () => {
     if (!selectFile || !showFileViewerModal) return null
-    const selectedFileType = getFileType(getChatFileIdentity(selectFile))
+    const selectedFileType = getFileType(selectFile)
     const fileName = selectedFileName
 
     if (selectedFileType?.isPdf) {
@@ -406,7 +425,7 @@ const ChatPopupMessageItem = ({
       )
     } else if (selectedFileType?.isImage) {
       return (
-        <PreviewFileModal
+        <UniversalFilePreviewModal
           key={`preview-${selectFile?.id || selectFile?.file}-${Date.now()}`}
           file={selectFile}
           onClose={onClosePreviewFile}
@@ -415,7 +434,7 @@ const ChatPopupMessageItem = ({
     }
 
     return (
-      <PreviewFileModal
+      <UniversalFilePreviewModal
         key={`preview-${selectFile?.id || selectFile?.file}-${Date.now()}`}
         file={selectFile}
         onClose={onClosePreviewFile}
@@ -587,7 +606,24 @@ const ChatPopupMessageItem = ({
   }, [onRecallMessage, message.id])
 
   const handleOnSelectFile = file => {
-    setSelectFile(file)
+    const uploaderName =
+      file?.fullName ||
+      file?.FullName ||
+      file?.createdByName ||
+      file?.CreatedByName ||
+      file?.uploadedByName ||
+      file?.UploadedByName ||
+      file?.senderName ||
+      file?.SenderName ||
+      message?.senderName ||
+      message?.SenderName ||
+      message?.sender
+
+    setSelectFile({
+      ...file,
+      fullName: uploaderName,
+      senderName: uploaderName
+    })
     setShowFileViewerModal(true)
   }
 
@@ -1189,7 +1225,7 @@ const ChatPopupMessageItem = ({
                 </div>
               </div>
             )}
-            {message.type === 'file' ? (
+            {message.type === 'file' && !(message.files && message.files.length > 0) ? (
               <div className='flex items-center gap-3'>
                 <div className='w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center'>
                   <Paperclip size={20} className='text-blue-600' />
@@ -1214,7 +1250,7 @@ const ChatPopupMessageItem = ({
                 {message.files && message.files.length > 0 && (
                   <div className='mt-2 space-y-2'>
                     {message.files.map((file, index) => {
-                      const fileType = getFileType(getChatFileIdentity(file))
+                      const fileType = getFileType(file)
                       const filePath = file.file || file.File
                       const fileName = getChatFileDisplayName(file)
                       if (fileType.isImage) {
@@ -1238,39 +1274,6 @@ const ChatPopupMessageItem = ({
                                   onError={e => {
                                     e.target.src = '/placeholder.svg'
                                   }}
-                                />
-                              )}
-                            />
-                            <div className='absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity'>
-                              <button
-                                className='p-1.5 hover:bg-gray-100 rounded-full bg-white shadow-sm border border-gray-200 text-blue-600 hover:text-blue-700 transition-all duration-200'
-                                onClick={e => {
-                                  e.stopPropagation()
-                                  handleDowloadFile(file)
-                                }}
-                              >
-                                <Download size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      }
-                      if (fileType.isVideo) {
-                        return (
-                          <div
-                            key={index}
-                            className={`${getAttachmentCardClass(isOwn)} relative group`}
-                          >
-                            <RenderFileToken
-                              pathFile={filePath}
-                              isPrivate={true}
-                              Component={({ src }) => (
-                                <video
-                                  src={src}
-                                  controls
-                                  preload='metadata'
-                                  className='max-w-full max-h-[300px] rounded-lg border border-gray-200 shadow-sm bg-black cursor-pointer'
-                                  onClick={() => handleOnSelectFile(file)}
                                 />
                               )}
                             />

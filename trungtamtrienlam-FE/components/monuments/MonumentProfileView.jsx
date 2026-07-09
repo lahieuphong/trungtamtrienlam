@@ -7,6 +7,7 @@ import { ArrowRight, Boxes, Check, Download, FileText, Image as ImageIcon, Info,
 
 import { Button } from '@/components/common/Button'
 import MonumentCreateModal from '@/components/monuments/MonumentCreateModal'
+import UniversalFilePreviewModal from '@/components/files/UniversalFilePreviewModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { MonumentFileConstants, MonumentProfileConstants, MonumentSectionConstants } from '@/constants/monumentConstants'
@@ -1414,7 +1415,7 @@ export default function MonumentProfileView() {
                 onConfirm={confirmReasonAction}
                 loading={actionLoading}
             />
-            <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
+            <UniversalFilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
             <MonumentCreateModal
                 open={editOpen}
                 itemId={monument.id}

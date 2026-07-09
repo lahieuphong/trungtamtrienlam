@@ -19,7 +19,9 @@ const ImageAdvanced = forwardRef(
             className = '',
             classNameDiv = '',
             isDashedBorder = false,
-            sizes
+            sizes,
+            onError,
+            ...imageProps
         },
         ref
     ) => {
@@ -32,8 +34,10 @@ const ImageAdvanced = forwardRef(
         }, [src, fallbackSrc])
 
         return (
-            <div className={classNameDiv ? classNameDiv : "w-full flex items-center justify-center"}   >
+            <div className={classNameDiv ? classNameDiv : "w-full flex items-center justify-center"}>
                 <Image
+                    {...imageProps}
+                    ref={ref}
                     src={imgSrc}
                     alt={alt || ''}
                     width={isFill ? undefined : Number(width)}
@@ -41,7 +45,10 @@ const ImageAdvanced = forwardRef(
                     fill={isFill}
                     // sizes={isFill ? (sizes || "100vw") : undefined}
                     title={alt}
-                    onError={() => setImgSrc(fallbackSrc)}
+                    onError={event => {
+                        setImgSrc(fallbackSrc)
+                        onError?.(event)
+                    }}
                     // className={isDashedBorder ? "border-2 border-dashed border-gray-200" : className}
                     className={`${isDashedBorder ? 'border-2 border-dashed border-gray-200' : ''} ${className}  `}
                 />

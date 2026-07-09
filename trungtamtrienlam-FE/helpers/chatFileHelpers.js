@@ -17,6 +17,18 @@ const getExtension = value => {
   return String(extension || '').replace(/^\./, '').toLowerCase()
 }
 
+const getLocalPreviewUrl = file => {
+  if (file?.previewUrl || file?.objectUrl || file?.localUrl) {
+    return file.previewUrl || file.objectUrl || file.localUrl
+  }
+
+  if (typeof URL !== 'undefined' && typeof Blob !== 'undefined' && file instanceof Blob) {
+    return URL.createObjectURL(file)
+  }
+
+  return ''
+}
+
 const getFilePath = file =>
   file?.file ||
   file?.File ||
@@ -31,7 +43,9 @@ const getFilePath = file =>
 export const normalizeChatFile = (file, index = 0) => {
   if (!file) return null
 
-  const filePath = getFilePath(file)
+  const originalFilePath = getFilePath(file)
+  const previewUrl = getLocalPreviewUrl(file)
+  const filePath = originalFilePath || previewUrl
   const fileName =
     file.FileName ||
     file.fileName ||
@@ -61,6 +75,7 @@ export const normalizeChatFile = (file, index = 0) => {
     file: filePath,
     File: filePath,
     path: file.path || file.Path || filePath,
+    previewUrl,
     extension,
     Extension: extension,
     type,
@@ -86,6 +101,7 @@ export const getChatFileIdentity = file => {
   const name = getChatFileDisplayName(file)
   const path = getFilePath(file)
   const extension = file?.extension || file?.Extension || getExtension(name) || getExtension(path)
+  const type = file?.type || file?.Type
 
-  return [name, path, extension].filter(Boolean).join('.')
+  return [name, path, extension, type].filter(Boolean).join('.')
 }

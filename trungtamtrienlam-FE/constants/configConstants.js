@@ -7,7 +7,7 @@ class ConfigConstants {
     static extensionPng = '.png'
     static extensionJpg = '.jpg'
     static extensionJpeg = '.jpeg'
-    static extensionImages = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.jfif', '.svg', '.tiff', '.ico', '.arw', '.dng']
+    static extensionImages = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.jfif', '.svg', '.tif', '.tiff', '.ico', '.avif', '.heic', '.heif', '.apng', '.arw', '.dng']
     static extensionImageSpecials = ['.arw', '.dng']
     static extensionVideos = ['.m4a', '.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv', '.mpeg', '.mpg']
     static extensionAudio = ['.m4a', '.mp3', '.wav', '.ogg', '.flac', '.aac', '.wma']

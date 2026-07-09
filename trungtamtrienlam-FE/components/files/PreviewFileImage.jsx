@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Info, Download, ZoomIn, ZoomOut, X } from 'lucide-react'
 import moment from 'moment'
 
@@ -9,8 +9,11 @@ const PreviewFileImage = ({ file, onDownload, onClose, ishowBtn = true, isPrivat
   const containerRef = useRef(null)
   const [isShowInfo, setIsShowInfo] = React.useState(false)
   const [dragStart, setDragStart] = useState(null)
+  const loadingTimerRef = useRef(null)
   const [scale, setScale] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [loadProgress, setLoadProgress] = useState(1)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   // const renderFile = useMemo(() => (
   //     file.isGlobal ? <img src={file.path} className='w-[100%] select-none' style={{
@@ -72,12 +75,56 @@ const PreviewFileImage = ({ file, onDownload, onClose, ishowBtn = true, isPrivat
     setScale(Math.min(Math.max(newScale, minZoom), maxZoom))
   }
 
+  useEffect(() => {
+    if (loadingTimerRef.current) {
+      window.clearInterval(loadingTimerRef.current)
+      loadingTimerRef.current = null
+    }
+
+    setLoadProgress(1)
+    setIsLoaded(false)
+
+    loadingTimerRef.current = window.setInterval(() => {
+      setLoadProgress(current => {
+        if (current >= 95) return current
+
+        const step = Math.max(1, Math.round((95 - current) * 0.14))
+        return Math.min(95, current + step)
+      })
+    }, 120)
+
+    return () => {
+      if (loadingTimerRef.current) {
+        window.clearInterval(loadingTimerRef.current)
+        loadingTimerRef.current = null
+      }
+    }
+  }, [file.path])
+
+  const handleImageLoaded = () => {
+    if (loadingTimerRef.current) {
+      window.clearInterval(loadingTimerRef.current)
+      loadingTimerRef.current = null
+    }
+
+    setLoadProgress(100)
+    window.setTimeout(() => setIsLoaded(true), 120)
+  }
+
+  const imageStyle = {
+    transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
+    userSelect: 'none',
+    transition: dragStart ? 'none' : 'transform 0.2s ease-out'
+  }
+
+  const imageClassName = `object-contain select-none transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`
+
   const topics = (file.topics || '').split('|')
 
   return (
     <div className=''>
       <div
-        className='max-h-[50vh] overflow-hidden select-none flex items-center justify-center'
+        className='relative max-h-[50vh] min-h-[320px] overflow-hidden select-none flex items-center justify-center'
         ref={containerRef}
         onMouseDown={onHandleMouseDown}
         onMouseMove={onHandleMouseMove}
@@ -85,15 +132,23 @@ const PreviewFileImage = ({ file, onDownload, onClose, ishowBtn = true, isPrivat
         onWheel={onHandleWheelZoom}
         onMouseLeave={onHandleMouseUp}
       >
+        {!isLoaded && (
+          <div className='absolute inset-0 z-10 flex items-center justify-center bg-white/80'>
+            <div className='w-[min(280px,70%)] rounded-xl border border-[#D9D9D9] bg-white px-5 py-4 shadow-sm'>
+              <div className='h-2 overflow-hidden rounded-full bg-[#F0F5FF]'>
+                <div className='h-2 rounded-full bg-[#2F54EB] transition-all duration-150 ease-out' style={{ width: `${loadProgress}%` }} />
+              </div>
+              <p className='mt-3 text-center text-sm font-medium text-[#434343]'>Đang tải ảnh {loadProgress}%</p>
+            </div>
+          </div>
+        )}
         {file.isGlobal ? (
           <img
             src={file.path}
-            className='object-contain select-none'
-            style={{
-              transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-              userSelect: 'none',
-              transition: dragStart ? 'none' : 'transform 0.2s ease-out'
-            }}
+            className={imageClassName}
+            style={imageStyle}
+            onLoad={handleImageLoaded}
+            onError={handleImageLoaded}
           />
         ) : (
           <RenderFileToken
@@ -104,12 +159,10 @@ const PreviewFileImage = ({ file, onDownload, onClose, ishowBtn = true, isPrivat
               return (
                 <img
                   src={src}
-                  className='object-contain select-none'
-                  style={{
-                    transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                    userSelect: 'none',
-                    transition: dragStart ? 'none' : 'transform 0.2s ease-out'
-                  }}
+                  className={imageClassName}
+                  style={imageStyle}
+                  onLoad={handleImageLoaded}
+                  onError={handleImageLoaded}
                 />
               )
             }}

@@ -32,6 +32,13 @@ const RenderFileToken = ({
 
     setImageSrc(null)
 
+    if (/^(https?:|data:|blob:)/i.test(String(pathFile))) {
+      setImageSrc(pathFile)
+      return () => {
+        isActive = false
+      }
+    }
+
     RenderFileTokenUtil.getPublicToken().then(token => {
       if (!isActive) {
         return

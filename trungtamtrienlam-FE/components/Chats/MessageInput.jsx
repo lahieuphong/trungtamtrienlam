@@ -167,7 +167,7 @@ const MessageInput = forwardRef(({
         <input
           type='file'
           ref={imageInputRef}
-          accept='image/*, .mp4, .mkv' // Chỉ chấp nhận file hình ảnh
+          accept='image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.jfif,.svg,.tif,.tiff,.ico,.avif,.heic,.heif,.apng,.arw,.dng,.mp4,.mkv' // Chỉ chấp nhận file hình ảnh
           style={{ display: 'none' }}
           onChange={e => {
             if (e.target.files && e.target.files.length > 0) {

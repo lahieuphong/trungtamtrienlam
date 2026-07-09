@@ -65,7 +65,7 @@ export const Modal = ({
     }
 
     return (
-        <div className={`fixed inset-0 z-[100] flex ${classNamePosition} justify-center p-4 bg-black bg-opacity-50`}>
+        <div className={`fixed inset-0 z-[10000] flex ${classNamePosition} justify-center p-4 bg-black bg-opacity-50`}>
             <div
                 id={id}
                 className={`bg-white rounded-lg shadow-xl w-full ${modalSize} max-h-[95vh] flex flex-col`}

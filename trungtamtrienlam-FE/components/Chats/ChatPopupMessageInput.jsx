@@ -215,7 +215,7 @@ const ChatPopupMessageInput = forwardRef(({
         <input
           type='file'
           ref={imageInputRef}
-          accept='image/*, .mp4, .mkv'
+          accept='image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.jfif,.svg,.tif,.tiff,.ico,.avif,.heic,.heif,.apng,.arw,.dng,.mp4,.mkv'
           style={{ display: 'none' }}
           onChange={e => {
             if (e.target.files && e.target.files.length > 0) {
