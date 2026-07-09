@@ -4,12 +4,13 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useMaintenance } from "./MaintenanceContext";
 import { useNotification } from "./NotificationPushContext";
 import { MessageConstants } from "@/constants/notificationContants";
+import { ApiConstants } from "@/constants/apiConstants";
 
 const SignalRContext = createContext();
 
 export const useSignalR = () => useContext(SignalRContext);
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_BASE_URL = ApiConstants.baseUrl;
 
 const normalizeId = (value) => (value === null || value === undefined ? "" : String(value).trim());
 

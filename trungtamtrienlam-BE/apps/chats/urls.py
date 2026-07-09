@@ -1,6 +1,8 @@
 from django.urls import path
 
 from apps.chats.api import ChatCreateApi
+from apps.chats.api import ChatAdminUserIdApi
+from apps.chats.api import ChatAttachmentListApi
 from apps.chats.api import ChatChooseLeaderApi
 from apps.chats.api import ChatChooseSubLeaderApi
 from apps.chats.api import ChatConfirmUserJoinGroupApi
@@ -38,6 +40,8 @@ urlpatterns = [
     path('UpdateChatName', ChatUpdateNameApi.as_view()),
     path('UpdateChatAvatar', ChatUpdateAvatarApi.as_view()),
     path('GetUserByChatID', ChatUserByChatIDApi.as_view()),
+    path('GetAttack', ChatAttachmentListApi.as_view()),
+    path('GetUserIDAdmin', ChatAdminUserIdApi.as_view()),
     path('InsertMember', ChatInsertMemberApi.as_view()),
     path('ListUserWaitConfirm', ChatListUserWaitConfirmApi.as_view()),
     path('ConfirmUserJoinGroup', ChatConfirmUserJoinGroupApi.as_view()),

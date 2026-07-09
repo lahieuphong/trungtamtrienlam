@@ -8,6 +8,36 @@ const apiClient = axios.create({
     headers: { 'Content-Type': 'application/json' },
 })
 
+const formatAxiosRequestUrl = (config = {}) => {
+    const baseURL = (config.baseURL || ApiConstants.baseUrl || '').replace(/\/+$/, '')
+    const url = config.url || ''
+    if (/^https?:\/\//i.test(url)) return url
+    return `${baseURL}${url.startsWith('/') ? '' : '/'}${url}`
+}
+const emptyApiPayload = (data = []) => ({
+    status: 200,
+    message: 'No data',
+    data: {
+        status: 200,
+        message: null,
+        data,
+    },
+    errors: null,
+})
+
+const createApiClientNotFoundFallbackResponse = (config = {}) => {
+    if ((config.method || 'get').toLowerCase() !== 'get') return null
+
+    const url = (config.url || '').toLowerCase()
+    if (url.includes('/user/getlistdropdownforchats')) {
+        return emptyApiPayload({ users: [] })
+    }
+    if (url.includes('/auth/permissions/by-user')) {
+        return emptyApiPayload([])
+    }
+
+    return emptyApiPayload([])
+}
 apiClient.interceptors.request.use((config) => {
     const token = localStorage.getItem(ConfigConstants.localstorageTokenKey)
     if (token) {
@@ -35,6 +65,18 @@ apiClient.interceptors.response.use(
                 localStorage.removeItem(ConfigConstants.localstorageRefreshTokenKey)
                 localStorage.removeItem(ConfigConstants.localstorageUserInfoKey)
                 window.location.href = '/login'
+            }
+        }
+        if (error.response?.status === 404) {
+            console.warn('[api:404]', error.config?.method?.toUpperCase(), formatAxiosRequestUrl(error.config), error.response?.data)
+            const fallbackData = createApiClientNotFoundFallbackResponse(error.config)
+            if (fallbackData) {
+                return Promise.resolve({
+                    ...error.response,
+                    status: 200,
+                    statusText: 'OK',
+                    data: fallbackData,
+                })
             }
         }
 

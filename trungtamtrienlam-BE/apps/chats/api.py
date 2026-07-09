@@ -1105,9 +1105,9 @@ class ChatUserByChatIDApi(APIView):
         if not chat_id:
             return _failure('Thiếu chatID')
 
-        chat = ManagedChat.objects.filter(id=chat_id).first()
+        chat = ManagedChat.objects.filter(id=chat_id, is_deleted=False).first()
         if not chat:
-            return _failure('Không tìm thấy cuộc trò chuyện', status=404)
+            return _success([])
 
         current_user_id = _current_user_id(request)
         if not _can_access_chat(chat, current_user_id):
@@ -1123,6 +1123,75 @@ class ChatUserByChatIDApi(APIView):
             return _failure(str(exc))
 
         return _success([_chat_member_payload(member, chat) for member in members])
+
+
+class ChatAttachmentListApi(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request):
+        empty_payload = {
+            'chatFiles': [],
+            'chatLinks': [],
+            'files': [],
+            'links': [],
+        }
+        chat_id = _string(
+            request.query_params.get('chatID')
+            or request.query_params.get('chatId')
+            or request.query_params.get('id')
+        )
+        if not chat_id:
+            return _success(empty_payload)
+
+        chat = ManagedChat.objects.filter(id=chat_id, is_deleted=False).first()
+        if not chat:
+            return _success(empty_payload)
+
+        current_user_id = _current_user_id(request)
+        if not current_user_id:
+            return _success(empty_payload)
+        if not _can_access_chat(chat, current_user_id):
+            return _failure('Ban khong phai thanh vien cuoc tro chuyen')
+
+        message_type = _int(
+            request.query_params.get('messagetype')
+            or request.query_params.get('messageType'),
+            0,
+        )
+
+        files_qs = ManagedChatFile.objects.filter(chat_id=chat.id)
+        links_qs = ManagedChatLink.objects.filter(chat_id=chat.id)
+        if message_type:
+            message_ids = list(
+                ManagedChatMessage.objects
+                .filter(chat_id=chat.id, is_deleted=False, message_type=message_type)
+                .values_list('id', flat=True)
+            )
+            files_qs = files_qs.filter(message_id__in=message_ids)
+            links_qs = links_qs.filter(message_id__in=message_ids)
+
+        files = [_serialize_file(item) for item in files_qs.order_by('created_date')]
+        links = [_serialize_link(item) for item in links_qs.order_by('created_date')]
+        return _success({
+            'chatFiles': files,
+            'chatLinks': links,
+            'files': files,
+            'links': links,
+        })
+
+
+class ChatAdminUserIdApi(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request):
+        User = get_user_model()
+        admin = (
+            User.objects
+            .filter(is_active=True, is_superuser=True)
+            .order_by('id')
+            .first()
+        )
+        return _success(str(admin.id) if admin else '')
 
 
 class ChatInsertMemberApi(APIView):

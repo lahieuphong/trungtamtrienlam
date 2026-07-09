@@ -357,7 +357,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       setIndividualUsersList(individualChats)
       return individualChats
     } catch (error) {
-      console.error('Error loading individual users list:', error)
+      console.warn('Error loading individual users list:', error)
       setIndividualUsersList([])
       return []
     }
@@ -506,7 +506,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
 
         setUserRequests(enrichedRequests)
       } catch (error) {
-        console.error('Error loading user requests:', error)
+        console.warn('Error loading user requests:', error)
         setUserRequests([])
       }
     },
@@ -1370,7 +1370,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
           } catch (error) {
             // Nếu API call fail thì remove khỏi seen set để có thể thử lại
             seenMessagesRef.current.delete(messageId)
-            console.error('Error marking message as seen:', error)
+            console.warn('Error marking message as seen:', error)
           }
         }, 500) // Debounce 500ms
       } catch (error) {

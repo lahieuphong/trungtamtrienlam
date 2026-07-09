@@ -1413,7 +1413,7 @@ const ChatsPage = () => {
       setUserRequestsChatId(requestChatId)
       return filteredRequests
     } catch (error) {
-      console.error('Error loading user requests:', error)
+      console.warn('Error loading user requests:', error)
       if (normalizeChatId(selectedChatRef.current) === requestChatId) {
         setUserRequests([])
         setUserRequestsChatId(requestChatId)
@@ -1446,7 +1446,7 @@ const ChatsPage = () => {
 
       setUserChatList(chatsWithOnlineStatus)
     } catch (error) {
-      console.error('Error fetching user chats:', error)
+      console.warn('Error fetching user chats:', error)
     }
   }
 
@@ -3077,7 +3077,7 @@ const ChatsPage = () => {
         return next
       })
     } catch (error) {
-      console.error('Error marking message as seen:', error)
+      console.warn('Error marking message as seen:', error)
     }
   }
 

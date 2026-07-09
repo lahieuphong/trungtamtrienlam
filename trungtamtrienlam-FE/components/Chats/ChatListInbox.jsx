@@ -99,7 +99,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
       if (!targetId || !currentUserId || getUnreadCount(chat) <= 0) return
 
       markMessageAsSeen(targetId, currentUserId).catch(error => {
-        console.error('Error marking dropdown chat as seen:', error)
+        console.warn('Error marking dropdown chat as seen:', error)
       })
     },
     [currentUserId]
@@ -653,7 +653,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
       setUserChatList(sortedChats)
       setIsLoading(false)
     } catch (error) {
-      console.error('Error fetching user chats:', error)
+      console.warn('Error fetching user chats:', error)
       setIsLoading(false)
     }
   }
@@ -702,7 +702,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
 
       setAllUsersList(uniqueUsers)
     } catch (error) {
-      console.error('Error fetching all users:', error)
+      console.warn('Error fetching all users:', error)
     }
   }
 
@@ -764,7 +764,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         setGroupChatList(sortedGroups)
         setIsLoading(false)
       } catch (error) {
-        console.error('Error fetching group chats:', error)
+        console.warn('Error fetching group chats:', error)
         setIsLoading(false)
       }
     }

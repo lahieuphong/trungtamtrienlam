@@ -32,23 +32,21 @@ const RenderFileToken = ({
 
     setImageSrc(null)
 
-    RenderFileTokenUtil.getPublicToken().then(res => {
+    RenderFileTokenUtil.getPublicToken().then(token => {
       if (!isActive) {
         return
       }
 
-      if (res) {
-        const newImageSrc = RenderFileTokenUtil.generateUrl(
-          pathFile,
-          encodeURIComponent(res),
-          isPrivate
-        )
+      const newImageSrc = RenderFileTokenUtil.generateUrl(
+        pathFile,
+        token,
+        isPrivate
+      )
 
-        setImageSrc(newImageSrc)
-      }
+      setImageSrc(newImageSrc || null)
     }).catch(() => {
       if (isActive) {
-        setImageSrc(null)
+        setImageSrc(RenderFileTokenUtil.generateFallbackUrl(pathFile) || null)
       }
     })
 

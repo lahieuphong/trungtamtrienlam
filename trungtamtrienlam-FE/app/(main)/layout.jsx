@@ -35,6 +35,33 @@ function RealtimeProviders({ children }) {
     }
   }, [])
 
+  useEffect(() => {
+    const formatAxiosUrl = (config = {}) => {
+      const baseURL = (config.baseURL || '').replace(/\/+$/, '')
+      const url = config.url || ''
+      if (/^https?:\/\//i.test(url)) return url
+      return `${baseURL}${url.startsWith('/') ? '' : '/'}${url}`
+    }
+
+    const handleUnhandledRejection = event => {
+      const reason = event.reason
+      if (reason?.isAxiosError && reason?.response?.status === 404) {
+        console.warn(
+          '[api:404:unhandled]',
+          reason.config?.method?.toUpperCase(),
+          formatAxiosUrl(reason.config),
+          reason.response?.data
+        )
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection, true)
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection, true)
+    }
+  }, [])
+
   return (
     <MaintenanceProvider>
       <NotificationProvider>
