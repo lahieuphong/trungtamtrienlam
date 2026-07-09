@@ -1,13 +1,17 @@
+import asyncio
 import json
 import logging
 import os
 from pathlib import Path
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.db import DatabaseError
 from django.db.models import Q
 from django.db import transaction
+from django.http import StreamingHttpResponse
 from django.utils import timezone
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
@@ -23,10 +27,27 @@ from apps.chats.models import ManagedChatPin
 from apps.chats.models import ManagedChatSeen
 from apps.chats.models import ManagedChatUser
 from apps.chats.realtime import broadcast_chat_message
+from apps.chats.realtime import user_group_name
+from apps.notifications.realtime import notification_user_group_name
 from apps.notifications.notify_events import notify_events
 
 
 logger = logging.getLogger(__name__)
+
+
+def _sse_payload(event_name, data=None):
+    payload = json.dumps({
+        'event': event_name,
+        'data': data,
+    }, ensure_ascii=False)
+    return f'data: {payload}\n\n'
+
+
+async def _receive_channel_event(channel_layer, channel_name, timeout=25):
+    try:
+        return await asyncio.wait_for(channel_layer.receive(channel_name), timeout=timeout)
+    except asyncio.TimeoutError:
+        return None
 
 
 CHAT_TYPE_PRIVATE = 1
@@ -1766,6 +1787,61 @@ class ChatRemoveGroupApi(APIView):
         })
 
 
+class ChatEventsApi(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request):
+        user_id = _current_user_id(request) or _string(
+            request.query_params.get('userID')
+            or request.query_params.get('userId')
+            or request.query_params.get('userid')
+        )
+        if not user_id:
+            return _failure('Thieu userID')
+
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            return _failure('Realtime chua san sang', status=503)
+
+        try:
+            channel_name = async_to_sync(channel_layer.new_channel)('sse.chat')
+            group_names = [
+                user_group_name(user_id),
+                notification_user_group_name(user_id),
+            ]
+            for group_name in group_names:
+                async_to_sync(channel_layer.group_add)(group_name, channel_name)
+        except Exception as exc:
+            logger.warning('Cannot open chat SSE stream for user %s: %s', user_id, exc)
+            return _failure('Realtime chua san sang', status=503)
+
+        def event_stream():
+            try:
+                yield _sse_payload('Connected', {'userID': user_id, 'transport': 'sse'})
+                while True:
+                    event = async_to_sync(_receive_channel_event)(channel_layer, channel_name)
+                    if event is None:
+                        yield ': heartbeat\n\n'
+                        continue
+
+                    yield _sse_payload(event.get('event', 'Message'), event.get('data'))
+            except GeneratorExit:
+                pass
+            except Exception as exc:
+                logger.warning('Chat SSE stream stopped for user %s: %s', user_id, exc)
+            finally:
+                for group_name in group_names:
+                    try:
+                        async_to_sync(channel_layer.group_discard)(group_name, channel_name)
+                    except Exception:
+                        pass
+
+        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+        response['Cache-Control'] = 'no-cache'
+        response['X-Accel-Buffering'] = 'no'
+        return response
+
+
 class ChatSendApi(GenericAPIView):
     permission_classes = (AllowAny,)
 
@@ -1858,7 +1934,14 @@ class ChatSendApi(GenericAPIView):
         except DatabaseError as exc:
             return _failure(str(exc))
 
-        return _success(chat.id)
+        return _success({
+            'chatID': chat.id,
+            'chatId': chat.id,
+            'id': chat.id,
+            'messageID': message.id,
+            'messageId': message.id,
+            'message': message_payload,
+        })
 
 
 class ChatDetailApi(GenericAPIView):

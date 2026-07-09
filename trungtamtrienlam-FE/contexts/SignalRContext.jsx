@@ -30,6 +30,19 @@ const buildChatWebSocketUrl = (baseUrl, userId, token) => {
   return `${wsBase}/ws/chat/?${params.toString()}`;
 };
 
+const buildChatEventSourceUrl = (baseUrl, userId, token) => {
+  const fallbackOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8002";
+  const rawBase = (baseUrl || fallbackOrigin).replace(/\/+$/, "");
+  const apiBase = /\/api$/i.test(rawBase) ? rawBase : `${rawBase}/api`;
+  const params = new URLSearchParams({ userID: userId });
+
+  if (token) {
+    params.set("token", token);
+  }
+
+  return `${apiBase}/Chat/Events?${params.toString()}`;
+};
+
 const normalizeChatMessage = (message) => {
   if (!message || typeof message !== "object") {
     return message;
@@ -79,8 +92,11 @@ const callCallbacks = (callbacksRef, ...args) => {
 
 export const SignalRProvider = ({ user, token, children }) => {
   const connectionRef = useRef(null);
+  const eventSourceRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
+  const sseReconnectTimerRef = useRef(null);
+  const sseReconnectAttemptRef = useRef(0);
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState({});
@@ -128,11 +144,36 @@ export const SignalRProvider = ({ user, token, children }) => {
 
     let stopped = false;
     const reconnectDelays = [1000, 2000, 5000, 10000, 30000];
+    const sseReconnectDelays = [500, 1000, 2000, 5000, 10000];
 
     const clearReconnect = () => {
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
+      }
+    };
+
+    const clearSseReconnect = () => {
+      if (sseReconnectTimerRef.current) {
+        clearTimeout(sseReconnectTimerRef.current);
+        sseReconnectTimerRef.current = null;
+      }
+    };
+
+    const isEventSourceActive = () => {
+      const source = eventSourceRef.current;
+      return Boolean(source && source.readyState !== EventSource.CLOSED);
+    };
+
+    const closeEventSource = () => {
+      clearSseReconnect();
+      const source = eventSourceRef.current;
+      eventSourceRef.current = null;
+      if (source) {
+        source.onopen = null;
+        source.onmessage = null;
+        source.onerror = null;
+        source.close();
       }
     };
 
@@ -143,6 +184,15 @@ export const SignalRProvider = ({ user, token, children }) => {
       reconnectAttemptRef.current += 1;
       clearReconnect();
       reconnectTimerRef.current = setTimeout(connect, delay);
+    };
+
+    const scheduleSseReconnect = () => {
+      if (stopped || typeof window === "undefined" || !window.EventSource) return;
+
+      const delay = sseReconnectDelays[Math.min(sseReconnectAttemptRef.current, sseReconnectDelays.length - 1)];
+      sseReconnectAttemptRef.current += 1;
+      clearSseReconnect();
+      sseReconnectTimerRef.current = setTimeout(startEventSource, delay);
     };
 
     const handleTyping = (payload = {}) => {
@@ -268,6 +318,49 @@ export const SignalRProvider = ({ user, token, children }) => {
       }
     };
 
+    const startEventSource = () => {
+      if (stopped || typeof window === "undefined" || !window.EventSource) return;
+
+      const currentSource = eventSourceRef.current;
+      if (currentSource && currentSource.readyState !== EventSource.CLOSED) return;
+
+      const sseUrl = buildChatEventSourceUrl(API_BASE_URL, userId, token);
+      const source = new EventSource(sseUrl);
+      eventSourceRef.current = source;
+
+      source.onopen = () => {
+        clearSseReconnect();
+        console.log("Realtime SSE fallback connected");
+      };
+
+      source.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          const eventName = message.event || message.Event || message.type || message.Type;
+          const payload = Object.prototype.hasOwnProperty.call(message, "data") ? message.data : message;
+          if (eventName === "Connected") {
+            sseReconnectAttemptRef.current = 0;
+          }
+          handleEvent(eventName, payload);
+        } catch (error) {
+          console.error("Realtime SSE message parse error:", error);
+        }
+      };
+
+      source.onerror = (error) => {
+        console.warn("Realtime SSE fallback connection failed.", error);
+        if (eventSourceRef.current === source) {
+          eventSourceRef.current = null;
+        }
+        source.close();
+        const socket = connectionRef.current;
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          setIsConnected(false);
+        }
+        scheduleSseReconnect();
+      };
+    };
+
     let connectedAckTimer = null;
     const clearConnectedAck = () => {
       if (connectedAckTimer) {
@@ -299,6 +392,7 @@ export const SignalRProvider = ({ user, token, children }) => {
           const eventName = message.event || message.Event || message.type || message.Type;
           const payload = Object.prototype.hasOwnProperty.call(message, "data") ? message.data : message;
           if (eventName === "Connected") {
+            closeEventSource();
             clearConnectedAck();
           }
           handleEvent(eventName, payload);
@@ -316,7 +410,10 @@ export const SignalRProvider = ({ user, token, children }) => {
         if (connectionRef.current === socket) {
           connectionRef.current = null;
         }
-        setIsConnected(false);
+        if (!isEventSourceActive()) {
+          setIsConnected(false);
+        }
+        startEventSource();
         scheduleReconnect();
       };
     }
@@ -326,7 +423,9 @@ export const SignalRProvider = ({ user, token, children }) => {
     return () => {
       stopped = true;
       clearReconnect();
+      clearSseReconnect();
       clearConnectedAck();
+      closeEventSource();
       setIsConnected(false);
       const socket = connectionRef.current;
       connectionRef.current = null;

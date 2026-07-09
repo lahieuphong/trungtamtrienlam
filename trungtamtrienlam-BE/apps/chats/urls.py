@@ -7,6 +7,7 @@ from apps.chats.api import ChatChooseLeaderApi
 from apps.chats.api import ChatChooseSubLeaderApi
 from apps.chats.api import ChatConfirmUserJoinGroupApi
 from apps.chats.api import ChatDetailApi
+from apps.chats.api import ChatEventsApi
 from apps.chats.api import ChatInsertMemberApi
 from apps.chats.api import ChatLeaveGroupApi
 from apps.chats.api import ChatListApi
@@ -30,6 +31,7 @@ urlpatterns = [
     path('CreateChat', ChatCreateApi.as_view()),
     path('GetList', ChatListApi.as_view()),
     path('SendChat', ChatSendApi.as_view()),
+    path('Events', ChatEventsApi.as_view()),
     path('GetDetail', ChatDetailApi.as_view()),
     path('SeenChat', ChatSeenApi.as_view()),
     path('PinOrUnPinChat', ChatPinOrUnPinApi.as_view()),

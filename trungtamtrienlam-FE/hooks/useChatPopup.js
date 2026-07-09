@@ -51,6 +51,36 @@ const dispatchChatListRefresh = chatId => {
   )
 }
 
+const getSendChatResultPayload = response => {
+  const payload = response?.data?.data ?? response?.data ?? response
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    Object.prototype.hasOwnProperty.call(payload, 'data') &&
+    (Object.prototype.hasOwnProperty.call(payload, 'status') ||
+      Object.prototype.hasOwnProperty.call(payload, 'message'))
+  ) {
+    return payload.data
+  }
+  return payload
+}
+
+const getSendChatId = (response, fallback = '') => {
+  const payload = getSendChatResultPayload(response)
+  if (payload && typeof payload === 'object') {
+    return String(
+      payload.chatID ??
+        payload.chatId ??
+        payload.ChatID ??
+        payload.id ??
+        payload.ID ??
+        fallback ??
+        ''
+    ).trim()
+  }
+  return String(payload || fallback || '').trim()
+}
+
 const normalizeChatIdentity = value => {
   if (value === null || value === undefined) return ''
   return String(value).trim().toLowerCase()
@@ -787,7 +817,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       }
     }
 
-    const timer = setInterval(pollMessages, 2500)
+    const timer = setInterval(pollMessages, 800)
     pollMessages()
     return () => clearInterval(timer)
   }, [
@@ -1180,7 +1210,7 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         setAttachedFiles([])
         setReplyToMessage(null)
 
-        const newChatID = res?.data?.data || res?.data?.chatID || activeChatId
+        const newChatID = getSendChatId(res, activeChatId)
         dispatchChatListRefresh(newChatID)
         if (newChatID && newChatID !== currentChatId && !activeChatId) {
           setCurrentChatId(newChatID)

@@ -791,7 +791,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
       }
     }
 
-    const timer = setInterval(pollChatLists, 5000)
+    const timer = setInterval(pollChatLists, 1500)
     pollChatLists()
     return () => clearInterval(timer)
   }, [isConnected, currentUserId])

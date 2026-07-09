@@ -2057,7 +2057,7 @@ const ChatsPage = () => {
       }
     }
 
-    const timer = setInterval(pollRealtimeFallback, 3000)
+    const timer = setInterval(pollRealtimeFallback, 1000)
     pollRealtimeFallback()
     return () => clearInterval(timer)
   }, [isConnected, userInfo?.userID])
