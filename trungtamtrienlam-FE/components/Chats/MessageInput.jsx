@@ -149,7 +149,6 @@ const MessageInput = forwardRef(({
         <input
           type='file'
           ref={fileInputRef}
-          accept='.zip,.rar,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.ppt,.pptx'
           style={{ display: 'none' }}
           onChange={e => {
             if (e.target.files && e.target.files.length > 0) {
@@ -167,7 +166,7 @@ const MessageInput = forwardRef(({
         <input
           type='file'
           ref={imageInputRef}
-          accept='image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.jfif,.svg,.tif,.tiff,.ico,.avif,.heic,.heif,.apng,.arw,.dng,.mp4,.mkv' // Chỉ chấp nhận file hình ảnh
+          accept='image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.jfif,.svg,.tif,.tiff,.ico,.avif,.heic,.heif,.apng,.arw,.dng,.mp4,.mkv'
           style={{ display: 'none' }}
           onChange={e => {
             if (e.target.files && e.target.files.length > 0) {

@@ -11,15 +11,15 @@ class ConfigConstants {
     static extensionImageSpecials = ['.arw', '.dng']
     static extensionVideos = ['.m4a', '.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv', '.mpeg', '.mpg']
     static extensionAudio = ['.m4a', '.mp3', '.wav', '.ogg', '.flac', '.aac', '.wma']
-    static extensionDocuments = ['.pdf', '.docx', '.txt', '.xlsx', '.pptx', '.doc', '.xls', '.ppt', '.odt', '.ods', '.odp']
+    static extensionDocuments = ['.pdf', '.docx', '.txt', '.xlsx', '.pptx', '.doc', '.xls', '.ppt', '.odt', '.ods', '.odp', '.xlsm', '.xlsb', '.csv', '.md', '.markdown', '.json', '.xml', '.html', '.htm', '.rtf', '.log']
     static extension3DModels = ['.stl', '.obj', '.fbx', '.gltf', '.glb']
     static extensionDocxDocuments = ['.docx', '.pdf']
     static extensionDocDocuments = ['.doc', '.odt']
-    static extensionExcelxDocuments = ['.xlsx']
+    static extensionExcelxDocuments = ['.xlsx', '.xlsm', '.xlsb']
     static extensionExcelDocuments = ['.xls', '.ods']
     static extensionPowerPointxDocuments = ['.pptx']
     static extensionPowerPointDocuments = ['.ppt', '.odp']
-    static extensionTxtDocuments = ['.txt', '.md', '.csv']
+    static extensionTxtDocuments = ['.txt', '.md', '.markdown', '.csv', '.json', '.xml', '.html', '.htm', '.rtf', '.log']
     static extensionZip = ['.zip', '.rar', '.7z', '.tar', '.gz']
 
     static maxSizeImage = 100

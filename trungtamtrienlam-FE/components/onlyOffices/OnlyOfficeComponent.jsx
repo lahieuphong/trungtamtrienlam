@@ -348,7 +348,7 @@ function OnlyOfficeEditor({
             }
 
             try {
-                docEditor.destroyEditor?.();
+                docEditor?.destroyEditor?.();
             } catch (err) {
                 console.error('Failed to destroy OnlyOffice editor:', err);
             }

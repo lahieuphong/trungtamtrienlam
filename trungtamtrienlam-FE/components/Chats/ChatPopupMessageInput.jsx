@@ -197,7 +197,6 @@ const ChatPopupMessageInput = forwardRef(({
         <input
           type='file'
           ref={fileInputRef}
-          accept='.zip,.rar,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.ppt,.pptx'
           style={{ display: 'none' }}
           onChange={e => {
             if (e.target.files && e.target.files.length > 0) {

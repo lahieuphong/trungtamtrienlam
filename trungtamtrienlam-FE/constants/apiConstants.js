@@ -55,7 +55,7 @@ class ApiConstants {
     static onlyOfficeServerUrl = process.env.NEXT_PUBLIC_ONLYOFFICE_SERVER_URL || 'https://onlyoffice.hongvan.net'
     static onlyOfficeServerUrlCallBack = process.env.NEXT_PUBLIC_ONLYOFFICE_CALLBACK_URL || `${backendBaseUrl}/api/OnlyOfficeCallback/ReceiveCallback`
     static onlyOfficeServerUrlScript = process.env.NEXT_PUBLIC_ONLYOFFICE_SCRIPT_URL || `${ApiConstants.onlyOfficeServerUrl}/web-apps/apps/api/documents/api.js`
-    static onlyOfficeJwtToken = process.env.NEXT_PUBLIC_ONLYOFFICE_JWT_TOKEN || ''
+    static onlyOfficeJwtToken = process.env.NEXT_PUBLIC_ONLYOFFICE_JWT_TOKEN || 'whNGmbB9qFvcQaqI5MrMIaeSFZmsmtkVYNcgPrlY'
     static onlyOfficeScript = ApiConstants.onlyOfficeServerUrlScript
     static apiCloudCDN = `${cloudBaseUrl}/api`
     static urlCloudCDN = cloudBaseUrl

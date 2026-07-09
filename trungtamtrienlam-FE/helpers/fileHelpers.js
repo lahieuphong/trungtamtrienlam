@@ -204,7 +204,7 @@ class FileHelpers {
   static isFilePowerPointxDocument (fileName) {
     const extesionFile = '.' + (fileName || '').split('.').pop().toLowerCase()
 
-    return ConfigConstants.extensionExcelxDocuments.find(p => p == extesionFile)
+    return ConfigConstants.extensionPowerPointxDocuments.find(p => p == extesionFile)
       ? true
       : false
   }

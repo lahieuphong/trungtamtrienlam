@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Boxes, Download, FileText, Image as ImageIcon, Info, Video, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { Boxes, Download, FileText, Image as ImageIcon, Info, Maximize2, Minimize2, Video, X, ZoomIn, ZoomOut } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
 import { buildMediaUrl } from '@/lib/mediaUrl'
+import UniversalDocumentPreview, { getDocumentPreviewType } from './UniversalDocumentPreview'
 
 const GlbViewer = dynamic(() => import('@/components/monuments/GlbViewer'), {
     ssr: false,
@@ -363,6 +364,7 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
     const [imageLoadProgress, setImageLoadProgress] = useState(1)
     const [isImageLoaded, setIsImageLoaded] = useState(false)
     const [showInfo, setShowInfo] = useState(false)
+    const [isFullscreen, setIsFullscreen] = useState(false)
     const infoButtonRef = useRef(null)
     const imageFrameRef = useRef(null)
     const imageRef = useRef(null)
@@ -535,8 +537,14 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
     const isImage = fileType === 0 || IMAGE_EXTENSIONS.has(extension)
     const isVideo = fileType === 2 || VIDEO_EXTENSIONS.has(extension)
     const isModel3D = fileType === 4 || MODEL_3D_EXTENSIONS.has(extension)
-    const isPdf = extension === 'pdf'
+    const documentPreviewType = getDocumentPreviewType(getFilePath(file) || fileName)
     const Icon = getFileIcon(file)
+    const previewFrameClassName = isFullscreen
+        ? 'h-[calc(100vh-132px)] min-h-[420px] w-full overflow-hidden rounded-md border border-[#D9D9D9] bg-white'
+        : 'h-[58vh] min-h-[360px] w-full overflow-hidden rounded-md border border-[#D9D9D9] bg-white'
+    const modalPanelClassName = isFullscreen
+        ? 'relative flex h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-none flex-col rounded-md bg-white p-4 shadow-xl'
+        : 'relative w-full max-w-[768px] rounded-md bg-white p-4 shadow-xl'
 
     const handleDownload = () => {
         if (!previewUrl) return
@@ -628,8 +636,17 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
             return <VideoPreview src={previewUrl} fileName={fileName} />
         }
 
-        if (isPdf) {
-            return <iframe title={fileName} src={`${previewUrl}#toolbar=0&navpanes=0`} className="h-[58vh] w-full rounded-md border border-[#D9D9D9]" />
+        if (documentPreviewType) {
+            return (
+                <UniversalDocumentPreview
+                    file={file}
+                    fileUrl={previewUrl}
+                    filePath={getFilePath(file)}
+                    fileName={fileName}
+                    className={previewFrameClassName}
+                    scale={scale}
+                />
+            )
         }
 
         return (
@@ -646,7 +663,7 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
     return (
         <div className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center p-4`}>
             <div className="absolute inset-0 bg-black/45" onClick={onClose} />
-            <div className="relative w-full max-w-[768px] rounded-md bg-white p-4 shadow-xl">
+            <div className={modalPanelClassName}>
                 {renderPreview()}
                 <div className="mt-4">
                     <p className="break-words text-sm text-[#1F1F1F]">{fileName}</p>
@@ -672,18 +689,26 @@ export default function UniversalFilePreviewModal({ file, onClose, zIndexClassNa
                                     <Download className="h-4 w-4" />
                                 </button>
                             )}
-                            {isImage && (
+                            {(isImage || documentPreviewType) && (
                                 <div className="flex h-8 items-center gap-2 rounded-full border border-[#D9D9D9] px-2 text-[#1F1F1F]">
-                                    <button type="button" onClick={() => zoomImage((current) => current - 0.2)} aria-label="Thu nhỏ">
+                                    <button type="button" onClick={() => isImage ? zoomImage((current) => current - 0.2) : setScale((current) => Math.max(0.5, Number((current - 0.1).toFixed(2))))} aria-label="Thu nhỏ">
                                         <ZoomOut className="h-4 w-4" />
                                     </button>
                                     <p className="min-w-10 text-center text-sm text-[#434343]">{Math.round(scale * 100)}%</p>
-                                    <button type="button" onClick={() => zoomImage((current) => current + 0.2)} aria-label="Phóng to">
+                                    <button type="button" onClick={() => isImage ? zoomImage((current) => current + 0.2) : setScale((current) => Math.min(2.5, Number((current + 0.1).toFixed(2))))} aria-label="Phóng to">
                                         <ZoomIn className="h-4 w-4" />
                                     </button>
                                 </div>
                             )}
                             {showInfo && <FileMetadataPanel file={file} onClose={() => setShowInfo(false)} anchorRef={infoButtonRef} />}
+                            <button
+                                type="button"
+                                onClick={() => setIsFullscreen((current) => !current)}
+                                className="flex h-8 w-8 items-center justify-center rounded-full border border-[#D9D9D9] text-[#1F1F1F] hover:bg-[#F5F5F5]"
+                                aria-label={isFullscreen ? 'Thu nhỏ màn hình' : 'Toàn màn hình'}
+                            >
+                                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                            </button>
                         </div>
                         <Button variant="danger" onClick={onClose} className="!rounded-lg !bg-[#EF4444] hover:!bg-[#DC2626]">
                             <X className="h-4 w-4" />
