@@ -6,3 +6,4 @@ from .models import Chat, ChatMember, ChatMessage, ChatNote, ChatVote
 class ChatAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'chat_type', 'created_at']
     list_filter = ['chat_type']
+

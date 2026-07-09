@@ -32,8 +32,14 @@ urlpatterns = [
     # Lịch làm việc
     path('api/calendars/', include('apps.calendars.urls')),
 
-    # Tin nhắn nội bộ
+    # Tin nhan noi bo
     path('api/chats/', include('apps.chats.urls')),
+    # Chat prod-compatible endpoints
+    path('api/Chat/', include('apps.chats.urls')),
+    path('api/ChatNote/', include('apps.chat_notes.urls')),
+    path('api/ChatVote/', include('apps.chat_votes.urls')),
+    path('api/ChatRemind/', include('apps.chat_reminds.urls')),
+    path('api/user/', include('apps.chats.user_urls')),
 
     # Quản lý file media
     path('api/media/', include('apps.media_files.urls')),

@@ -1,0 +1,2 @@
+"""Chat vote API module."""
+

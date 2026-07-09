@@ -81,3 +81,7 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Merge/conflict artifacts
+*.mine
+*.r[0-9]*

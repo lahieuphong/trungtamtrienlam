@@ -38,6 +38,9 @@ LOCAL_APPS = [
     'apps.archives',
     'apps.calendars.apps.CalendarsConfig',
     'apps.chats',
+    'apps.chat_notes',
+    'apps.chat_votes',
+    'apps.chat_reminds',
     'apps.media_files',
     'apps.ratings',
     'apps.monuments',
@@ -177,4 +180,5 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
 

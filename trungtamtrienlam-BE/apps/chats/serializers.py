@@ -51,3 +51,4 @@ class ChatVoteSerializer(serializers.ModelSerializer):
         model = ChatVote
         fields = ['id', 'chat', 'question', 'is_multiple', 'closed_at', 'options', 'created_at']
         read_only_fields = ['id', 'created_at']
+

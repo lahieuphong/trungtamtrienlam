@@ -57,3 +57,4 @@ class ChatVoteViewSet(viewsets.ModelViewSet):
         for opt_id in option_ids:
             ChatVoteResult.objects.create(vote=vote, option_id=opt_id, user_id=request.user.id)
         return ResponseServer.success(message='Bình chọn thành công')
+
