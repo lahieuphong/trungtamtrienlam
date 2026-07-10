@@ -995,7 +995,8 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
       }
 
       setUserChatList(prev => {
-        return updated
+        const exists = prev.some(item => normalizeUserId(item.id) === normalizeUserId(newChat.id))
+        return exists ? prev : [newChat, ...prev]
       })
     }
 

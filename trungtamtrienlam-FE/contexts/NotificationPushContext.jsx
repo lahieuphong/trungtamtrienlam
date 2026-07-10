@@ -7,8 +7,83 @@ import NotificationItem from "@/components/notifications/NotificationItem"
 const NOTIFICATION_LIMIT = 5
 const DISMISS_DELAY_MS = 20000
 const NOTIFICATION_MODES = { PUSH: "push", NOTI: "noti" }
+const CHAT_NOTIFICATION_TYPE = 10
 
 const NotificationContext = createContext(null)
+
+const parseMetaData = value => {
+  if (!value) return null
+  if (typeof value === "object") return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+const normalizeNotification = notification => {
+  if (!notification || typeof notification !== "object") return notification
+
+  const metaData = parseMetaData(notification.metaData ?? notification.MetaData)
+  const referenceType = String(
+    notification.referenceType ?? notification.reference_type ?? notification.ReferenceType ?? ""
+  ).toLowerCase()
+  const rawType =
+    notification.type ??
+    notification.Type ??
+    notification.notificationType ??
+    notification.notification_type ??
+    notification.NotificationType
+  const rawRefID =
+    notification.refID ??
+    notification.RefID ??
+    notification.referenceId ??
+    notification.reference_id ??
+    notification.ReferenceID ??
+    metaData?.chatID ??
+    metaData?.ChatID
+  const isChatNotification =
+    referenceType === "chat" ||
+    Number(rawType) === CHAT_NOTIFICATION_TYPE ||
+    Boolean(metaData?.chatID || metaData?.ChatID)
+  const normalizedType = isChatNotification ? CHAT_NOTIFICATION_TYPE : rawType
+
+  return {
+    ...notification,
+    id: String(notification.id ?? notification.ID ?? notification.notiId ?? ""),
+    type: normalizedType,
+    refID: rawRefID == null ? rawRefID : String(rawRefID),
+    title: notification.title ?? notification.Title ?? "",
+    content: notification.content ?? notification.Content ?? notification.message ?? "",
+    isRead: Boolean(notification.isRead ?? notification.IsRead ?? notification.is_read),
+    createdDate:
+      notification.createdDate ??
+      notification.CreatedDate ??
+      notification.created_at ??
+      notification.createdAt,
+    time:
+      notification.time ??
+      notification.createdDate ??
+      notification.CreatedDate ??
+      notification.created_at ??
+      notification.createdAt,
+    metaData,
+  }
+}
+
+const normalizeNotificationList = value => {
+  const list = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.results)
+      ? value.results
+      : Array.isArray(value?.data)
+        ? value.data
+        : Array.isArray(value?.data?.data)
+          ? value.data.data
+          : []
+
+  return list.map(normalizeNotification).filter(Boolean)
+}
 
 function createNotification(message, mode) {
   const notiId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)
@@ -18,7 +93,7 @@ function createNotification(message, mode) {
   return {
     notiId,
     mode,
-    ...(message && typeof message === "object" ? message : { message }),
+    ...(message && typeof message === "object" ? normalizeNotification(message) : { message }),
   }
 }
 
@@ -109,7 +184,7 @@ export const useNotification = () => {
 export function NotificationProvider({ children }) {
   const dismissTimersRef = useRef(new Map())
   const [notifications, setNotifications] = useState([])
-  const [notificationData, setNotificationData] = useState([])
+  const [notificationData, setRawNotificationData] = useState([])
 
   const clearDismissTimer = useCallback((notiId) => {
     const timer = dismissTimersRef.current.get(notiId)
@@ -123,6 +198,13 @@ export function NotificationProvider({ children }) {
     clearDismissTimer(notiId)
     setNotifications((prev) => prev.filter((notification) => notification.notiId !== notiId))
   }, [clearDismissTimer])
+
+  const setNotificationData = useCallback(updater => {
+    setRawNotificationData(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater
+      return normalizeNotificationList(next)
+    })
+  }, [])
 
   const addNotification = useCallback((message, mode = NOTIFICATION_MODES.PUSH) => {
     const notification = createNotification(message, mode)
@@ -155,7 +237,7 @@ export function NotificationProvider({ children }) {
     addNotification,
     setNotificationData,
     notificationData,
-  }), [addNotification, notificationData])
+  }), [addNotification, setNotificationData, notificationData])
 
   return (
     <NotificationContext.Provider value={value}>

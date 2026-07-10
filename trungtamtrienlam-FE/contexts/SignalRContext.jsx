@@ -75,10 +75,103 @@ const normalizeChatMessage = (message) => {
 const normalizePayload = (payload) =>
   Array.isArray(payload) ? payload.map(normalizeChatMessage) : normalizeChatMessage(payload);
 
-const notificationType = (payload) =>
-  Number(payload?.type ?? payload?.Type ?? payload?.data?.type ?? payload?.data?.Type);
+const safeJsonParse = (value, fallback = {}) => {
+  if (!value) return fallback;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
 
-const isChatNotification = (payload) => notificationType(payload) === MessageConstants.types.Chat;
+const stripHtml = (value) =>
+  String(value ?? "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const notificationType = (payload) =>
+  Number(
+    payload?.type ??
+      payload?.Type ??
+      payload?.notificationType ??
+      payload?.notification_type ??
+      payload?.data?.type ??
+      payload?.data?.Type
+  );
+
+const getPayloadMetaData = (payload = {}) =>
+  safeJsonParse(payload?.metaData ?? payload?.MetaData ?? payload?.data?.metaData ?? payload?.data?.MetaData, {});
+
+const isChatNotification = (payload) => {
+  const referenceType = String(
+    payload?.referenceType ?? payload?.reference_type ?? payload?.data?.referenceType ?? payload?.data?.reference_type ?? ""
+  ).toLowerCase();
+  const metaData = getPayloadMetaData(payload);
+
+  return (
+    notificationType(payload) === MessageConstants.types.Chat ||
+    referenceType === "chat" ||
+    Boolean(metaData?.chatID || metaData?.ChatID || payload?.chatID || payload?.ChatID)
+  );
+};
+
+const getDesktopNotificationInfo = (payload = {}, options = {}) => {
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+  const metaData = getPayloadMetaData(payload);
+  const chatID = normalizeId(
+    options.chatID ?? payload?.chatID ?? payload?.ChatID ?? data?.chatID ?? data?.ChatID ?? metaData?.chatID ?? metaData?.ChatID
+  );
+  const messageID = normalizeId(
+    options.messageID ??
+      metaData?.messageID ??
+      metaData?.MessageID ??
+      payload?.messageID ??
+      payload?.MessageID ??
+      data?.messageID ??
+      data?.MessageID ??
+      (chatID ? payload?.id ?? payload?.ID : "")
+  );
+  const notificationID = normalizeId(payload?.id ?? payload?.ID ?? data?.id ?? data?.ID);
+  const isChat = options.isChat ?? isChatNotification(payload) ?? Boolean(chatID);
+  const title = stripHtml(
+    options.title ?? payload?.title ?? payload?.Title ?? data?.title ?? data?.Title ?? (isChat ? "Tin nhắn" : "Thông báo")
+  );
+  const body = stripHtml(
+    options.body ??
+      payload?.content ??
+      payload?.Content ??
+      payload?.body ??
+      payload?.Body ??
+      data?.content ??
+      data?.Content ??
+      data?.body ??
+      data?.Body ??
+      payload?.message
+  );
+  const url =
+    options.url ??
+    payload?.url ??
+    payload?.link ??
+    data?.url ??
+    data?.link ??
+    (isChat && chatID ? `/chats?chatId=${encodeURIComponent(chatID)}` : "/notifications");
+  const tag =
+    options.tag ??
+    (chatID && messageID
+      ? `chat-${chatID}-message-${messageID}`
+      : notificationID
+        ? `notification-${notificationID}`
+        : `${isChat ? "chat" : "notification"}-${Date.now()}`);
+
+  return {
+    title: title || (isChat ? "Tin nhắn" : "Thông báo"),
+    body: body || (isChat ? "Bạn có tin nhắn mới" : "Bạn có thông báo mới"),
+    url,
+    tag,
+  };
+};
 
 const callCallbacks = (callbacksRef, ...args) => {
   callbacksRef.current.forEach((fn) => {
@@ -101,7 +194,7 @@ export const SignalRProvider = ({ user, token, children }) => {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState({});
   const { setStartTime, setIsCountdown, setIsMaintenanceAllowed } = useMaintenance();
-  const { addNotification } = useNotification();
+  const { addNotification, setNotificationData } = useNotification();
 
   const chatMessageCallbacks = useRef([]);
   const chatCallbacks = useRef([]);
@@ -115,10 +208,50 @@ export const SignalRProvider = ({ user, token, children }) => {
 
   const audioRef = useRef(null);
   const audioAllowedRef = useRef(false);
+  const desktopNotificationDedupeRef = useRef(new Map());
 
   const playNotificationSound = useCallback(() => {
-    if (audioAllowedRef.current && audioRef.current) {
-      audioRef.current.play().catch(() => {});
+    const audio = audioRef.current;
+    if (!audioAllowedRef.current || !audio) return;
+
+    audio.muted = false;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }, []);
+
+  const showDesktopNotification = useCallback((payload, options = {}) => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+
+    const info = getDesktopNotificationInfo(payload, options);
+    const now = Date.now();
+    const shownAt = desktopNotificationDedupeRef.current.get(info.tag);
+    if (shownAt && now - shownAt < 4000) return;
+
+    desktopNotificationDedupeRef.current.set(info.tag, now);
+    desktopNotificationDedupeRef.current.forEach((value, key) => {
+      if (now - value > 60000) desktopNotificationDedupeRef.current.delete(key);
+    });
+
+    try {
+      const notification = new Notification(info.title, {
+        body: info.body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: info.tag,
+        renotify: true,
+        data: { url: info.url },
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        if (notification.data?.url) {
+          window.location.assign(notification.data.url);
+        }
+        notification.close();
+      };
+    } catch (error) {
+      console.warn("Cannot show desktop notification:", error);
     }
   }, []);
 
@@ -126,13 +259,39 @@ export const SignalRProvider = ({ user, token, children }) => {
     if (typeof window === "undefined") return undefined;
 
     audioRef.current = new Audio("/audios/notification.mp3");
+    audioRef.current.preload = "auto";
+
     const allowAudio = () => {
+      const audio = audioRef.current;
       audioAllowedRef.current = true;
+
+      if ("Notification" in window && Notification.permission === "default") {
+        const permissionRequest = Notification.requestPermission();
+        permissionRequest?.catch?.(() => {});
+      }
+
+      if (!audio) return;
+
+      audio.muted = true;
+      audio.play()
+        .then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+        })
+        .catch(() => {
+          audio.muted = false;
+        });
     };
-    window.addEventListener("click", allowAudio);
+
+    window.addEventListener("click", allowAudio, { once: true });
+    window.addEventListener("keydown", allowAudio, { once: true });
+    window.addEventListener("touchstart", allowAudio, { once: true });
 
     return () => {
       window.removeEventListener("click", allowAudio);
+      window.removeEventListener("keydown", allowAudio);
+      window.removeEventListener("touchstart", allowAudio);
     };
   }, []);
 
@@ -246,6 +405,7 @@ export const SignalRProvider = ({ user, token, children }) => {
             normalizeId(firstMessage.senderID) !== userId
           ) {
             playNotificationSound();
+            showDesktopNotification(firstMessage, { title: "Tin nhắn", isChat: true });
           }
           callCallbacks(chatCallbacks, normalized);
           break;
@@ -253,6 +413,7 @@ export const SignalRProvider = ({ user, token, children }) => {
         case "ChatMessage":
           if (firstMessage?.fromUserID && normalizeId(firstMessage.fromUserID) !== userId) {
             playNotificationSound();
+            showDesktopNotification(firstMessage, { title: "Tin nhắn", isChat: true });
           }
           callCallbacks(chatMessageCallbacks, normalized);
           break;
@@ -263,6 +424,20 @@ export const SignalRProvider = ({ user, token, children }) => {
 
         case "Notify":
           playNotificationSound();
+          if (payload) {
+            const incomingNotifications = Array.isArray(payload) ? payload : [payload];
+            incomingNotifications.filter(Boolean).forEach((item) => {
+              showDesktopNotification(item, { isChat: isChatNotification(item) });
+            });
+            setNotificationData((prev) => {
+              const existingIds = new Set((prev || []).map((item) => String(item?.id ?? item?.ID ?? "")).filter(Boolean));
+              const nextItems = incomingNotifications.filter((item) => {
+                const id = String(item?.id ?? item?.ID ?? "");
+                return !id || !existingIds.has(id);
+              });
+              return [...nextItems, ...(prev || [])];
+            });
+          }
           callCallbacks(notifyCallbacks, payload);
           break;
 
@@ -446,10 +621,12 @@ export const SignalRProvider = ({ user, token, children }) => {
     user?.email,
     token,
     playNotificationSound,
+    showDesktopNotification,
     setIsCountdown,
     setIsMaintenanceAllowed,
     setStartTime,
     addNotification,
+    setNotificationData,
   ]);
 
   const registerChatMessageCallback = useCallback((fn) => {

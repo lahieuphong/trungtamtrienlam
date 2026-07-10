@@ -15,6 +15,8 @@ from django.http import StreamingHttpResponse
 from django.utils import timezone
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny
+from rest_framework.renderers import BaseRenderer
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -33,6 +35,15 @@ from apps.notifications.notify_events import notify_events
 
 
 logger = logging.getLogger(__name__)
+
+
+class EventStreamRenderer(BaseRenderer):
+    media_type = 'text/event-stream'
+    format = 'event-stream'
+    charset = None
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
 
 
 def _sse_payload(event_name, data=None):
@@ -1789,6 +1800,7 @@ class ChatRemoveGroupApi(APIView):
 
 class ChatEventsApi(APIView):
     permission_classes = (AllowAny,)
+    renderer_classes = (EventStreamRenderer, JSONRenderer)
 
     def get(self, request):
         user_id = _current_user_id(request) or _string(
@@ -1815,24 +1827,24 @@ class ChatEventsApi(APIView):
             logger.warning('Cannot open chat SSE stream for user %s: %s', user_id, exc)
             return _failure('Realtime chua san sang', status=503)
 
-        def event_stream():
+        async def event_stream():
             try:
                 yield _sse_payload('Connected', {'userID': user_id, 'transport': 'sse'})
                 while True:
-                    event = async_to_sync(_receive_channel_event)(channel_layer, channel_name)
+                    event = await _receive_channel_event(channel_layer, channel_name)
                     if event is None:
                         yield ': heartbeat\n\n'
                         continue
 
                     yield _sse_payload(event.get('event', 'Message'), event.get('data'))
-            except GeneratorExit:
+            except (asyncio.CancelledError, GeneratorExit):
                 pass
             except Exception as exc:
                 logger.warning('Chat SSE stream stopped for user %s: %s', user_id, exc)
             finally:
                 for group_name in group_names:
                     try:
-                        async_to_sync(channel_layer.group_discard)(group_name, channel_name)
+                        await channel_layer.group_discard(group_name, channel_name)
                     except Exception:
                         pass
 
