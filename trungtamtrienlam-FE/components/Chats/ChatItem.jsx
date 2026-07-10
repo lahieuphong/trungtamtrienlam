@@ -106,13 +106,13 @@ export default function ChatItem ({
     const lookup = normalizeUserId(userId)
     if (!lookup) return null
 
-    const users = Array.isArray(ListUsers)
+    const primaryUsers = Array.isArray(ListUsers)
       ? ListUsers
       : Array.isArray(ListUsers?.users)
       ? ListUsers.users
-      : Array.isArray(chat?.members)
-      ? chat.members
       : []
+    const memberUsers = Array.isArray(chat?.members) ? chat.members : []
+    const users = [...primaryUsers, ...memberUsers]
 
     return users.find(user =>
       [

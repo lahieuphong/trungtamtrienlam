@@ -4,9 +4,9 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 
-const MarkdownViewer = ({ content, className }) => {
+const MarkdownViewer = ({ content, className = '' }) => {
     return (
-        <div className={`prose max-w-none dark:prose-invert ${className}`}>
+        <div className={`prose max-w-none whitespace-pre-wrap break-words dark:prose-invert ${className}`}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}

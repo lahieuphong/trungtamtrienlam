@@ -80,7 +80,23 @@ import { normalizeChatFiles } from '@/helpers/chatFileHelpers'
 import { se } from 'date-fns/locale'
 
 const CHAT_MESSAGE_PAGE_SIZE = 30
+const CHAT_TABS = {
+  individual: 'individual',
+  groups: 'groups'
+}
 
+const createInitialChatTabLoadState = () => ({
+  [CHAT_TABS.individual]: {
+    isLoaded: false,
+    isLoading: false,
+    error: null
+  },
+  [CHAT_TABS.groups]: {
+    isLoaded: false,
+    isLoading: false,
+    error: null
+  }
+})
 const normalizeChatId = value => {
   if (value === null || value === undefined) return ''
   return String(value)
@@ -246,6 +262,7 @@ const ChatsPage = () => {
     individual: 0,
     groups: 0
   })
+  const [chatTabLoadState, setChatTabLoadState] = useState(() => createInitialChatTabLoadState())
 
   // Listen for Web Push chat notifications
   useEffect(() => {
@@ -328,6 +345,7 @@ const ChatsPage = () => {
   const chatMessageHistoryRef = useRef([])
   const isLoadingOlderMessagesRef = useRef(false)
   const knownChatIdsRef = useRef(new Set())
+  const chatTabLoadRef = useRef(createInitialChatTabLoadState())
 
   const isExistingChatId = useCallback(
     chatId => {
@@ -1469,37 +1487,6 @@ const ChatsPage = () => {
     })
   }, [onlineUsers])
 
-  useEffect(() => {
-    if (activeTab === 'groups') {
-      loadData()
-        .then(() => {
-          if (pendingNewGroupSelection) {
-            setTimeout(() => {
-              setSelectedChat(pendingNewGroupSelection)
-              loadMessages(pendingNewGroupSelection)
-            }, 300)
-
-            setTimeout(() => {
-              setSelectedChat(pendingNewGroupSelection)
-              setPendingNewGroupSelection(null)
-            }, 800)
-          }
-        })
-        .catch(error => {
-          console.error('❌ Error loading groups data:', error)
-        })
-    } else {
-      loadDataUser()
-      loadChatUser()
-    }
-
-    // Always load group chats for notification counting
-    if (userInfo && activeTab === 'individual') {
-      loadData().catch(error => {
-        console.error('❌ Error loading groups for notifications:', error)
-      })
-    }
-  }, [activeTab, userInfo])
 
   useEffect(() => {
     if (activeTab === 'groups' && selectedChat && !loadUserReqRef.current) {
@@ -1582,6 +1569,8 @@ const ChatsPage = () => {
   }
 
   const loadChatUser = async () => {
+    if (!userInfo?.userID) return []
+
     try {
       const res = await getGroupChats(ChatConstants.Type.PRIVATE, userInfo?.userID)
       const chatsWithOnlineStatus = (res.data.data || []).map(chat => {
@@ -1604,11 +1593,12 @@ const ChatsPage = () => {
       })
 
       setUserChatList(chatsWithOnlineStatus)
+      return chatsWithOnlineStatus
     } catch (error) {
       console.warn('Error fetching user chats:', error)
+      return []
     }
   }
-
   const loadMessages = async (chatId, options = {}) => {
     if (!chatId) {
       console.warn('loadMessages: chatId is null or undefined')
@@ -1976,112 +1966,228 @@ const ChatsPage = () => {
   }
 
   const loadData = async () => {
-    // Always load group chats for notification counting, regardless of active tab
-    if (userInfo) {
-      try {
-        const res = await getGroupChats(ChatConstants.Type.GROUP, userInfo?.userID)
-        const groupsWithStatusAndCount = (res.data.data || []).map(chat => {
-          const onlineMembersCount = chat.members
-            ? chat.members.filter(member => onlineUsers.includes(member.id))
-              .length
-            : 0
+    if (!userInfo?.userID) return []
 
-          const totalMembers =
-            chat.countUser || (chat.members ? chat.members.length : 0)
+    try {
+      const res = await getGroupChats(ChatConstants.Type.GROUP, userInfo?.userID)
+      const groupsWithStatusAndCount = (res.data.data || []).map(chat => {
+        const onlineMembersCount = chat.members
+          ? chat.members.filter(member => onlineUsers.includes(member.id))
+            .length
+          : 0
 
-          // Sync unread count từ localStorage
-          const serverUnreadCount = getChatUnreadCount(chat)
-          const storedUnreadCount = getStoredChatUnreadCount(chat.id)
-          if (storedUnreadCount !== serverUnreadCount) {
-            setStoredChatUnreadCount(chat.id, serverUnreadCount)
-          }
+        const totalMembers =
+          chat.countUser || (chat.members ? chat.members.length : 0)
 
-          // Test: Add fake unread count for demo
-          const finalUnreadCount = serverUnreadCount
+        // Sync unread count từ localStorage
+        const serverUnreadCount = getChatUnreadCount(chat)
+        const storedUnreadCount = getStoredChatUnreadCount(chat.id)
+        if (storedUnreadCount !== serverUnreadCount) {
+          setStoredChatUnreadCount(chat.id, serverUnreadCount)
+        }
 
-          // Add isNew property based on notification data
-          const isNew = notificationData
-            ? notificationData.some(
+        const finalUnreadCount = serverUnreadCount
+
+        // Add isNew property based on notification data
+        const isNew = notificationData
+          ? notificationData.some(
+            x =>
+              x.type == NotificationsConstants.types.Chat &&
+              x.refID == chat.id &&
+              !x.isRead
+          )
+          : false
+
+        return {
+          ...chat,
+          unreadCount: finalUnreadCount,
+          onlineMembersCount,
+          isActive: onlineMembersCount > 0,
+          totalMembers,
+          isNew
+        }
+      })
+
+      setGroupChatList(groupsWithStatusAndCount)
+      return groupsWithStatusAndCount
+    } catch (error) {
+      console.error('❌ Error fetching group chats:', error)
+      return []
+    }
+  }
+  const loadDataUser = async () => {
+    if (!userInfo?.userID) return []
+
+    try {
+      const res = await fetchUsersDropdownForChats()
+      const users = res.data.data.users || []
+      const uniqueUsers = users.filter(
+        (user, index, self) =>
+          user.id !== userInfo.userID &&
+          index === self.findIndex(u => u.id === user.id)
+      )
+      const individualChats = uniqueUsers.map(user => {
+        let isNew = false
+
+        if (notificationData && userChatList.length > 0) {
+          const userChat = userChatList.find(chat => {
+            return (
+              chat.name?.includes(user.fullName) ||
+              chat.lastMessageSender?.includes(user.fullName) ||
+              (chat.userID && chat.userID === user.id)
+            )
+          })
+
+          if (userChat) {
+            const hasNotification = notificationData.some(
               x =>
                 x.type == NotificationsConstants.types.Chat &&
-                x.refID == chat.id &&
+                x.refID == userChat.id &&
                 !x.isRead
             )
-            : false
 
-          return {
-            ...chat,
-            unreadCount: finalUnreadCount,
-            onlineMembersCount,
-            isActive: onlineMembersCount > 0,
-            totalMembers,
-            isNew
+            isNew = hasNotification
           }
-        })
+        }
 
-        setGroupChatList(groupsWithStatusAndCount)
-      } catch (error) {
-        console.error('❌ Error fetching group chats:', error)
+        return {
+          id: user.id,
+          type: 'individual',
+          name: user.fullName,
+          avatar: user.avatar,
+          role: user.roleName,
+          department: user.departmentName,
+          lastMessage: '',
+          time: '',
+          unreadCount: 0,
+          isOnline: onlineUsers.includes(user.id),
+          hasNotification: false,
+          isNew
+        }
+      })
+
+      setIndividualChatList(individualChats)
+      return individualChats
+    } catch (error) {
+      console.error('Error fetching users for chats:', error)
+      return []
+    }
+  }
+  const updateChatTabLoadState = (tab, patch) => {
+    setChatTabLoadState(prev => ({
+      ...prev,
+      [tab]: {
+        ...prev[tab],
+        ...patch
+      }
+    }))
+  }
+
+  const loadChatTab = async (tab = activeTab, options = {}) => {
+    const tabKey = tab === CHAT_TABS.groups ? CHAT_TABS.groups : CHAT_TABS.individual
+    const { force = false, silent = false } = options
+
+    if (!userInfo?.userID) return []
+
+    const currentState = chatTabLoadRef.current[tabKey]
+    if (!force && currentState?.isLoaded) {
+      return tabKey === CHAT_TABS.groups ? groupChatList : userChatList
+    }
+
+    if (currentState?.isLoading) {
+      return []
+    }
+
+    const requestId = (currentState?.requestId || 0) + 1
+    chatTabLoadRef.current[tabKey] = {
+      ...currentState,
+      isLoading: true,
+      requestId
+    }
+
+    if (!silent) {
+      updateChatTabLoadState(tabKey, {
+        isLoading: true,
+        error: null
+      })
+    }
+
+    try {
+      const result =
+        tabKey === CHAT_TABS.groups
+          ? await loadData()
+          : await Promise.all([loadChatUser(), loadDataUser()])
+
+      if (chatTabLoadRef.current[tabKey]?.requestId === requestId) {
+        chatTabLoadRef.current[tabKey] = {
+          ...chatTabLoadRef.current[tabKey],
+          isLoaded: true,
+          isLoading: false,
+          error: null
+        }
+        updateChatTabLoadState(tabKey, {
+          isLoaded: true,
+          isLoading: false,
+          error: null
+        })
+      }
+
+      return result
+    } catch (error) {
+      console.error(`Error loading ${tabKey} chats:`, error)
+      if (chatTabLoadRef.current[tabKey]?.requestId === requestId) {
+        chatTabLoadRef.current[tabKey] = {
+          ...chatTabLoadRef.current[tabKey],
+          isLoading: false,
+          error
+        }
+        updateChatTabLoadState(tabKey, {
+          isLoading: false,
+          error
+        })
+      }
+      return []
+    } finally {
+      if (chatTabLoadRef.current[tabKey]?.requestId === requestId) {
+        chatTabLoadRef.current[tabKey] = {
+          ...chatTabLoadRef.current[tabKey],
+          isLoading: false
+        }
+        updateChatTabLoadState(tabKey, {
+          isLoading: false
+        })
       }
     }
   }
+  useEffect(() => {
+    if (!userInfo?.userID) return
 
-  const loadDataUser = async () => {
-    if (activeTab === 'individual' && userInfo) {
-      try {
-        const res = await fetchUsersDropdownForChats()
-        const users = res.data.data.users || []
-        const uniqueUsers = users.filter(
-          (user, index, self) =>
-            user.id !== userInfo.userID &&
-            index === self.findIndex(u => u.id === user.id)
-        )
-        const individualChats = uniqueUsers.map(user => {
-          let isNew = false
+    let isCancelled = false
 
-          if (notificationData && userChatList.length > 0) {
-            const userChat = userChatList.find(chat => {
-              return (
-                chat.name?.includes(user.fullName) ||
-                chat.lastMessageSender?.includes(user.fullName) ||
-                (chat.userID && chat.userID === user.id)
-              )
-            })
+    loadChatTab(activeTab)
+      .then(() => {
+        if (isCancelled) return
 
-            if (userChat) {
-              const hasNotification = notificationData.some(
-                x =>
-                  x.type == NotificationsConstants.types.Chat &&
-                  x.refID == userChat.id &&
-                  !x.isRead
-              )
+        if (activeTab === CHAT_TABS.groups && pendingNewGroupSelection) {
+          setTimeout(() => {
+            setSelectedChat(pendingNewGroupSelection)
+            loadMessages(pendingNewGroupSelection)
+          }, 300)
 
-              isNew = hasNotification
-            }
-          }
+          setTimeout(() => {
+            setSelectedChat(pendingNewGroupSelection)
+            setPendingNewGroupSelection(null)
+          }, 800)
+        }
+      })
+      .catch(error => {
+        console.error(`❌ Error loading ${activeTab} chats:`, error)
+      })
 
-          return {
-            id: user.id,
-            type: 'individual',
-            name: user.fullName,
-            avatar: user.avatar,
-            role: user.roleName,
-            department: user.departmentName,
-            lastMessage: '',
-            time: '',
-            unreadCount: 0,
-            isOnline: onlineUsers.includes(user.id),
-            hasNotification: false,
-            isNew
-          }
-        })
-        setIndividualChatList(individualChats)
-      } catch (error) {
-        console.error('Error fetching users for chats:', error)
-      }
+    return () => {
+      isCancelled = true
     }
-  }
-
+  }, [activeTab, userInfo?.userID])
   // Calculate notification counts for each tab
   const getNotificationCountsForTabs = async () => {
     if (!notificationData) return { individual: 0, groups: 0 }
@@ -3732,6 +3838,9 @@ const ChatsPage = () => {
           onOpenAddGroup={handleOpenAddGroup}
           userChatList={userChatList}
           groupChatList={groupChatList}
+          listUsers={individualChatList}
+          isLoading={Boolean(chatTabLoadState[activeTab]?.isLoading)}
+          hasLoaded={Boolean(chatTabLoadState[activeTab]?.isLoaded)}
           tabNotificationCounts={tabNotificationCounts}
           onMarkChatAsRead={markChatAsRead}
         />
