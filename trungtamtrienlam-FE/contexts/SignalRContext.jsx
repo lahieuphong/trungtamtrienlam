@@ -90,7 +90,55 @@ const stripHtml = (value) =>
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+const normalizeVietnameseKey = (value) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
+const normalizeNotificationTitleText = (value) => {
+  const text = String(value ?? "");
+  const key = normalizeVietnameseKey(text);
+  if (key === "tin nhan") return "Tin nhắn";
+  if (key === "thong bao") return "Thông báo";
+  return text;
+};
+
+const normalizeNotificationContentText = (value) => {
+  const text = String(value ?? "");
+  const key = normalizeVietnameseKey(text);
+  if (key === "ban co tin nhan moi") return "Bạn có tin nhắn mới";
+  if (key === "ban co thong bao moi") return "Bạn có thông báo mới";
+  return text;
+};
+
+const getNotificationSenderName = (payload = {}, data = {}, metaData = {}) =>
+  stripHtml(
+    metaData?.senderName ??
+      metaData?.SenderName ??
+      metaData?.senderFullName ??
+      metaData?.SenderFullName ??
+      payload?.senderName ??
+      payload?.SenderName ??
+      payload?.senderFullName ??
+      payload?.SenderFullName ??
+      payload?.fullName ??
+      payload?.FullName ??
+      data?.senderName ??
+      data?.SenderName ??
+      data?.fullName ??
+      data?.FullName ??
+      ""
+  );
+
+const formatNotificationTitle = (value, isChat, senderName) => {
+  const title = normalizeNotificationTitleText(value);
+  if (isChat && senderName && normalizeVietnameseKey(title) === "tin nhan") {
+    return `Tin nhắn từ ${senderName}`;
+  }
+  return title;
+};
 const notificationType = (payload) =>
   Number(
     payload?.type ??
@@ -117,6 +165,42 @@ const isChatNotification = (payload) => {
   );
 };
 
+const hasBrowserUserActivation = () => {
+  if (typeof navigator === "undefined" || !navigator.userActivation) return false;
+  return Boolean(navigator.userActivation.isActive || navigator.userActivation.hasBeenActive);
+};
+const getPayloadSenderId = (payload = {}) => {
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+  const metaData = getPayloadMetaData(payload);
+
+  return normalizeId(
+    payload?.senderID ??
+      payload?.SenderID ??
+      payload?.fromUserID ??
+      payload?.FromUserID ??
+      payload?.fromUserId ??
+      payload?.FromUserId ??
+      data?.senderID ??
+      data?.SenderID ??
+      data?.fromUserID ??
+      data?.FromUserID ??
+      data?.fromUserId ??
+      data?.FromUserId ??
+      metaData?.senderID ??
+      metaData?.SenderID ??
+      metaData?.fromUserID ??
+      metaData?.FromUserID ??
+      metaData?.fromUserId ??
+      metaData?.FromUserId
+  );
+};
+
+const shouldPlayChatNotification = (payload, currentUserId) => {
+  if (!payload || payload?.isSeenUpdate || payload?.IsSeenUpdate) return false;
+
+  const senderId = getPayloadSenderId(payload);
+  return Boolean(senderId && senderId !== currentUserId);
+};
 const getDesktopNotificationInfo = (payload = {}, options = {}) => {
   const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
   const metaData = getPayloadMetaData(payload);
@@ -135,10 +219,11 @@ const getDesktopNotificationInfo = (payload = {}, options = {}) => {
   );
   const notificationID = normalizeId(payload?.id ?? payload?.ID ?? data?.id ?? data?.ID);
   const isChat = options.isChat ?? isChatNotification(payload) ?? Boolean(chatID);
-  const title = stripHtml(
+  const senderName = getNotificationSenderName(payload, data, metaData);
+  const title = formatNotificationTitle(stripHtml(
     options.title ?? payload?.title ?? payload?.Title ?? data?.title ?? data?.Title ?? (isChat ? "Tin nhắn" : "Thông báo")
-  );
-  const body = stripHtml(
+  ), isChat, senderName);
+  const body = normalizeNotificationContentText(stripHtml(
     options.body ??
       payload?.content ??
       payload?.Content ??
@@ -149,7 +234,7 @@ const getDesktopNotificationInfo = (payload = {}, options = {}) => {
       data?.body ??
       data?.Body ??
       payload?.message
-  );
+  ));
   const url =
     options.url ??
     payload?.url ??
@@ -208,15 +293,35 @@ export const SignalRProvider = ({ user, token, children }) => {
 
   const audioRef = useRef(null);
   const audioAllowedRef = useRef(false);
+  const pendingSoundRef = useRef(false);
   const desktopNotificationDedupeRef = useRef(new Map());
 
   const playNotificationSound = useCallback(() => {
     const audio = audioRef.current;
-    if (!audioAllowedRef.current || !audio) return;
+    if (!audio) return;
 
-    audio.muted = false;
-    audio.currentTime = 0;
-    audio.play().catch(() => {});
+    const canAttemptPlayback = audioAllowedRef.current || hasBrowserUserActivation();
+    if (!canAttemptPlayback) {
+      pendingSoundRef.current = true;
+      return;
+    }
+
+    audioAllowedRef.current = true;
+
+    try {
+      audio.pause();
+      audio.muted = false;
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      playPromise?.then?.(() => {
+        pendingSoundRef.current = false;
+      });
+      playPromise?.catch?.(() => {
+        pendingSoundRef.current = true;
+      });
+    } catch {
+      pendingSoundRef.current = true;
+    }
   }, []);
 
   const showDesktopNotification = useCallback((payload, options = {}) => {
@@ -261,40 +366,58 @@ export const SignalRProvider = ({ user, token, children }) => {
     audioRef.current = new Audio("/audios/notification.mp3");
     audioRef.current.preload = "auto";
 
-    const allowAudio = () => {
-      const audio = audioRef.current;
-      audioAllowedRef.current = true;
-
+    const requestDesktopPermission = () => {
       if ("Notification" in window && Notification.permission === "default") {
         const permissionRequest = Notification.requestPermission();
         permissionRequest?.catch?.(() => {});
       }
+    };
 
-      if (!audio) return;
+    const allowAudio = () => {
+      if (audioAllowedRef.current && !pendingSoundRef.current) return;
+
+      const audio = audioRef.current;
+      const shouldPlayPendingSound = pendingSoundRef.current;
+      audioAllowedRef.current = true;
+
+      if (!audio) {
+        requestDesktopPermission();
+        return;
+      }
+
+      if (shouldPlayPendingSound) {
+        playNotificationSound();
+        requestDesktopPermission();
+        return;
+      }
 
       audio.muted = true;
-      audio.play()
+      const unlockPromise = audio.play();
+      unlockPromise
         .then(() => {
           audio.pause();
           audio.currentTime = 0;
           audio.muted = false;
+          requestDesktopPermission();
         })
         .catch(() => {
           audio.muted = false;
+          requestDesktopPermission();
         });
     };
 
-    window.addEventListener("click", allowAudio, { once: true });
-    window.addEventListener("keydown", allowAudio, { once: true });
-    window.addEventListener("touchstart", allowAudio, { once: true });
+    window.addEventListener("pointerdown", allowAudio);
+    window.addEventListener("click", allowAudio);
+    window.addEventListener("keydown", allowAudio);
+    window.addEventListener("touchstart", allowAudio);
 
     return () => {
+      window.removeEventListener("pointerdown", allowAudio);
       window.removeEventListener("click", allowAudio);
       window.removeEventListener("keydown", allowAudio);
       window.removeEventListener("touchstart", allowAudio);
     };
-  }, []);
-
+  }, [playNotificationSound]);
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
@@ -398,12 +521,7 @@ export const SignalRProvider = ({ user, token, children }) => {
           break;
 
         case "Chat":
-          if (
-            !firstMessage?.isSeenUpdate &&
-            !firstMessage?.IsSeenUpdate &&
-            firstMessage?.senderID &&
-            normalizeId(firstMessage.senderID) !== userId
-          ) {
+          if (shouldPlayChatNotification(firstMessage, userId)) {
             playNotificationSound();
             showDesktopNotification(firstMessage, { title: "Tin nhắn", isChat: true });
           }
@@ -411,21 +529,25 @@ export const SignalRProvider = ({ user, token, children }) => {
           break;
 
         case "ChatMessage":
-          if (firstMessage?.fromUserID && normalizeId(firstMessage.fromUserID) !== userId) {
+          if (shouldPlayChatNotification(firstMessage, userId)) {
             playNotificationSound();
             showDesktopNotification(firstMessage, { title: "Tin nhắn", isChat: true });
           }
           callCallbacks(chatMessageCallbacks, normalized);
           break;
-
         case "Typing":
           handleTyping(payload);
           break;
 
         case "Notify":
-          playNotificationSound();
           if (payload) {
             const incomingNotifications = Array.isArray(payload) ? payload : [payload];
+            const shouldPlayNotifySound = incomingNotifications
+              .filter(Boolean)
+              .some((item) => !isChatNotification(item) || shouldPlayChatNotification(item, userId));
+            if (shouldPlayNotifySound) {
+              playNotificationSound();
+            }
             incomingNotifications.filter(Boolean).forEach((item) => {
               showDesktopNotification(item, { isChat: isChatNotification(item) });
             });
@@ -440,7 +562,6 @@ export const SignalRProvider = ({ user, token, children }) => {
           }
           callCallbacks(notifyCallbacks, payload);
           break;
-
         case "NotifyLogout":
           callCallbacks(notifyLogoutCallbacks, payload);
           break;

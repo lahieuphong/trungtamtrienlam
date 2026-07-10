@@ -2,6 +2,7 @@ import json
 import logging
 import uuid
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from apps.chats.models import ManagedChatUser
@@ -32,6 +33,52 @@ def _message_value(message, *names):
     return None
 
 
+def _string(value):
+    if value is None:
+        return ''
+    return str(value).strip()
+
+
+def _sender_full_name(sender_id, fallback_name=''):
+    fallback_name = _string(fallback_name)
+    if fallback_name:
+        return fallback_name
+
+    lookup = _string(sender_id)
+    if not lookup:
+        return ''
+
+    User = get_user_model()
+    lookup_uuid = _as_uuid(lookup)
+    user = User.objects.filter(id=lookup_uuid).first() if lookup_uuid else None
+    if not user:
+        user = User.objects.filter(username=lookup).first() or User.objects.filter(email=lookup).first()
+    if not user:
+        return ''
+
+    try:
+        from apps.departments.models import Staff
+    except Exception:
+        Staff = None
+
+    staff = None
+    if Staff:
+        staff = (
+            Staff.objects
+            .filter(user_id=getattr(user, 'id', None), is_deleted=False)
+            .order_by('-is_manager', '-updated_at', '-created_at')
+            .first()
+        )
+
+    return (
+        _string(getattr(staff, 'full_name', '') if staff else '')
+        or _string(user.get_full_name())
+        or _string(getattr(user, 'username', ''))
+        or _string(getattr(user, 'email', ''))
+        or lookup
+    )
+
+
 def _target_user_ids(chat_id, user_ids, sender_id, exclude_sender):
     if user_ids is None:
         user_ids = (
@@ -55,8 +102,18 @@ def notify_events(chat_id, sender_id, message, event_kind='', user_ids=None, exc
     message_id = _message_value(message, 'id', 'ID') or ''
     event_id = _message_value(message, 'event_id', 'eventID', 'EventID') or ''
     event_type = _message_value(message, 'event_type', 'eventType', 'EventType')
-    content = _message_value(message, 'content', 'Content') or 'Ban co tin nhan moi'
-    sender_name = _message_value(message, 'senderName', 'SenderName') or ''
+    content = _message_value(message, 'content', 'Content') or 'Bạn có tin nhắn mới'
+    sender_name = _sender_full_name(
+        sender_id,
+        _message_value(
+            message,
+            'senderName', 'SenderName',
+            'senderFullName', 'SenderFullName',
+            'fullName', 'FullName',
+            'name', 'Name',
+        ) or '',
+    )
+    notification_title = f'Tin nhắn từ {sender_name}' if sender_name else 'Tin nhắn'
     reference_uuid = _as_uuid(chat_id)
     meta_data = {
         'chatID': chat_id,
@@ -77,7 +134,7 @@ def notify_events(chat_id, sender_id, message, event_kind='', user_ids=None, exc
             try:
                 notification = Notification.objects.create(
                     user_id=user_uuid,
-                    title='Tin nhan',
+                    title=notification_title,
                     content=str(content),
                     notification_type=Notification.NotificationType.CHAT,
                     reference_id=reference_uuid,

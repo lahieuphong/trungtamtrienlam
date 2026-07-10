@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react'
+import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import {
   Paperclip,
@@ -33,7 +34,6 @@ import { FileHelpers } from '@/helpers/fileHelpers'
 import { ApiConstants } from '@/constants/apiConstants'
 import { v4 } from 'uuid'
 import { FolderConstants } from '@/constants/dataConstants'
-import { ImageAdvanced } from '@/components/Form'
 import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
 import { isReminderForUser } from './reminderUserList'
 import { getChatFileDisplayName, getChatFileIdentity } from '@/helpers/chatFileHelpers'
@@ -1285,6 +1285,7 @@ export default function MessageItem ({
 
   // Normal message render
   // Message read status will be handled by IntersectionObserver in MessageList
+  const fileViewer = renderFileViewer()
   const deliveryText = message.isFailed
     ? 'Kh\u00f4ng g\u1eedi \u0111\u01b0\u1ee3c'
     : message.isPending
@@ -1424,16 +1425,13 @@ export default function MessageItem ({
                               pathFile={filePath}
                               isPrivate={true}
                               Component={({ src }) => (
-                                <ImageAdvanced
+                                <img
                                   src={src}
                                   alt={fileName || 'Image'}
-                                  className='max-w-full h-auto rounded-lg object-cover border border-gray-200 shadow-sm cursor-pointer hover:opacity-95 transition-opacity'
-                                  style={{ maxHeight: '300px' }}
-                                  width={500}
-                                  height={300}
+                                  className='block max-h-[300px] max-w-full rounded-lg border border-gray-200 object-contain shadow-sm cursor-pointer hover:opacity-95 transition-opacity'
                                   onClick={() => handleOnSelectFile(file)}
                                   onError={e => {
-                                    e.target.src = '/placeholder.svg'
+                                    e.currentTarget.src = '/placeholder.svg'
                                   }}
                                 />
                               )}
@@ -1523,8 +1521,8 @@ export default function MessageItem ({
         </div>
       )}
 
-      {/* File Viewer Modal */}
-      {renderFileViewer()}
+      {/* File Viewer Modal - rendered via Portal to avoid z-index issues */}
+      {typeof window !== 'undefined' && fileViewer && createPortal(fileViewer, document.body)}
     </div>
   )
 }

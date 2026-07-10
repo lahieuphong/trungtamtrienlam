@@ -119,6 +119,20 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
   const getChatUserId = user =>
     normalizeUserId(user?.id ?? user?.ID ?? user?.userID ?? user?.UserID ?? user?.value ?? user?.Value)
 
+  const onlineUserIdSet = useMemo(
+    () => new Set((Array.isArray(onlineUsers) ? onlineUsers : []).map(normalizeUserId).filter(Boolean)),
+    [onlineUsers]
+  )
+
+  const isUserOnline = userId => onlineUserIdSet.has(normalizeUserId(userId))
+
+  const findKnownChatUser = userId => {
+    const lookup = normalizeUserId(userId)
+    if (!lookup) return null
+
+    return (Array.isArray(allUsersList) ? allUsersList : []).find(user => getChatUserId(user) === lookup) || null
+  }
+
   const isActiveChatUser = user => {
     const isDeleted = user?.isDeleted ?? user?.IsDeleted
     const isDisabled = user?.isDisabled ?? user?.IsDisabled
@@ -132,6 +146,46 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
 
     return true
   }
+
+  const hasActivityStatusFields = user => {
+    if (!user) return false
+    return [
+      user.isDeleted,
+      user.IsDeleted,
+      user.isDisabled,
+      user.IsDisabled,
+      user.isActive,
+      user.IsActive,
+      user.status,
+      user.Status,
+      user.isOnline,
+      user.IsOnline,
+      user.online,
+      user.Online
+    ].some(value => value !== undefined && value !== null)
+  }
+
+  const getUserActivityStatus = user => {
+    const userId = getChatUserId(user)
+    const knownUser = findKnownChatUser(userId)
+    const statusSource = knownUser || user
+    const explicitOnline = statusSource?.isOnline ?? statusSource?.IsOnline ?? statusSource?.online ?? statusSource?.Online
+
+    if (isUserOnline(userId)) return true
+
+    if (explicitOnline !== undefined && explicitOnline !== null) {
+      return explicitOnline === true || explicitOnline === 'true' || explicitOnline === 1 || explicitOnline === '1'
+    }
+
+    if (knownUser) return isActiveChatUser(knownUser)
+    return hasActivityStatusFields(statusSource) ? isActiveChatUser(statusSource) : false
+  }
+
+  const getChatActivityDotClass = user =>
+    getUserActivityStatus(user) ? 'bg-green-500' : 'bg-gray-400'
+
+  const getChatActivityTitle = user =>
+    getUserActivityStatus(user) ? 'Đang hoạt động' : 'Không hoạt động'
 
   const getChatUserSearchText = user =>
     [
@@ -636,7 +690,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                 messageType: msg.messageType ?? msg.MessageType,
                 chatFiles: msg.chatFiles ?? msg.ChatFiles,
                 unreadCount: 1,
-                isOnline: onlineUsers.includes(msg.senderID),
+                isOnline: getUserActivityStatus(userInfo_sender) || isUserOnline(msg.senderID),
                 hasNotification: true
               }
               setTimeout(() => setStoredUnreadCount(msg.chatID, 1), 0)
@@ -746,7 +800,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
           ...chat,
           type: 'individual',
           userID: chat.userID,
-          isOnline: onlineUsers.includes(chat.userID || chat.id),
+          isOnline: getUserActivityStatus(chat),
           unreadCount: finalUnreadCount,
           hasNotification: finalUnreadCount > 0,
           lastMessageDate: chat.lastMessageDate || chat.lastMessageTime,
@@ -827,7 +881,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         )
         const groupsWithStatusAndCount = (res.data.data || []).map(chat => {
           const onlineMembersCount = chat.members
-            ? chat.members.filter(member => onlineUsers.includes(member.id))
+            ? chat.members.filter(member => isUserOnline(member.id ?? member.userID ?? member.UserID))
               .length
             : 0
 
@@ -970,7 +1024,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
       id: chatId,
       name: chat.name || chat.fullName,
       avatar: chat.avatar || chat.avatarPath,
-      isOnline: chat.isOnline,
+      isOnline: getUserActivityStatus(chat),
       lastSeen: chat.lastSeen,
       type: chatType,
       isExistingChat: isExistingChat,
@@ -990,7 +1044,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         lastMessageDate: null,
         lastMessageSender: null,
         unreadCount: 0,
-        isOnline: chat.isOnline,
+        isOnline: getUserActivityStatus(chat),
         hasNotification: false
       }
 
@@ -1218,9 +1272,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                             size={40}
                           />
                         )}
-                        {chat.isOnline && (
-                          <div className='absolute bottom-0 right-0 w-2 h-2 bg-green-500 border border-white rounded-full'></div>
-                        )}
+                        <div className={'absolute bottom-0 right-0 w-2.5 h-2.5 border border-white rounded-full ' + getChatActivityDotClass(chat)} title={getChatActivityTitle(chat)}></div>
                       </div>
 
                       <div className='flex-1 min-w-0'>
@@ -1289,7 +1341,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                       role: user.roleName,
                       department: user.departmentName,
                       type: 'individual',
-                      isOnline: onlineUsers.includes(userId || user.id),
+                      isOnline: getUserActivityStatus(user),
                       lastMessage: null,
                       lastMessageDate: null
                     })}
@@ -1300,9 +1352,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                         altAvatar={user.fullName || 'Avatar'}
                         size={40}
                       />
-                      {onlineUsers.includes(userId || user.id) && (
-                        <div className='absolute bottom-0 right-0 w-2 h-2 bg-green-500 border border-white rounded-full'></div>
-                      )}
+                      <div className={'absolute bottom-0 right-0 w-2.5 h-2.5 border border-white rounded-full ' + getChatActivityDotClass(user)} title={getChatActivityTitle(user)}></div>
                     </div>
 
                     <div className='flex-1 min-w-0'>

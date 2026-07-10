@@ -12,6 +12,7 @@ import {
     Inbox,
     Landmark,
     LibraryBig,
+    MessageCircle,
     SquarePen,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -28,6 +29,7 @@ function getIconByType(rawType) {
         case 7: return <Bell className='w-4 h-4' />
         case 8: return <Landmark className='w-4 h-4' />
         case 9: return <Calendar className='w-4 h-4' />
+        case 10: return <MessageCircle className='w-4 h-4' />
         case 11: return <FileText className='w-4 h-4' />
         default: return <AlertTriangle className='w-4 h-4' />
     }

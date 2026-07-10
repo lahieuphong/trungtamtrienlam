@@ -11,6 +11,54 @@ const CHAT_NOTIFICATION_TYPE = 10
 
 const NotificationContext = createContext(null)
 
+const normalizeVietnameseKey = value =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+
+const normalizeNotificationTitleText = value => {
+  const text = String(value ?? "")
+  const key = normalizeVietnameseKey(text)
+  if (key === "tin nhan") return "Tin nhắn"
+  if (key === "thong bao") return "Thông báo"
+  return text
+}
+
+const normalizeNotificationContentText = value => {
+  const text = String(value ?? "")
+  const key = normalizeVietnameseKey(text)
+  if (key === "ban co tin nhan moi") return "Bạn có tin nhắn mới"
+  if (key === "ban co thong bao moi") return "Bạn có thông báo mới"
+  return text
+}
+const getNotificationSenderName = (notification = {}, metaData = {}) =>
+  String(
+    metaData?.senderName ??
+      metaData?.SenderName ??
+      metaData?.senderFullName ??
+      metaData?.SenderFullName ??
+      notification.senderName ??
+      notification.SenderName ??
+      notification.senderFullName ??
+      notification.SenderFullName ??
+      notification.fullName ??
+      notification.FullName ??
+      notification.data?.senderName ??
+      notification.data?.SenderName ??
+      notification.data?.fullName ??
+      notification.data?.FullName ??
+      ""
+  ).trim()
+
+const formatNotificationTitle = (value, isChat, senderName) => {
+  const title = normalizeNotificationTitleText(value)
+  if (isChat && senderName && normalizeVietnameseKey(title) === "tin nhan") {
+    return `Tin nhắn từ ${senderName}`
+  }
+  return title
+}
 const parseMetaData = value => {
   if (!value) return null
   if (typeof value === "object") return value
@@ -47,14 +95,16 @@ const normalizeNotification = notification => {
     Number(rawType) === CHAT_NOTIFICATION_TYPE ||
     Boolean(metaData?.chatID || metaData?.ChatID)
   const normalizedType = isChatNotification ? CHAT_NOTIFICATION_TYPE : rawType
+  const senderName = getNotificationSenderName(notification, metaData)
 
   return {
     ...notification,
     id: String(notification.id ?? notification.ID ?? notification.notiId ?? ""),
     type: normalizedType,
     refID: rawRefID == null ? rawRefID : String(rawRefID),
-    title: notification.title ?? notification.Title ?? "",
-    content: notification.content ?? notification.Content ?? notification.message ?? "",
+    title: formatNotificationTitle(notification.title ?? notification.Title ?? "", isChatNotification, senderName),
+    content: normalizeNotificationContentText(notification.content ?? notification.Content ?? notification.message ?? ""),
+    senderName,
     isRead: Boolean(notification.isRead ?? notification.IsRead ?? notification.is_read),
     createdDate:
       notification.createdDate ??
@@ -85,13 +135,73 @@ const normalizeNotificationList = value => {
   return list.map(normalizeNotification).filter(Boolean)
 }
 
+const normalizeToastKeyPart = value => {
+  if (value == null) return ""
+  return String(value).trim()
+}
+
+const getNotificationToastKey = (message, mode) => {
+  if (message == null) return ""
+
+  if (typeof message !== "object") {
+    const text = normalizeToastKeyPart(message)
+    return text ? `${mode}:text:${text}` : ""
+  }
+
+  const normalized = normalizeNotification(message) || {}
+  const metaData = normalized.metaData || parseMetaData(message.metaData ?? message.MetaData) || {}
+  const notificationId = normalizeToastKeyPart(
+    normalized.id || message.id || message.ID || message.notiId || message.NotiID
+  )
+  const chatId = normalizeToastKeyPart(
+    metaData.chatID ??
+      metaData.ChatID ??
+      metaData.chatId ??
+      metaData.ChatId ??
+      normalized.refID ??
+      message.chatID ??
+      message.ChatID
+  )
+  const messageId = normalizeToastKeyPart(
+    metaData.messageID ??
+      metaData.MessageID ??
+      metaData.messageId ??
+      metaData.MessageId ??
+      message.messageID ??
+      message.MessageID ??
+      message.chatMessageID ??
+      message.ChatMessageID
+  )
+  const content = normalizeToastKeyPart(
+    normalized.content ?? message.content ?? message.Content ?? message.message
+  )
+  const createdAt = normalizeToastKeyPart(
+    normalized.createdDate ??
+      normalized.time ??
+      message.createdDate ??
+      message.CreatedDate ??
+      message.createdAt ??
+      message.created_at
+  )
+
+  if (chatId && messageId) return `chat:${chatId}:message:${messageId}`
+  if (notificationId) return `${mode}:id:${notificationId}`
+  if (chatId && content && createdAt) return `chat:${chatId}:content:${content}:${createdAt}`
+  if (content && createdAt) return `${mode}:content:${content}:${createdAt}`
+  return ""
+}
+
+const getToastIdentity = notification => notification?.dedupeKey || notification?.notiId
+
 function createNotification(message, mode) {
-  const notiId = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)
+  const dedupeKey = getNotificationToastKey(message, mode)
+  const notiId = dedupeKey || globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)
   if (mode === NOTIFICATION_MODES.PUSH) {
-    return { notiId, mode, message }
+    return { notiId, dedupeKey, mode, message }
   }
   return {
     notiId,
+    dedupeKey,
     mode,
     ...(message && typeof message === "object" ? normalizeNotification(message) : { message }),
   }
@@ -208,8 +318,14 @@ export function NotificationProvider({ children }) {
 
   const addNotification = useCallback((message, mode = NOTIFICATION_MODES.PUSH) => {
     const notification = createNotification(message, mode)
+    const notificationIdentity = getToastIdentity(notification)
+    clearDismissTimer(notification.notiId)
+
     setNotifications((prev) => {
-      const next = [notification, ...prev].slice(0, NOTIFICATION_LIMIT)
+      const withoutDuplicate = notificationIdentity
+        ? prev.filter((item) => getToastIdentity(item) !== notificationIdentity)
+        : prev
+      const next = [notification, ...withoutDuplicate].slice(0, NOTIFICATION_LIMIT)
       prev.forEach((item) => {
         if (!next.some((nextItem) => nextItem.notiId === item.notiId)) {
           clearDismissTimer(item.notiId)
