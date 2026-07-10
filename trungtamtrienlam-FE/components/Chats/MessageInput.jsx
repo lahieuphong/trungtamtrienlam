@@ -14,7 +14,7 @@ import CreatePollModal from './CreatePollModal'
 import CreateReminderModal from './CreateReminderModal'
 import CreateNoteModal from './CreateNoteModal'
 import { useToast } from '@/contexts/ToastContext' // Import Toast context
-import { Button, Input } from '../Form'
+import { Button } from '../Form'
 import { useSignalR } from '@/contexts/SignalRContext'
 import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
 
@@ -57,12 +57,19 @@ const MessageInput = forwardRef(({
     }
   }), [])
 
-  const handleKeyPress = e => {
-    if (e.key === 'Enter') {
+  const resizeTextInput = () => {
+    if (!textInputRef.current) return
+
+    textInputRef.current.style.height = 'auto'
+    textInputRef.current.style.height = `${Math.min(textInputRef.current.scrollHeight, 128)}px`
+  }
+
+  const handleKeyDown = e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !e.nativeEvent?.isComposing) {
+      e.preventDefault()
       onSendMessage()
     }
   }
-
   const handlePaste = async (e) => {
     const clipboardData = e.clipboardData || window.clipboardData
     const items = clipboardData.items
@@ -143,6 +150,9 @@ const MessageInput = forwardRef(({
     }, 1500);
   };
 
+  useEffect(() => {
+    resizeTextInput()
+  }, [message])
   return (
     <div className='p-2 sm:p-3 md:p-4 bg-white border-t border-gray-200 relative'>
       <div className='flex items-end gap-2'>
@@ -280,9 +290,9 @@ const MessageInput = forwardRef(({
             </div>
           )}
 
-          <Input
+          <textarea
             ref={textInputRef}
-            type='text'
+            rows={1}
             value={message}
             onChange={handleInput}
             onFocus={onInputFocus}
@@ -292,8 +302,8 @@ const MessageInput = forwardRef(({
                 ? 'Thêm tin nhắn hoặc gửi ngay'
                 : 'Nhập tin nhắn'
             }
-            className='w-full px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm'
-            onKeyPress={handleKeyPress}
+            className='block w-full min-h-[38px] max-h-32 resize-none overflow-y-auto px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm leading-5'
+            onKeyDown={handleKeyDown}
           />
         </div>
 
