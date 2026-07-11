@@ -37,6 +37,11 @@ import { FolderConstants } from '@/constants/dataConstants'
 import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
 import { isReminderForUser } from './reminderUserList'
 import { getChatFileDisplayName, getChatFileIdentity } from '@/helpers/chatFileHelpers'
+
+const CONTEXT_MENU_WIDTH = 208
+const CONTEXT_MENU_HEIGHT = 120
+const CONTEXT_MENU_PADDING = 8
+
 export default function MessageItem ({
   message,
   isAI,
@@ -424,23 +429,66 @@ export default function MessageItem ({
     }
   }, [])
 
-  const handleContextMenu = e => {
-    e.preventDefault()
+  const getContextMenuPosition = e => {
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : windowWidth
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0
+    let x = e.clientX
+    let y = e.clientY
 
-    // Chỉ hiển thị context menu cho tin nhắn của mình hoặc khi có quyền
+    if (viewportWidth && x + CONTEXT_MENU_WIDTH + CONTEXT_MENU_PADDING > viewportWidth) {
+      x = Math.max(CONTEXT_MENU_PADDING, viewportWidth - CONTEXT_MENU_WIDTH - CONTEXT_MENU_PADDING)
+    }
+
+    if (viewportHeight && y + CONTEXT_MENU_HEIGHT + CONTEXT_MENU_PADDING > viewportHeight) {
+      y = Math.max(CONTEXT_MENU_PADDING, viewportHeight - CONTEXT_MENU_HEIGHT - CONTEXT_MENU_PADDING)
+    }
+
+    return { x, y }
+  }
+
+  const shouldIgnoreMessageMenu = target =>
+    Boolean(
+      target?.closest?.(
+        '.context-menu, button, a, input, textarea, select, [role="button"], [data-ignore-message-menu]'
+      )
+    )
+
+  const openMessageMenu = e => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    // Chi hien thi context menu cho tin nhan cua minh hoac khi co quyen
     if (isOwn || message.sender !== 'me') {
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
+      setContextMenuPosition(getContextMenuPosition(e))
       setShowContextMenu(true)
     }
   }
 
+  const handleContextMenu = e => {
+    openMessageMenu(e)
+  }
+
+  const handleMessageClick = e => {
+    if (shouldIgnoreMessageMenu(e.target)) return
+    openMessageMenu(e)
+  }
+
   useEffect(() => {
-    const handleClickOutside = () => setShowContextMenu(false)
-    if (showContextMenu) {
-      document.addEventListener('click', handleClickOutside)
+    const handleClickOutside = event => {
+      if (!event.target.closest('.context-menu')) setShowContextMenu(false)
     }
+    const handleCloseFloatingMenu = () => setShowContextMenu(false)
+
+    if (showContextMenu) {
+      document.addEventListener('click', handleClickOutside, true)
+      document.addEventListener('scroll', handleCloseFloatingMenu, true)
+      window.addEventListener('resize', handleCloseFloatingMenu)
+    }
+
     return () => {
-      document.removeEventListener('click', handleClickOutside)
+      document.removeEventListener('click', handleClickOutside, true)
+      document.removeEventListener('scroll', handleCloseFloatingMenu, true)
+      window.removeEventListener('resize', handleCloseFloatingMenu)
     }
   }, [showContextMenu])
 
@@ -1213,12 +1261,19 @@ export default function MessageItem ({
   const ContextMenu = () => {
     if (!showContextMenu) return null
 
-    return (
+    return createPortal(
       <div
-        className='fixed bg-white shadow-lg rounded-lg py-1 z-[100] border border-gray-200 w-52'
+        className='context-menu fixed bg-white shadow-lg rounded-lg py-1 z-[99999] border border-gray-200 w-52'
         style={{
           top: `${contextMenuPosition.y}px`,
-          right: `${windowWidth - contextMenuPosition.x}px`
+          left: `${contextMenuPosition.x}px`,
+          position: 'fixed',
+          zIndex: 99999
+        }}
+        onClick={event => event.stopPropagation()}
+        onContextMenu={event => {
+          event.preventDefault()
+          event.stopPropagation()
         }}
       >
         {/* <button
@@ -1279,7 +1334,8 @@ export default function MessageItem ({
             Thu hồi tin nhắn
           </button>
         )}
-      </div>
+      </div>,
+      document.body
     )
   }
 
@@ -1338,6 +1394,7 @@ export default function MessageItem ({
           )}
 
           <div
+            onClick={message.isPending ? undefined : handleMessageClick}
             onContextMenu={message.isPending ? undefined : handleContextMenu}
             className={`p-3 rounded-2xl transition-colors duration-200 ${message.isPending ? 'shadow-sm' : ''} ${
               isOwn
@@ -1384,7 +1441,7 @@ export default function MessageItem ({
               </div>
             )}
             {message.type === 'file' && !(message.files && message.files.length > 0) ? (
-              <div className='flex items-center gap-3'>
+              <div className='flex items-center gap-3' data-ignore-message-menu>
                 <div className='w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center'>
                   <Paperclip size={20} className='text-blue-600' />
                 </div>
@@ -1408,7 +1465,7 @@ export default function MessageItem ({
 
                 {/* Hiển thị file đính kèm */}
                 {message.files && message.files.length > 0 && (
-                  <div className='mt-2 space-y-2'>
+                  <div className='mt-2 space-y-2' data-ignore-message-menu>
                     {message.files.map((file, index) => {
                       const fileType = getFileType(file)
                       const filePath = file.file || file.File
@@ -1508,7 +1565,7 @@ export default function MessageItem ({
       </div>
 
       {/* Add unread message separator line if this is the first unread message */}
-      {!isRead && lastReadMessageId === message.id && (
+      {lastReadMessageId && String(lastReadMessageId) === String(message.id) && (
         <div className='flex items-center my-4 px-4'>
           <div className='flex-grow border-t border-gray-300'></div>
           <div className='mx-4 flex items-center'>

@@ -138,6 +138,26 @@ const buildAttachmentAction = chat => {
 export const getChatAttachmentActionPreview = chat =>
   hasChatAttachmentPreview(chat) ? buildAttachmentAction(chat) : ''
 
+export const formatChatListPreview = value => {
+  if (value === null || value === undefined) return ''
+
+  const text = String(value)
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim()
+
+  if (!text) return ''
+
+  const lines = text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (lines.length === 0) return ''
+
+  return lines.length > 1 ? `${lines[0]}...` : lines[0]
+}
+
 export const getChatAttachmentPreview = (chat, { isOwn = false } = {}) => {
   const action = getChatAttachmentActionPreview(chat)
   if (!action) return ''

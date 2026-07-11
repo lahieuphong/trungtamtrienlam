@@ -5,9 +5,11 @@ import { PinIcon } from 'lucide-react'
 import AvatarWithFrame from '../avatars/avatarFrame'
 import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
 import {
+  formatChatListPreview,
   getChatAttachmentActionPreview,
   getChatAttachmentPreview
 } from '@/helpers/chatPreviewHelpers'
+import { isChatPinned } from '@/helpers/chatPinHelpers'
 
 // Helper functions for localStorage
 const getStoredUnreadCount = chatId => {
@@ -210,10 +212,14 @@ export default function ChatItem ({
     )
   }
 
+  const isPinned = isChatPinned(chat)
   const isOwnLastMessage = isLastMessageFromCurrentUser()
   const attachmentActionPreview = getChatAttachmentActionPreview(chat)
   const attachmentPreview = getChatAttachmentPreview(chat, { isOwn: isOwnLastMessage })
-  const previewContent = displayContent || attachmentActionPreview
+  const previewMessageContent = formatChatListPreview(displayContent)
+  const previewActionContent = formatChatListPreview(attachmentActionPreview)
+  const previewAttachmentContent = formatChatListPreview(attachmentPreview)
+  const previewContent = previewMessageContent || previewActionContent
   const previewSenderLabel = isOwnLastMessage ? 'Bạn' : truncateName(senderName, 12)
 
   const handleClick = () => {
@@ -299,8 +305,6 @@ export default function ChatItem ({
               >
                 {truncateName(chat.name || chat.lastMessageSender)}
               </h3>
-              {/* Pin icon - hiển thị khi có pinDate */}
-              {chat.pinDate && <PinIcon className='w-4 h-4 text-gray-500' />}
               {chat.type === 1 && chat.hasNotification && (
                 <div className='w-4 h-4 text-gray-400'>
                   <svg viewBox='0 0 16 16' fill='currentColor'>
@@ -313,23 +317,31 @@ export default function ChatItem ({
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse flex-shrink-0"></div>
               )} */}
             </div>
-            <span
-              className={`text-xs ${
-                isUnread
-                  ? 'font-semibold text-blue-600'
-                  : chat.type === 'individual'
-                  ? 'text-blue-500'
-                  : 'text-gray-500'
-              }`}
-            >
-              {chat.lastMessageDate
-                ? new Date(chat.lastMessageDate).toLocaleTimeString('vi-VN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                  })
-                : chat.lastMessageTime || ''}
-            </span>
+            <div className='ml-2 flex shrink-0 items-center gap-1'>
+              {isPinned && (
+                <PinIcon
+                  className='h-3.5 w-3.5 text-blue-500'
+                  fill='currentColor'
+                />
+              )}
+              <span
+                className={`text-xs ${
+                  isUnread
+                    ? 'font-semibold text-blue-600'
+                    : chat.type === 'individual'
+                    ? 'text-blue-500'
+                    : 'text-gray-500'
+                }`}
+              >
+                {chat.lastMessageDate
+                  ? new Date(chat.lastMessageDate).toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false
+                    })
+                  : chat.lastMessageTime || ''}
+              </span>
+            </div>
           </div>
           <p
             className={`text-sm ${
@@ -351,7 +363,7 @@ export default function ChatItem ({
               </>
             ) : (
               /* Hiển thị tin nhắn cá nhân - không cần tên người gửi vì đã hiển thị ở tên chat */
-              isOwnLastMessage && displayContent ? (
+              isOwnLastMessage && previewMessageContent ? (
                 <>
                   <span
                     className={`font-medium ${
@@ -363,7 +375,7 @@ export default function ChatItem ({
                   <span>{previewContent}</span>
                 </>
               ) : (
-                <span>{displayContent || attachmentPreview}</span>
+                <span>{previewMessageContent || previewAttachmentContent}</span>
               )
             )}
           </p>

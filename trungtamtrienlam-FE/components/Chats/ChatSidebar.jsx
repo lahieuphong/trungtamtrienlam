@@ -3,6 +3,7 @@ import { Search, Edit3 } from 'lucide-react'
 import ChatItem from './ChatItem'
 import Image from 'next/image'
 import ToggleButtonGroup from '../ToggleButtonGroup'
+import { getChatPinDate, isChatPinned } from '@/helpers/chatPinHelpers'
 
 import { Button, Input } from '../Form'
 
@@ -53,11 +54,17 @@ export default function ChatSidebar ({
     if (!chatList || !Array.isArray(chatList)) return []
 
     return [...chatList].sort((a, b) => {
-      const aPinned = !!a.pinDate
-      const bPinned = !!b.pinDate
+      const aPinned = isChatPinned(a)
+      const bPinned = isChatPinned(b)
 
       if (aPinned && !bPinned) return -1
       if (!aPinned && bPinned) return 1
+
+      if (aPinned && bPinned) {
+        const pinDateA = new Date(getChatPinDate(a) || a.lastMessageDate || 0)
+        const pinDateB = new Date(getChatPinDate(b) || b.lastMessageDate || 0)
+        return pinDateB - pinDateA
+      }
 
       const dateA = new Date(a.lastMessageDate || a.lastMessageTime || 0)
       const dateB = new Date(b.lastMessageDate || b.lastMessageTime || 0)
@@ -276,7 +283,7 @@ export default function ChatSidebar ({
       </div>
 
       {/* Footer Action */}
-      <div className='p-6 border-t border-gray-200'>
+      <div className='h-16 flex-shrink-0 border-t border-gray-200 bg-white px-6 py-0 flex items-center'>
         <div
           className={`flex items-center gap-2 cursor-pointer transition-colors ${
             individualUnreadCount + groupUnreadCount > 0

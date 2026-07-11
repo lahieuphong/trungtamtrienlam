@@ -14,6 +14,8 @@ import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
 const MessageList = forwardRef(function MessageList (
   {
     messages,
+    chatID,
+    initialUnreadCount = 0,
     isAI,
     onRecallMessage,
     onReply,
@@ -69,6 +71,11 @@ const MessageList = forwardRef(function MessageList (
   const [readMessages, setReadMessages] = useState({})
   const [lastReadMessageId, setLastReadMessageId] = useState(null)
   const observerRef = useRef(null)
+  const unreadMarkerContextRef = useRef({
+    chatID: null,
+    unreadCount: 0,
+    initialized: false
+  })
   const [showAllPins, setShowAllPins] = useState(false)
   const { userInfo } = useLoadLocalStorage()
   const messageRefs = useRef({})
@@ -156,6 +163,29 @@ const MessageList = forwardRef(function MessageList (
     }
   }
 
+  const hasCurrentUserSeenMessage = message =>
+    parseSeenBy(message?.seenBy).some(user =>
+      isCurrentUserId(getSeenUserId(user))
+    )
+
+  const isMessageReadByCurrentUser = message => {
+    const messageId = normalizeUserId(message?.id)
+    return Boolean(
+      messageId && (readMessages[messageId] || hasCurrentUserSeenMessage(message))
+    )
+  }
+
+  const messageById = useMemo(() => {
+    const byId = new Map()
+    messages.forEach(message => {
+      const messageId = normalizeUserId(message?.id)
+      if (messageId) byId.set(messageId, message)
+    })
+    return byId
+  }, [messages])
+
+  const getMessageTimestamp = message =>
+    new Date(message?.timestamp || message?.time || 0).getTime()
   const seenUsersByMessageId = useMemo(() => {
     const latestSeenByUser = new Map()
 
@@ -200,31 +230,51 @@ const MessageList = forwardRef(function MessageList (
   }, [messages, userInfo])
 
   useEffect(() => {
-    if (messages && messages.length) {
-      const unreadMessages = messages
-        .filter(
-          msg => !readMessages[msg.id] && !isCurrentUserMessage(msg, userInfo)
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.timestamp || a.time) - new Date(b.timestamp || b.time)
-        )
-
-      if (unreadMessages.length > 0) {
-        setLastReadMessageId(unreadMessages[0].id)
-      }
+    setReadMessages({})
+    setLastReadMessageId(null)
+    unreadMarkerContextRef.current = {
+      chatID: normalizeUserId(chatID),
+      unreadCount: Number(initialUnreadCount || 0),
+      initialized: false
     }
-  }, [messages, readMessages, userInfo])
+  }, [chatID, initialUnreadCount])
+
+  useEffect(() => {
+    if (!messages || messages.length === 0) return
+
+    const context = unreadMarkerContextRef.current
+    if (context.initialized) return
+    if (context.chatID !== normalizeUserId(chatID)) return
+
+    context.initialized = true
+
+    const unreadCount = Number(context.unreadCount || 0)
+    if (unreadCount <= 0) {
+      setLastReadMessageId(null)
+      return
+    }
+
+    const otherMessages = messages
+      .filter(msg => !isCurrentUserMessage(msg, userInfo))
+      .sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b))
+
+    const markerIndex = Math.max(0, otherMessages.length - unreadCount)
+    setLastReadMessageId(otherMessages[markerIndex]?.id ?? null)
+  }, [messages, chatID, userInfo])
 
   const handleMarkAsRead = messageId => {
+    const messageKey = normalizeUserId(messageId)
+    const message = messageById.get(messageKey)
+
+    if (!messageKey || (message && isMessageReadByCurrentUser(message))) return
+
     setReadMessages(prev => ({
       ...prev,
-      [messageId]: true
+      [messageKey]: true
     }))
 
     onSeenMessage(messageId)
   }
-
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect()
@@ -235,7 +285,8 @@ const MessageList = forwardRef(function MessageList (
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             const messageId = entry.target.dataset.messageId
-            if (messageId && !readMessages[messageId]) {
+            const message = messageById.get(normalizeUserId(messageId))
+            if (messageId && message && !isMessageReadByCurrentUser(message)) {
               handleMarkAsRead(messageId)
             }
           }
@@ -255,7 +306,8 @@ const MessageList = forwardRef(function MessageList (
         for (let i = messageElements.length - 1; i >= 0; i--) {
           const element = messageElements[i]
           const messageId = element.dataset.messageId
-          if (messageId && !readMessages[messageId]) {
+          const message = messageById.get(normalizeUserId(messageId))
+          if (messageId && message && !isMessageReadByCurrentUser(message)) {
             observerRef.current.observe(element)
             break
           }
@@ -268,7 +320,7 @@ const MessageList = forwardRef(function MessageList (
         observerRef.current.disconnect()
       }
     }
-  }, [messages, readMessages])
+  }, [messages, readMessages, messageById, userInfo])
 
   useEffect(() => {
     const loadUser = async () => {
@@ -444,9 +496,7 @@ const MessageList = forwardRef(function MessageList (
     <div
       ref={ref}
       onScroll={handleMessagesScroll}
-      className={`flex-1 overflow-y-auto p-4 flex flex-col h-full pt-0 pl-0 pr-0 ${
-        isAI ? 'justify-center items-center' : ''
-      }`}
+      className='flex-1 overflow-y-auto p-4 flex flex-col h-full pt-0 pl-0 pr-0'
       style={{ scrollBehavior: 'smooth', minHeight: 0 }}
     >
       <div className='flex-1 flex flex-col px-3'>
@@ -552,7 +602,7 @@ const MessageList = forwardRef(function MessageList (
                 onUpdateNote={onUpdateNote}
                 polls={polls}
                 onVote={onVote}
-                isRead={!!readMessages[message.id]}
+                isRead={isMessageReadByCurrentUser(message)}
                 lastReadMessageId={lastReadMessageId}
                 onMarkAsRead={() => handleMarkAsRead(message.id)}
                 reminders={reminders}

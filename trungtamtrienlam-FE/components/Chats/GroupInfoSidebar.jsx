@@ -8,6 +8,7 @@ import {
   X,
   PencilIcon,
   PinIcon,
+  PinOff,
   LinkIcon,
   Camera,
   Download
@@ -31,6 +32,8 @@ import { ImageAdvanced } from '@/components/Form'
 import RenderFileToken from '@/components/controls/renderFileTokens/RenderFileToken'
 import SelectFileItem from '@/components/files/SelectFileItem'
 import { aggregateChatAttachments } from '@/helpers/chatAttachmentHelpers'
+import UniversalFilePreviewModal from '@/components/files/UniversalFilePreviewModal'
+import { isChatPinned } from '@/helpers/chatPinHelpers'
 
 export default function GroupInfoSidebar ({
   showGroupInfo,
@@ -56,6 +59,7 @@ export default function GroupInfoSidebar ({
   const [documentsList, setDocumentsList] = useState([]) // Tab 4: documents
   const [linksList, setLinksList] = useState([]) // Tab 3: links
   const [isLoading, setIsLoading] = useState(false)
+  const [previewFile, setPreviewFile] = useState(null)
   const [groupMembers, setGroupMembers] = useState([])
   const [showDisbandConfirmation, setShowDisbandConfirmation] = useState(false)
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false)
@@ -252,7 +256,48 @@ export default function GroupInfoSidebar ({
     setShowNewLeaderModal(false)
   }
 
-  const onSelectFile = () => {}
+  const getAttachmentPath = attachment =>
+    attachment?.file ||
+    attachment?.File ||
+    attachment?.url ||
+    attachment?.Url ||
+    attachment?.link ||
+    attachment?.Link ||
+    attachment?.path ||
+    attachment?.Path ||
+    ''
+
+  const normalizePreviewFile = attachment => {
+    const path = getAttachmentPath(attachment)
+    if (!path) return null
+
+    return {
+      ...attachment,
+      file: path,
+      File: path,
+      path: attachment?.path || attachment?.Path || path,
+      Path: attachment?.Path || attachment?.path || path,
+      url: attachment?.url || attachment?.Url || path,
+      Url: attachment?.Url || attachment?.url || path
+    }
+  }
+
+  const handlePreviewAttachment = attachment => {
+    const file = normalizePreviewFile(attachment)
+    if (!file) {
+      toast.error('Khong tim thay tep de xem truoc')
+      return
+    }
+
+    setPreviewFile(file)
+  }
+
+  const getOpenableLink = link => {
+    const value = String(getAttachmentPath(link) || '').trim()
+    if (!value) return ''
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value
+    return `https://${value}`
+  }
 
   const getAttachmentName = attachment => {
     const path = attachment?.file || attachment?.File || attachment?.path || attachment?.Path || ''
@@ -381,6 +426,8 @@ export default function GroupInfoSidebar ({
     }
   }
 
+  const isPinned = isChatPinned(currentChat)
+
   return (
     <>
       <div
@@ -389,7 +436,7 @@ export default function GroupInfoSidebar ({
         } ${showGroupInfo ? 'flex' : 'hidden'} flex-col`}
       >
         {/* Header */}
-        <div className='flex items-center justify-between p-4 border-b border-gray-200'>
+        <div className='flex h-[72px] flex-shrink-0 items-center justify-between border-b border-gray-200 px-4 py-0'>
           <h3 className='text-lg font-semibold'>Thông tin nhóm</h3>
         </div>
 
@@ -440,14 +487,29 @@ export default function GroupInfoSidebar ({
           {/* Action Buttons */}
           <div className='flex justify-around mb-6'>
             <Button
-              className='flex flex-col items-center gap-2 p-3 hover:bg-gray-50 rounded-lg'
+              className={`flex flex-col items-center gap-2 p-3 rounded-lg transition-colors ${
+                isPinned ? 'text-red-600 hover:bg-red-50' : 'hover:bg-gray-50'
+              }`}
               variant='ghost'
               onClick={() => onPinChat(currentChat?.id)}
+              title={isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'}
             >
-              <div className='w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center'>
-                <PinIcon size={20} className='text-gray-600' />
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  isPinned ? 'bg-red-50' : 'bg-gray-100'
+                }`}
+              >
+                {isPinned ? (
+                  <PinOff size={20} className='text-red-500' />
+                ) : (
+                  <PinIcon size={20} className='text-gray-600' />
+                )}
               </div>
-              <span className='text-xs text-gray-600'>Ghim hội thoại</span>
+              <span
+                className={`text-xs ${isPinned ? 'text-red-600' : 'text-gray-600'}`}
+              >
+                {isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'}
+              </span>
             </Button>
             <Button
               onClick={handleIsOpenFormAddMem}
@@ -552,10 +614,11 @@ export default function GroupInfoSidebar ({
                     photosList.map((photo, index) => (
                       <div
                         key={photo.id || index}
-                        className='group relative aspect-square bg-gray-200 rounded-lg overflow-hidden'
+                        className='group relative aspect-square bg-gray-200 rounded-lg overflow-hidden cursor-pointer'
+                        onClick={() => handlePreviewAttachment(photo)}
                       >
                         <RenderFileToken
-                          pathFile={photo.file}
+                          pathFile={getAttachmentPath(photo)}
                           isPrivate={true}
                           Component={({ src }) => {
                             return (
@@ -608,9 +671,7 @@ export default function GroupInfoSidebar ({
                         <SelectFileItem
                           file={doc}
                           isCandelete={false}
-                          onSelectFile={d => () => {
-                            onSelectFile(d)
-                          }}
+                          onSelectFile={handlePreviewAttachment}
                         />
                       </div>
                       <button
@@ -639,8 +700,11 @@ export default function GroupInfoSidebar ({
                   linksList.map((link, index) => (
                     <div
                       key={link.id || index}
-                      className='p-2 border border-gray-200 rounded-lg'
-                      onClick={() => window.open(link.file, '_blank')}
+                      className='p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors'
+                      onClick={() => {
+                        const href = getOpenableLink(link)
+                        if (href) window.open(href, '_blank', 'noopener,noreferrer')
+                      }}
                     >
                       <div className='flex items-center'>
                         <div className='w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3'>
@@ -650,7 +714,7 @@ export default function GroupInfoSidebar ({
                           <p className='font-medium text-sm text-gray-800 truncate'>
                             {(() => {
                               const displayText =
-                                link.file || link.url || `Link ${index + 1}`
+                                getAttachmentPath(link) || `Link ${index + 1}`
                               const maxLength = 30
                               return displayText.length > maxLength
                                 ? `${displayText.substring(0, maxLength)}...`
@@ -693,6 +757,12 @@ export default function GroupInfoSidebar ({
           </div>
         </div>
       </div>
+      {previewFile && (
+        <UniversalFilePreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
       {isOpen && (
         <FormAddMem
           isOpen={isOpen}

@@ -1323,7 +1323,7 @@ const ChatPopupMessageItem = ({
         </div>
       </div>
       {/* Add unread message separator line if this is the first unread message */}
-      {!isRead && lastReadMessageId === message.id && (
+      {lastReadMessageId && String(lastReadMessageId) === String(message.id) && (
         <div className='flex items-center my-4 px-4'>
           <div className='flex-grow border-t border-gray-300'></div>
           <div className='mx-4 flex items-center'>

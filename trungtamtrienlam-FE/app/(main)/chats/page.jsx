@@ -77,6 +77,11 @@ import { Loader2, UserIcon } from 'lucide-react'
 import { parseTextToParts } from '@/helpers/stringHelpers'
 import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
 import { normalizeChatFiles } from '@/helpers/chatFileHelpers'
+import {
+  applyChatPinState,
+  getChatIdentity,
+  getNextChatPinDate
+} from '@/helpers/chatPinHelpers'
 import { se } from 'date-fns/locale'
 
 const CHAT_MESSAGE_PAGE_SIZE = 30
@@ -297,6 +302,10 @@ const ChatsPage = () => {
   )
   const [selectedChat, setSelectedChat] = useState(null)
   const [selectedChatLinkId, setSelectedChatLinkId] = useState(null)
+  const [chatOpenUnreadSnapshot, setChatOpenUnreadSnapshot] = useState({
+    chatId: null,
+    unreadCount: 0
+  })
   const [message, setMessage] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [tabNotificationCounts, setTabNotificationCounts] = useState({
@@ -2429,6 +2438,20 @@ const ChatsPage = () => {
   // Handle chọn chat và load messages
   const handleChatSelect = async (chatId, fromUrl = false) => {
     const hasExistingChat = isExistingChatId(chatId)
+    const chatForSelection = [...userChatList, ...groupChatList].find(
+      chat => chat.id === chatId || chat.chatID === chatId
+    )
+    const openingUnreadCount = hasExistingChat
+      ? Math.max(
+          getChatUnreadCount(chatForSelection),
+          getStoredChatUnreadCount(chatId)
+        )
+      : 0
+
+    setChatOpenUnreadSnapshot({
+      chatId,
+      unreadCount: openingUnreadCount
+    })
     latestLoadChatIdRef.current = chatId
     setChatMessages([])
     resetMessagePagination()
@@ -2979,7 +3002,6 @@ const ChatsPage = () => {
               ]
 
               const chatID_AI = targetChatId
-              loadingContext.show()
               const res = await sendMessageAI(
                 messageText,
                 selectedChatLinkId,
@@ -3018,10 +3040,7 @@ const ChatsPage = () => {
                   LinkId: selectedChatLinkId
                 }
 
-                const responseAI = await sendMessage(messageDataAI)
-                if (responseAI.status == 200) {
-                  loadingContext.hide()
-                }
+                await sendMessage(messageDataAI)
               }
             }
           }
@@ -3294,31 +3313,58 @@ const ChatsPage = () => {
     }
   }
 
+  const findChatById = chatId => {
+    const targetId = normalizeChatId(chatId)
+    return [...userChatList, ...groupChatList].find(
+      chat => normalizeChatId(getChatIdentity(chat)) === targetId
+    )
+  }
+
+  const updateChatPinState = (chatId, pinDate) => {
+    const targetId = normalizeChatId(chatId)
+    const updateList = list =>
+      list.map(chat =>
+        normalizeChatId(getChatIdentity(chat)) === targetId
+          ? applyChatPinState(chat, pinDate)
+          : chat
+      )
+
+    setUserChatList(updateList)
+    setGroupChatList(updateList)
+  }
+
   const handlePinChat = async chatId => {
+    const nextPinDate = getNextChatPinDate(findChatById(chatId))
+
     try {
       const response = await pinChat(chatId)
       if (response.status === 200) {
-        toast.success('Đã ghim hội thoại')
         await loadUserReq()
         await loadData()
+        updateChatPinState(chatId, nextPinDate)
+        toast.success(nextPinDate ? 'Đã ghim hội thoại' : 'Đã bỏ ghim hội thoại')
       }
     } catch (error) {
-      console.error('Error pinning chat:', error)
-      toast.error('Có lỗi xảy ra khi ghim hội thoại')
+      console.error('Error toggling chat pin:', error)
+      toast.error('Có lỗi xảy ra khi cập nhật ghim hội thoại')
     }
   }
 
   const handlePinChatIndividual = async chatId => {
+    const nextPinDate = getNextChatPinDate(findChatById(chatId))
+
     try {
       const response = await pinChat(chatId)
       if (response.status === 200) {
-        toast.success('Đã ghim hội thoại')
         await loadUserReq()
+        await loadChatUser()
         await loadData()
+        updateChatPinState(chatId, nextPinDate)
+        toast.success(nextPinDate ? 'Đã ghim hội thoại' : 'Đã bỏ ghim hội thoại')
       }
     } catch (error) {
-      console.error('Error pinning chat:', error)
-      toast.error('Có lỗi xảy ra khi ghim hội thoại')
+      console.error('Error toggling chat pin:', error)
+      toast.error('Có lỗi xảy ra khi cập nhật ghim hội thoại')
     }
   }
 
@@ -3958,6 +4004,11 @@ const ChatsPage = () => {
                 messages={chatMessages}
                 isAI={isChatsAI}
                 chatID={selectedChat}
+                initialUnreadCount={
+                  chatOpenUnreadSnapshot.chatId === selectedChat
+                    ? chatOpenUnreadSnapshot.unreadCount
+                    : 0
+                }
                 onUpdateNote={handleUpdateNote}
                 onReply={handleReplyMessage}
                 polls={polls}

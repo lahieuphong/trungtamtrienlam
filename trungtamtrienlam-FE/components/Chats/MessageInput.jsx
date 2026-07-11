@@ -13,6 +13,7 @@ import {
 import CreatePollModal from './CreatePollModal'
 import CreateReminderModal from './CreateReminderModal'
 import CreateNoteModal from './CreateNoteModal'
+import PendingAttachmentPreview from './PendingAttachmentPreview'
 import { useToast } from '@/contexts/ToastContext' // Import Toast context
 import { Button } from '../Form'
 import { useSignalR } from '@/contexts/SignalRContext'
@@ -154,8 +155,8 @@ const MessageInput = forwardRef(({
     resizeTextInput()
   }, [message])
   return (
-    <div className='p-2 sm:p-3 md:p-4 bg-white border-t border-gray-200 relative'>
-      <div className='flex items-end gap-2'>
+    <div className='min-h-16 bg-white border-t border-gray-200 relative flex items-center px-3 md:px-4 py-2'>
+      <div className='flex w-full items-end gap-2'>
         <input
           type='file'
           ref={fileInputRef}
@@ -269,26 +270,10 @@ const MessageInput = forwardRef(({
             </div>
           )}
 
-          {/* Hiển thị danh sách file đính kèm */}
-          {attachedFiles.length > 0 && (
-            <div className='mb-2 flex flex-wrap gap-2'>
-              {attachedFiles.map((file, index) => (
-                <div
-                  key={index}
-                  className='bg-blue-50 text-blue-600 text-xs rounded-lg px-2 py-1 flex items-center gap-1'
-                >
-                  <span className='truncate max-w-[120px]'>{file.name}</span>
-                  <Button
-                    variant='ghost'
-                    onClick={() => onRemoveFile(index)}
-                    className='text-blue-400 hover:text-blue-700'
-                  >
-                    &times;
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+          <PendingAttachmentPreview
+            files={attachedFiles}
+            onRemoveFile={onRemoveFile}
+          />
 
           <textarea
             ref={textInputRef}
@@ -302,7 +287,7 @@ const MessageInput = forwardRef(({
                 ? 'Thêm tin nhắn hoặc gửi ngay'
                 : 'Nhập tin nhắn'
             }
-            className='block w-full min-h-[38px] max-h-32 resize-none overflow-y-auto px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm leading-5'
+            className='block w-full min-h-[38px] max-h-32 resize-none overflow-y-auto px-3 py-2 bg-gray-100 border border-gray-300 rounded-md focus:outline-none focus:ring-0 focus:border-gray-300 text-sm leading-5 placeholder:text-gray-400'
             onKeyDown={handleKeyDown}
           />
         </div>

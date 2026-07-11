@@ -98,13 +98,13 @@ export default function ChatHeader ({
 
   return (
     <div
-      className={`p-4 border-b ${
+      className={`h-[72px] flex-shrink-0 border-b px-4 py-0 flex items-center ${
         isHeritageAssistant
           ? 'border-orange-200 bg-gradient-to-r from-orange-100 to-amber-100'
           : 'border-gray-200 bg-white'
       }`}
     >
-      <div className='flex items-center justify-between'>
+      <div className='flex w-full items-center justify-between'>
         <div className='flex items-center gap-3'>
           <Button className='p-2 hover:bg-gray-100 rounded-full lg:hidden'>
             <ArrowLeft size={20} />

@@ -8,12 +8,12 @@ import {
   Bell,
   FileText,
   Users,
-  Archive,
-  X
+  Archive
 } from 'lucide-react'
 import CreatePollModal from './CreatePollModal'
 import CreateReminderModal from './CreateReminderModal'
 import CreateNoteModal from './CreateNoteModal'
+import PendingAttachmentPreview from './PendingAttachmentPreview'
 import { useToast } from '@/contexts/ToastContext'
 import { Button } from '../Form'
 
@@ -171,25 +171,11 @@ const ChatPopupMessageInput = forwardRef(({
         </div>
       )}
 
-      {/* Attached Files */}
-      {attachedFiles.length > 0 && (
-        <div className='mb-2 flex flex-wrap gap-1'>
-          {attachedFiles.map((file, index) => (
-            <div
-              key={index}
-              className='bg-blue-50 text-blue-600 text-xs rounded px-2 py-1 flex items-center gap-1'
-            >
-              <span className='truncate max-w-[80px]'>{file.name}</span>
-              <button
-                onClick={() => onRemoveFile(index)}
-                className='text-blue-400 hover:text-blue-700 ml-1'
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      <PendingAttachmentPreview
+        files={attachedFiles}
+        onRemoveFile={onRemoveFile}
+        compact
+      />
 
       {/* Input Area */}
       <div className='flex items-center gap-1 min-w-0'>
@@ -292,7 +278,7 @@ const ChatPopupMessageInput = forwardRef(({
               ? 'Thêm tin nhắn hoặc gửi ngay'
               : 'Nhập tin nhắn...'
           }
-          className='flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50'
+          className='flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-0 focus:border-gray-300 bg-gray-100 placeholder:text-gray-400'
         />
 
         {/* Send Button */}

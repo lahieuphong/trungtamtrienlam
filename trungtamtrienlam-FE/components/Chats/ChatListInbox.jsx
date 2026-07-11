@@ -26,6 +26,7 @@ import AvatarWithFrame from '../avatars/avatarFrame'
 import { Button, Input } from '../Form'
 import Image from 'next/image'
 import {
+  formatChatListPreview,
   getChatAttachmentActionPreview,
   getChatAttachmentPreview,
   hasChatAttachmentPreview
@@ -315,6 +316,9 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
     return getChatAttachmentPreview(chat, { isOwn: isOwnLastMessage })
   }
 
+  const formatConversationDisplayPreview = chat =>
+    formatChatListPreview(formatConversationPreview(chat))
+
   const isEventMessage = messageType => Number(messageType) === 5
 
   const formatGroupSenderLabel = group => {
@@ -326,6 +330,9 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
 
   const formatGroupMessagePreview = group =>
     formatChatPreview(group?.lastMessage) || getChatAttachmentActionPreview(group)
+
+  const formatGroupMessageDisplayPreview = group =>
+    formatChatListPreview(formatGroupMessagePreview(group))
 
   const individualUnreadCount = useMemo(() => {
     const count = userChatList.reduce((total, chat) => total + getUnreadCount(chat), 0)
@@ -1282,7 +1289,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                               {chat.name}
                             </h3>
                             <p className={`text-xs truncate mt-1 ${hasNewMessages ? 'font-semibold text-gray-800' : 'text-gray-500'}`}>
-                              {formatConversationPreview(chat) || 'Chưa có tin nhắn'}
+                              {formatConversationDisplayPreview(chat) || 'Chưa có tin nhắn'}
                             </p>
                           </div>
 
@@ -1451,7 +1458,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
                         >
                           {formatGroupSenderLabel(group)}
                         </span>
-                        {formatGroupMessagePreview(group)}
+                        {formatGroupMessageDisplayPreview(group)}
                       </p>
                     ) : (
                       <p
