@@ -1403,7 +1403,7 @@ export default function MessageItem ({
                 {/* <div>{message.content}</div> */}
                 <MarkdownViewer
                   content={message.content}
-                  className={isAI ? 'text-xl' : ''}
+                  className=''
                 />
 
                 {/* Hiển thị file đính kèm */}

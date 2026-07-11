@@ -85,6 +85,45 @@ const CHAT_TABS = {
   groups: 'groups'
 }
 
+const CHAT_TAB_QUERY_VALUES = {
+  [CHAT_TABS.individual]: 'individual',
+  [CHAT_TABS.groups]: 'groups'
+}
+
+const CHAT_TAB_QUERY_ALIASES = {
+  individual: CHAT_TABS.individual,
+  personal: CHAT_TABS.individual,
+  'ca-nhan': CHAT_TABS.individual,
+  canhan: CHAT_TABS.individual,
+  groups: CHAT_TABS.groups,
+  group: CHAT_TABS.groups,
+  nhom: CHAT_TABS.groups
+}
+
+const normalizeChatTab = value => {
+  const key = String(value || '').trim().toLowerCase()
+  return CHAT_TAB_QUERY_ALIASES[key] || CHAT_TABS.individual
+}
+
+const getChatTabQueryValue = tab =>
+  CHAT_TAB_QUERY_VALUES[normalizeChatTab(tab)]
+
+const buildChatsUrl = (pathname, searchParams, tab, options = {}) => {
+  const params = new URLSearchParams(searchParams?.toString?.() || '')
+  params.set('tab', getChatTabQueryValue(tab))
+
+  if (options.keepChatId === false) {
+    params.delete('id')
+    params.delete('chatId')
+  } else if (options.chatId) {
+    params.set('id', options.chatId)
+    params.delete('chatId')
+  }
+
+  const query = params.toString()
+  return `${pathname}${query ? `?${query}` : ''}`
+}
+
 const createInitialChatTabLoadState = () => ({
   [CHAT_TABS.individual]: {
     isLoaded: false,
@@ -253,7 +292,9 @@ const ChatsPage = () => {
   const loadingContext = useContext(LoadingContext)
   const { registerChatCallback, onlineUsers, isConnected } = useSignalR()
   const { notificationData, setNotificationData } = useNotification()
-  const [activeTab, setActiveTab] = useState('individual')
+  const [activeTab, setActiveTab] = useState(() =>
+    normalizeChatTab(searchParams.get('tab'))
+  )
   const [selectedChat, setSelectedChat] = useState(null)
   const [selectedChatLinkId, setSelectedChatLinkId] = useState(null)
   const [message, setMessage] = useState('')
@@ -338,6 +379,7 @@ const ChatsPage = () => {
   const loadUserReqRef = useRef(false)
   const selectedChatRef = useRef(selectedChat)
   const activeTabRef = useRef(activeTab)
+  const isApplyingUrlTabRef = useRef(false)
   const messageInputRef = useRef(null)
   const latestLoadChatIdRef = useRef(null)
   const messagePaneLoadingChatRef = useRef(null)
@@ -346,6 +388,25 @@ const ChatsPage = () => {
   const isLoadingOlderMessagesRef = useRef(false)
   const knownChatIdsRef = useRef(new Set())
   const chatTabLoadRef = useRef(createInitialChatTabLoadState())
+
+  const replaceChatsUrl = useCallback(
+    (tab, options = {}) => {
+      if (typeof window === 'undefined') return
+
+      const nextUrl = buildChatsUrl(
+        window.location.pathname,
+        searchParams,
+        tab,
+        options
+      )
+      const currentUrl = `${window.location.pathname}${window.location.search}`
+
+      if (nextUrl !== currentUrl) {
+        router.replace(nextUrl, { scroll: false })
+      }
+    },
+    [router, searchParams]
+  )
 
   const isExistingChatId = useCallback(
     chatId => {
@@ -400,6 +461,35 @@ const ChatsPage = () => {
   useEffect(() => {
     activeTabRef.current = activeTab
   }, [activeTab])
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (!tabParam) return
+
+    const nextTab = normalizeChatTab(tabParam)
+    if (nextTab === activeTabRef.current) return
+
+    isApplyingUrlTabRef.current = true
+    setActiveTab(nextTab)
+    setSelectedChat(null)
+    setChatMessages([])
+    resetMessagePagination()
+    setUserRequests([])
+    setShowGroupInfo(false)
+  }, [searchParams])
+
+  useEffect(() => {
+    if (isApplyingUrlTabRef.current) {
+      isApplyingUrlTabRef.current = false
+      return
+    }
+
+    const tabParam = searchParams.get('tab')
+    const expectedTabParam = getChatTabQueryValue(activeTab)
+    if (tabParam === expectedTabParam) return
+
+    replaceChatsUrl(activeTab)
+  }, [searchParams, activeTab, replaceChatsUrl])
 
   useEffect(() => {
     const unregister = registerChatCallback(msgArray => {
@@ -2227,19 +2317,15 @@ const ChatsPage = () => {
   }
 
   const handleTabChange = tab => {
-    setActiveTab(tab)
+    const nextTab = normalizeChatTab(tab)
+
+    setActiveTab(nextTab)
     setSelectedChat(null)
     setChatMessages([])
     resetMessagePagination()
     setUserRequests([]) // Clear user requests khi chuyển tab
     setShowGroupInfo(false)
-
-    // Clear URL parameter khi chuyển tab
-    const urlChatId = searchParams.get('id') || searchParams.get('chatId')
-    if (urlChatId) {
-      const newUrl = window.location.pathname
-      router.replace(newUrl, { scroll: false })
-    }
+    replaceChatsUrl(nextTab, { keepChatId: false })
   }
 
   // Force reload function để gọi khi cần reload ngay lập tức
@@ -2380,11 +2466,10 @@ const ChatsPage = () => {
       )
     }
 
-    // Clear URL parameter khi user chọn chat khác
+    // Clear chat id from URL when user selects another chat, but keep tab query.
     const urlChatId = searchParams.get('id') || searchParams.get('chatId')
     if (urlChatId && urlChatId !== chatId) {
-      const newUrl = window.location.pathname
-      router.replace(newUrl, { scroll: false })
+      replaceChatsUrl(activeTab, { keepChatId: false })
     }
 
     selectedChatRef.current = chatId

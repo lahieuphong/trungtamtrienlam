@@ -204,10 +204,10 @@ export default function ChatSidebar ({
           <>
             {activeTab === 'individual' && !isHadAI && (
               <div
-                className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${
+                className={`p-4 mb-2 border-y cursor-pointer transition-colors ${
                   selectedChat === 'heritage-assistant'
-                    ? 'bg-blue-50 border-blue-200'
-                    : 'bg-gradient-to-r from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100'
+                    ? 'border-l-4 border-l-amber-500 border-y-amber-300 bg-amber-200 shadow-sm'
+                    : 'border-y-amber-100 bg-gradient-to-r from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100'
                 }`}
                 onClick={() => setSelectedChat('heritage-assistant')}
               >
@@ -224,7 +224,7 @@ export default function ChatSidebar ({
                   </div>
                   <div className='flex-1 min-w-0'>
                     <div className='flex items-center justify-between'>
-                      <h3 className='font-medium text-gray-900 truncate'>
+                      <h3 className='font-semibold text-gray-950 truncate'>
                         Trợ lý Trung tâm Bảo tồn và Phát huy Giá trị Di tích Lịch sử
                         – Văn hoá Thành phố Hồ Chí Minh
                       </h3>

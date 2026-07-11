@@ -92,9 +92,18 @@ export default function ChatHeader ({
     !isAI &&
     (currentChat?.type === 'group' || activeTab === 'groups') &&
     onUpdateChatAvatar
+  const isHeritageAssistant =
+    currentChat?.id === 'heritage-assistant' ||
+    currentChat?.type === 'heritage-assistant'
 
   return (
-    <div className='p-4 border-b border-gray-200 bg-white'>
+    <div
+      className={`p-4 border-b ${
+        isHeritageAssistant
+          ? 'border-orange-200 bg-gradient-to-r from-orange-100 to-amber-100'
+          : 'border-gray-200 bg-white'
+      }`}
+    >
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-3'>
           <Button className='p-2 hover:bg-gray-100 rounded-full lg:hidden'>
