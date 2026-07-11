@@ -11,7 +11,8 @@ import {
 import { useSidebar } from '@/contexts/SidebarContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissionContext } from '@/contexts/PermissionContext'
-import { buildMediaUrl } from '@/lib/mediaUrl'
+import { buildMediaUrl, getStaffFileUrl } from '@/lib/mediaUrl'
+import { UserFileConstants } from '@/constants/userConstants'
 
 // Mirror of 185's getIcon() — maps uniqueKey → <img> element
 function getIcon(uniqueKey) {
@@ -99,7 +100,66 @@ function buildMenuTree(items, parentId = null) {
         }))
 }
 
+function pickFirstValue(...values) {
+    return values.find(value => String(value ?? '').trim())
+}
 
+function getFilePath(value) {
+    if (!value) return ''
+    if (typeof value === 'string') return value
+
+    return pickFirstValue(
+        value.File,
+        value.file,
+        value.Path,
+        value.path,
+        value.Url,
+        value.url,
+        value.URL,
+        value.filePath,
+        value.FilePath
+    ) || ''
+}
+
+function getUserDisplayName(user) {
+    const composedName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim()
+
+    return pickFirstValue(
+        user?.fullName,
+        user?.FullName,
+        user?.full_name,
+        composedName,
+        user?.name,
+        user?.Name,
+        user?.userName,
+        user?.UserName,
+        user?.username
+    ) || 'Người dùng'
+}
+
+function getUserAvatarUrl(user) {
+    const directAvatar = getFilePath(
+        pickFirstValue(
+            user?.avatar,
+            user?.Avatar,
+            user?.avatarPath,
+            user?.AvatarPath,
+            user?.profileImage,
+            user?.ProfileImage,
+            user?.image,
+            user?.Image,
+            user?.photo,
+            user?.Photo
+        )
+    )
+
+    if (directAvatar) return buildMediaUrl(directAvatar)
+
+    return getStaffFileUrl(
+        user?.staffFiles ?? user?.StaffFiles,
+        UserFileConstants.typeFile.Avatar
+    )
+}
 export default function Sidebar() {
     const pathname = usePathname()
     const { collapsed, setCollapsed, mobileOpen, setMobileOpen, isMobile } = useSidebar()
@@ -234,9 +294,9 @@ export default function Sidebar() {
         </ul>
     )
 
-    const displayName = user?.full_name || user?.username || 'Người dùng'
+    const displayName = getUserDisplayName(user)
     const avatarInitial = (displayName || 'U')[0].toUpperCase()
-    const avatarUrl = useMemo(() => buildMediaUrl(user?.avatar), [user?.avatar])
+    const avatarUrl = useMemo(() => getUserAvatarUrl(user), [user])
 
     const handleLogout = () => {
         sessionStorage.setItem('logoutSuccess', 'true')

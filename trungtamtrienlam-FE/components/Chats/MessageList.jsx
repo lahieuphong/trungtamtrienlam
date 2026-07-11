@@ -459,6 +459,19 @@ const MessageList = forwardRef(function MessageList (
 
   const visibleMessages = messages.filter(hasRenderableMessageContent)
 
+  const renderUnreadDivider = () => (
+    <div className='flex items-center my-4 px-4'>
+      <div className='flex-grow border-t border-gray-300'></div>
+      <div className='mx-4 flex items-center'>
+        <div className='w-2 h-2 rounded-full bg-blue-500 mr-2'></div>
+        <span className='text-xs font-medium text-blue-500'>
+          Tin nhắn chưa đọc
+        </span>
+      </div>
+      <div className='flex-grow border-t border-gray-300'></div>
+    </div>
+  )
+
   const handleUnpin = ids => {
     const arr = Array.isArray(ids) ? ids : [ids]
     const messageID = []
@@ -582,6 +595,10 @@ const MessageList = forwardRef(function MessageList (
               </div>
             )}
 
+            {lastReadMessageId &&
+              String(lastReadMessageId) === String(message.id) &&
+              renderUnreadDivider()}
+
             <div
               ref={el => {
                 if (el) messageRefs.current[message.id] = el
@@ -603,7 +620,6 @@ const MessageList = forwardRef(function MessageList (
                 polls={polls}
                 onVote={onVote}
                 isRead={isMessageReadByCurrentUser(message)}
-                lastReadMessageId={lastReadMessageId}
                 onMarkAsRead={() => handleMarkAsRead(message.id)}
                 reminders={reminders}
                 onEditReminder={onEditReminder}

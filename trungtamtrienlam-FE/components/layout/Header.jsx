@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Bell, Menu, MessageCircleMore } from 'lucide-react'
 import { useSidebar } from '@/contexts/SidebarContext'
 import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
@@ -11,6 +12,7 @@ import ChatListInbox from '@/components/Chats/ChatListInbox'
 import { getGroupChats } from '@/lib/api/chatsApi'
 import { getNotifications, markAllNotificationsRead, readNotification } from '@/lib/api/notificationApi'
 import { ChatConstants } from '@/constants/chatConstants'
+import { sumUniqueChatUnreadCount } from '@/helpers/chatUnreadHelpers'
 
 const CHAT_NOTIFICATION_TYPE = 10
 
@@ -19,17 +21,6 @@ const normalizeId = value => String(value ?? '').trim()
 const getCurrentUserId = userInfo =>
     normalizeId(userInfo?.userID ?? userInfo?.UserID ?? userInfo?.id ?? userInfo?.ID)
 
-const getUnreadCount = chat => {
-    const count = Number(
-        chat?.unreadCount ??
-        chat?.UnreadCount ??
-        chat?.countUnread ??
-        chat?.CountUnread ??
-        0
-    )
-
-    return Number.isFinite(count) ? count : 0
-}
 
 const extractListPayload = response => {
     if (Array.isArray(response)) return response
@@ -59,6 +50,29 @@ const getStoredUnreadTotal = () => {
     return found ? total : null
 }
 
+const getStoredUnreadCountByChatId = chatId => {
+    if (typeof window === 'undefined' || !chatId) return 0
+
+    const count = Number(window.localStorage.getItem(`unreadCount_${chatId}`) || 0)
+    return Number.isFinite(count) && count > 0 ? count : 0
+}
+
+const setStoredUnreadCountByChatId = (chatId, count) => {
+    if (typeof window === 'undefined' || !chatId) return
+
+    if (count > 0) {
+        window.localStorage.setItem(`unreadCount_${chatId}`, String(count))
+    } else {
+        window.localStorage.removeItem(`unreadCount_${chatId}`)
+    }
+
+    window.dispatchEvent(
+        new CustomEvent('unreadCountChanged', {
+            detail: { chatId, count }
+        })
+    )
+}
+
 const isNotificationRead = notification => Boolean(notification?.isRead ?? notification?.is_read)
 
 const isChatNotification = notification => {
@@ -70,6 +84,7 @@ const isChatNotification = notification => {
 
 export default function Header() {
     const { setMobileOpen, isMobile } = useSidebar()
+    const pathname = usePathname()
     const { userInfo } = useLoadLocalStorage()
     const { notificationData, setNotificationData, addNotification } = useNotification()
     const { registerChatCallback, registerNotifyCallback } = useSignalR()
@@ -102,15 +117,20 @@ export default function Header() {
                 getGroupChats(ChatConstants.Type.PRIVATE, currentUserId),
                 getGroupChats(ChatConstants.Type.GROUP, currentUserId),
             ])
-            const chats = [
-                ...extractListPayload(privateChatsRes),
-                ...extractListPayload(groupChatsRes),
-            ]
-            setUnreadMessagesCount(chats.reduce((total, chat) => total + getUnreadCount(chat), 0))
+            const privateChats = extractListPayload(privateChatsRes)
+            const groupChats = extractListPayload(groupChatsRes)
+            const serverUnreadCount =
+                sumUniqueChatUnreadCount(privateChats, {
+                    userInfo,
+                    excludeCurrentUser: true,
+                }) + sumUniqueChatUnreadCount(groupChats)
+            const storedUnreadCount = getStoredUnreadTotal()
+
+            setUnreadMessagesCount(Math.max(serverUnreadCount, storedUnreadCount ?? 0))
         } catch (error) {
             console.warn('Error loading chat unread count:', error)
         }
-    }, [currentUserId])
+    }, [currentUserId, userInfo])
 
     const loadNotifications = useCallback(async () => {
         try {
@@ -159,12 +179,25 @@ export default function Header() {
             const firstMessage = Array.isArray(message) ? message[0] : message
             if (!firstMessage || firstMessage?.isSeenUpdate || firstMessage?.IsSeenUpdate) return
 
-            const senderId = normalizeId(firstMessage.senderID ?? firstMessage.SenderID)
+            const senderId = normalizeId(
+                firstMessage.senderID ?? firstMessage.SenderID ?? firstMessage.senderId ?? firstMessage.SenderId
+            )
             if (senderId && senderId === currentUserId) return
+
+            const chatId = normalizeId(
+                firstMessage.chatID ?? firstMessage.ChatID ?? firstMessage.chatId ?? firstMessage.ChatId
+            )
+            const isChatsPage = pathname?.startsWith('/chats')
+
+            if (chatId && !isChatsPage) {
+                const nextCount = getStoredUnreadCountByChatId(chatId) + 1
+                setStoredUnreadCountByChatId(chatId, nextCount)
+                setUnreadMessagesCount(getStoredUnreadTotal() ?? nextCount)
+            }
 
             window.setTimeout(loadUnreadMessagesCount, 150)
         })
-    }, [currentUserId, loadUnreadMessagesCount, registerChatCallback])
+    }, [currentUserId, loadUnreadMessagesCount, pathname, registerChatCallback])
 
     useEffect(() => {
         if (!registerNotifyCallback) return undefined

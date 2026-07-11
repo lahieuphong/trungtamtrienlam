@@ -53,7 +53,6 @@ export default function MessageItem ({
   handleAddNewOption,
   onReply,
   isRead = false,
-  lastReadMessageId = null,
   onMarkAsRead = null, // Add callback to mark message as read,
   reminders = [],
   onEditReminder,
@@ -1564,19 +1563,6 @@ export default function MessageItem ({
         </div>
       </div>
 
-      {/* Add unread message separator line if this is the first unread message */}
-      {lastReadMessageId && String(lastReadMessageId) === String(message.id) && (
-        <div className='flex items-center my-4 px-4'>
-          <div className='flex-grow border-t border-gray-300'></div>
-          <div className='mx-4 flex items-center'>
-            <div className='w-2 h-2 rounded-full bg-blue-500 mr-2'></div>
-            <span className='text-xs font-medium text-blue-500'>
-              Tin nhắn chưa đọc
-            </span>
-          </div>
-          <div className='flex-grow border-t border-gray-300'></div>
-        </div>
-      )}
 
       {/* File Viewer Modal - rendered via Portal to avoid z-index issues */}
       {typeof window !== 'undefined' && fileViewer && createPortal(fileViewer, document.body)}

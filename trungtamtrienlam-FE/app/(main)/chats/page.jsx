@@ -80,7 +80,9 @@ import { normalizeChatFiles } from '@/helpers/chatFileHelpers'
 import {
   applyChatPinState,
   getChatIdentity,
-  getNextChatPinDate
+  getNextChatPinDate,
+  hydrateChatPinState,
+  setStoredChatPinDate
 } from '@/helpers/chatPinHelpers'
 import { se } from 'date-fns/locale'
 
@@ -166,21 +168,29 @@ const getStoredChatUnreadCount = chatId => {
 const setStoredChatUnreadCount = (chatId, count, dispatchEvent = true) => {
   if (typeof window === 'undefined' || !chatId) return
 
-  if (count > 0) {
-    localStorage.setItem(`unreadCount_${chatId}`, String(count))
-  } else {
-    localStorage.removeItem(`unreadCount_${chatId}`)
+  const syncUnreadCount = () => {
+    if (count > 0) {
+      localStorage.setItem(`unreadCount_${chatId}`, String(count))
+    } else {
+      localStorage.removeItem(`unreadCount_${chatId}`)
+    }
+
+    if (dispatchEvent) {
+      window.dispatchEvent(
+        new CustomEvent('unreadCountChanged', {
+          detail: { chatId, count }
+        })
+      )
+    }
   }
 
   if (dispatchEvent) {
-    window.dispatchEvent(
-      new CustomEvent('unreadCountChanged', {
-        detail: { chatId, count }
-      })
-    )
+    window.setTimeout(syncUnreadCount, 0)
+    return
   }
-}
 
+  syncUnreadCount()
+}
 const getChatLastMessageId = chat =>
   chat?.lastMessageId ||
   chat?.lastMessageID ||
@@ -199,6 +209,59 @@ const getChatMemberRole = member =>
 const getCurrentUserId = user =>
   normalizeChatId(user?.userID ?? user?.UserID ?? user?.id ?? user?.ID)
 
+const getIncomingChatId = message =>
+  normalizeChatId(message?.chatID ?? message?.ChatID ?? message?.chatId ?? message?.ChatId)
+
+const getIncomingSenderId = message =>
+  normalizeChatId(
+    message?.senderID ??
+      message?.SenderID ??
+      message?.senderId ??
+      message?.SenderId
+  )
+
+const getIncomingSenderName = message =>
+  normalizeChatId(
+    message?.senderName ??
+      message?.SenderName ??
+      message?.senderFullName ??
+      message?.SenderFullName
+  ).toLowerCase()
+
+const getChatPeerIds = (chat, currentUserId = '') =>
+  [
+    chat?.userID,
+    chat?.UserID,
+    chat?.otherUserID,
+    chat?.OtherUserID,
+    chat?.senderID,
+    chat?.SenderID,
+    ...(Array.isArray(chat?.members)
+      ? chat.members.map(member => member?.userID ?? member?.UserID ?? member?.id ?? member?.ID)
+      : [])
+  ]
+    .map(normalizeChatId)
+    .filter(id => id && id !== currentUserId)
+
+const parseIncomingChatUserIds = message => {
+  const rawUsers = message?.chatUsers ?? message?.ChatUsers
+  if (!rawUsers) return []
+
+  try {
+    const users = typeof rawUsers === 'string' ? JSON.parse(rawUsers) : rawUsers
+    if (!Array.isArray(users)) return []
+
+    return users
+      .map(user => user?.UserID ?? user?.userID ?? user?.id ?? user?.ID)
+      .map(normalizeChatId)
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+const getChatDisplayNameKey = chat =>
+  normalizeChatId(chat?.name ?? chat?.Name ?? chat?.fullName ?? chat?.FullName).toLowerCase()
 const getSendChatResultPayload = response => {
   let payload = response?.data ?? response
   let guard = 0
@@ -396,7 +459,11 @@ const ChatsPage = () => {
   const chatMessageHistoryRef = useRef([])
   const isLoadingOlderMessagesRef = useRef(false)
   const knownChatIdsRef = useRef(new Set())
+  const userChatListRef = useRef(userChatList)
+  const groupChatListRef = useRef(groupChatList)
+  const individualChatListRef = useRef(individualChatList)
   const chatTabLoadRef = useRef(createInitialChatTabLoadState())
+  const unresolvedPrivateSelectionRef = useRef({ chatId: null, checkedAt: 0 })
 
   const replaceChatsUrl = useCallback(
     (tab, options = {}) => {
@@ -431,6 +498,66 @@ const ChatsPage = () => {
     [userChatList, groupChatList]
   )
 
+  const resolveActiveRealtimeChat = useCallback(
+    message => {
+      const selectedId = normalizeChatId(selectedChatRef.current)
+      if (!selectedId) return { matches: false }
+
+      const incomingChatId = getIncomingChatId(message)
+      if (incomingChatId && incomingChatId === selectedId) {
+        return { matches: true, chatId: incomingChatId }
+      }
+
+      if (message?.isAI && selectedId === 'heritage-assistant') {
+        return { matches: true, chatId: incomingChatId || selectedId }
+      }
+
+      if (activeTabRef.current !== CHAT_TABS.individual) {
+        return { matches: false }
+      }
+
+      const currentUserId = getCurrentUserId(userInfo)
+      const senderId = getIncomingSenderId(message)
+      const senderNameKey = getIncomingSenderName(message)
+      const participantIds = parseIncomingChatUserIds(message).filter(
+        id => id && id !== currentUserId
+      )
+      const selectedChatItem = userChatListRef.current.find(chat => {
+        const ids = [chat?.id, chat?.chatID, chat?.ChatID, chat?.userID, chat?.UserID]
+          .map(normalizeChatId)
+          .filter(Boolean)
+        return ids.includes(selectedId)
+      })
+      const selectedUser = individualChatListRef.current.find(user => {
+        const ids = [user?.id, user?.ID, user?.userID, user?.UserID]
+          .map(normalizeChatId)
+          .filter(Boolean)
+        return ids.includes(selectedId)
+      })
+      const peerIds = new Set([
+        ...getChatPeerIds(selectedChatItem, currentUserId),
+        ...getChatPeerIds(selectedUser, currentUserId),
+        selectedId
+      ])
+      const selectedNameKey =
+        getChatDisplayNameKey(selectedChatItem) || getChatDisplayNameKey(selectedUser)
+      const matchesPeerId =
+        (senderId && peerIds.has(senderId)) ||
+        participantIds.some(id => peerIds.has(id))
+      const matchesPeerName = Boolean(
+        senderNameKey && selectedNameKey && senderNameKey === selectedNameKey
+      )
+
+      if (!matchesPeerId && !matchesPeerName) return { matches: false }
+
+      return {
+        matches: true,
+        chatId: incomingChatId || normalizeChatId(selectedChatItem?.id) || selectedId,
+        shouldSwitchToChatId: Boolean(incomingChatId && incomingChatId !== selectedId)
+      }
+    },
+    [userInfo]
+  )
   const markChatAsRead = useCallback(
     chatOrId => {
       const chat =
@@ -472,6 +599,17 @@ const ChatsPage = () => {
   }, [activeTab])
 
   useEffect(() => {
+    userChatListRef.current = userChatList
+  }, [userChatList])
+
+  useEffect(() => {
+    groupChatListRef.current = groupChatList
+  }, [groupChatList])
+
+  useEffect(() => {
+    individualChatListRef.current = individualChatList
+  }, [individualChatList])
+  useEffect(() => {
     const tabParam = searchParams.get('tab')
     if (!tabParam) return
 
@@ -511,8 +649,19 @@ const ChatsPage = () => {
       // Extract message properties for easier use
       const messageType = msg.messageType
       const content = msg.content
-      const chatID = msg.chatID
-      const senderID = msg.senderID
+      const chatID = getIncomingChatId(msg)
+      const senderID = getIncomingSenderId(msg)
+      const activeRealtimeChat = resolveActiveRealtimeChat(msg)
+      const isActiveRealtimeChat = activeRealtimeChat.matches
+      const resolvedRealtimeChatId = activeRealtimeChat.chatId || chatID
+
+      if (activeRealtimeChat.shouldSwitchToChatId && chatID) {
+        knownChatIdsRef.current.add(chatID)
+        selectedChatRef.current = chatID
+        latestLoadChatIdRef.current = chatID
+        setSelectedChat(chatID)
+        replaceChatsUrl(activeTabRef.current, { chatId: chatID })
+      }
       const isDisbandGroupEvent =
         msg.chatDeleted ||
         msg.isDeleted ||
@@ -522,7 +671,7 @@ const ChatsPage = () => {
             content.includes('giải tán nhóm')))
 
       if (isDisbandGroupEvent) {
-        if (chatID === selectedChat) {
+        if (isActiveRealtimeChat) {
           setSelectedChat(null)
           setChatMessages([])
           resetMessagePagination()
@@ -547,8 +696,8 @@ const ChatsPage = () => {
         (content.includes('Message unpinned') || content.includes('Message pinned'))
       ) {
         // Reload messages để cập nhật trạng thái pin
-        if (chatID === selectedChat) {
-          loadMessages(chatID, { scrollToBottomAfterLoad: isAtBottom() })
+        if (isActiveRealtimeChat) {
+          loadMessages(resolvedRealtimeChatId, { scrollToBottomAfterLoad: isAtBottom() })
         }
 
         // Reload chat data để cập nhật danh sách
@@ -584,8 +733,8 @@ const ChatsPage = () => {
         (content.includes('đã được thêm vào nhóm') ||
           content.includes('thêm vào nhóm'))
       ) {
-        if (chatID === selectedChat) {
-          loadMessages(selectedChat)
+        if (isActiveRealtimeChat) {
+          loadMessages(resolvedRealtimeChatId)
         }
 
         // Force reload both individual and group chats
@@ -634,8 +783,8 @@ const ChatsPage = () => {
         (content.includes('đã rời nhóm') || content.includes('rời nhóm'))
       ) {
         // Reload messages if currently viewing this chat
-        if (chatID === selectedChat) {
-          loadMessages(selectedChat)
+        if (isActiveRealtimeChat) {
+          loadMessages(resolvedRealtimeChatId)
         }
 
         // Always reload chat list and users when someone leaves group
@@ -661,8 +810,8 @@ const ChatsPage = () => {
           content.includes('xoá quyền phó nhóm'))
       ) {
         // Reload messages if currently viewing this chat
-        if (chatID === selectedChat) {
-          loadMessages(selectedChat)
+        if (isActiveRealtimeChat) {
+          loadMessages(resolvedRealtimeChatId)
         }
 
         // Always reload chat list and users when roles change
@@ -684,8 +833,8 @@ const ChatsPage = () => {
         messageType === 10 ||
         messageType === 8
       ) {
-        if (chatID && selectedChat && chatID === selectedChat) {
-          loadMessages(chatID, { scrollToBottomAfterLoad: isAtBottom() })
+        if (chatID && selectedChat && isActiveRealtimeChat) {
+          loadMessages(resolvedRealtimeChatId, { scrollToBottomAfterLoad: isAtBottom() })
         }
         loadChatUser()
         if (activeTab === 'groups' || msg.chatType === ChatConstants.Type.GROUP) {
@@ -699,14 +848,14 @@ const ChatsPage = () => {
         loadRemindersByChatID(chatID)
 
         // If currently viewing this chat, also reload messages to show the reminder message
-        if (chatID === selectedChat) {
-          loadMessages(chatID, { scrollToBottomAfterLoad: isAtBottom() })
+        if (isActiveRealtimeChat) {
+          loadMessages(resolvedRealtimeChatId, { scrollToBottomAfterLoad: isAtBottom() })
         }
 
         // Force UI update to show reminder in message list
         setTimeout(() => {
-          if (chatID === selectedChat) {
-            loadMessages(chatID, { scrollToBottomAfterLoad: isAtBottom() })
+          if (isActiveRealtimeChat) {
+            loadMessages(resolvedRealtimeChatId, { scrollToBottomAfterLoad: isAtBottom() })
           }
         }, 500)
       }
@@ -714,7 +863,7 @@ const ChatsPage = () => {
       if (
         chatID &&
         activeTab === 'groups' &&
-        chatID === selectedChat &&
+        isActiveRealtimeChat &&
         selectedChat
       ) {
         setTimeout(() => {
@@ -724,7 +873,7 @@ const ChatsPage = () => {
 
       if (
         selectedChat &&
-        (chatID === selectedChat ||
+        (isActiveRealtimeChat ||
           (msg.isAI && selectedChat == 'heritage-assistant'))
       ) {
         if (msg.isAI && selectedChat == 'heritage-assistant') {
@@ -862,12 +1011,18 @@ const ChatsPage = () => {
           return prev
         }
 
-        const existingChatIndex = prev.findIndex(chat => chat.id === msg.chatID)
+        const existingChatIndex = prev.findIndex(chat => chat.id === chatID)
         if (existingChatIndex !== -1) {
           return prev.map(chat => {
-            if (chat.id === msg.chatID) {
+            if (chat.id === chatID) {
               const isFromOther = !isCurrentUserMessage(msg, userInfo)
-              const isNotCurrentChat = selectedChat !== msg.chatID
+              const nextUnreadCount = isFromOther
+                ? (chat.unreadCount || 0) + 1
+                : chat.unreadCount || 0
+
+              if (isFromOther) {
+                setStoredChatUnreadCount(chat.id, nextUnreadCount)
+              }
 
               return {
                 ...chat,
@@ -879,10 +1034,8 @@ const ChatsPage = () => {
                  messageType: msg.messageType ?? msg.MessageType,
                  chatFiles: msg.chatFiles ?? msg.ChatFiles,
                  files: msg.files ?? msg.Files,
-                unreadCount:
-                  isFromOther && isNotCurrentChat
-                    ? (chat.unreadCount || 0) + 1
-                    : chat.unreadCount || 0
+                unreadCount: nextUnreadCount,
+                hasNotification: nextUnreadCount > 0
               }
             }
             return chat
@@ -934,7 +1087,13 @@ const ChatsPage = () => {
             return prev.map(chat => {
               if (chat.id === existingChatWithUser.id) {
                 const isFromOther = !isCurrentUserMessage(msg, userInfo)
-                const isNotCurrentChat = selectedChat !== chat.id
+                const nextUnreadCount = isFromOther
+                  ? (chat.unreadCount || 0) + 1
+                  : chat.unreadCount || 0
+
+                if (isFromOther) {
+                  setStoredChatUnreadCount(chat.id, nextUnreadCount)
+                }
 
                 return {
                   ...chat,
@@ -948,10 +1107,8 @@ const ChatsPage = () => {
                    messageType: msg.messageType ?? msg.MessageType,
                    chatFiles: msg.chatFiles ?? msg.ChatFiles,
                    files: msg.files ?? msg.Files,
-                  unreadCount:
-                    isFromOther && isNotCurrentChat
-                      ? (chat.unreadCount || 0) + 1
-                      : chat.unreadCount || 0
+                  unreadCount: nextUnreadCount,
+                  hasNotification: nextUnreadCount > 0
                 }
               }
               return chat
@@ -960,9 +1117,14 @@ const ChatsPage = () => {
 
           if (chatUser) {
             const isFromOther = !isCurrentUserMessage(msg, userInfo)
+            const nextUnreadCount = isFromOther ? 1 : 0
+
+            if (isFromOther) {
+              setStoredChatUnreadCount(chatID, nextUnreadCount)
+            }
 
             const newChat = {
-              id: msg.chatID,
+              id: chatID,
               type: 'individual',
               name: chatUser.name || msg.senderName || 'Unknown',
               avatar: chatUser.avatar || msg.senderAvatar,
@@ -976,9 +1138,9 @@ const ChatsPage = () => {
                messageType: msg.messageType ?? msg.MessageType,
                chatFiles: msg.chatFiles ?? msg.ChatFiles,
                files: msg.files ?? msg.Files,
-              unreadCount: isFromOther ? 1 : 0,
+              unreadCount: nextUnreadCount,
               isOnline: onlineUsers.includes(chatUserID),
-              hasNotification: false,
+              hasNotification: nextUnreadCount > 0,
               createdDate:
                 msg.createdDate || msg.timestamp || new Date().toISOString(),
               userID: chatUserID
@@ -986,7 +1148,7 @@ const ChatsPage = () => {
 
             if (!isFromOther) {
               setTimeout(() => {
-                setSelectedChat(msg.chatID)
+                setSelectedChat(chatID)
                 setActiveTab('individual')
               }, 100)
             }
@@ -1019,16 +1181,16 @@ const ChatsPage = () => {
           return prev
         }
 
-        const existingChatIndex = prev.findIndex(chat => chat.id === msg.chatID)
+        const existingChatIndex = prev.findIndex(chat => chat.id === chatID)
 
         if (existingChatIndex !== -1) {
           return prev.map(chat => {
-            if (chat.id === msg.chatID) {
+            if (chat.id === chatID) {
               const isFromOther = !isCurrentUserMessage(msg, userInfo)
-              const isNotCurrentChat = selectedChat !== msg.chatID
               let newUnreadCount = chat.unreadCount || 0
-              if (isFromOther && isNotCurrentChat) {
+              if (isFromOther) {
                 newUnreadCount += 1
+                setStoredChatUnreadCount(chat.id, newUnreadCount)
               }
 
               return {
@@ -1041,16 +1203,22 @@ const ChatsPage = () => {
                  messageType: msg.messageType ?? msg.MessageType,
                  chatFiles: msg.chatFiles ?? msg.ChatFiles,
                  files: msg.files ?? msg.Files,
-                unreadCount: newUnreadCount
+                unreadCount: newUnreadCount,
+                hasNotification: newUnreadCount > 0
               }
             }
             return chat
           })
         } else if (msg.chatType === ChatConstants.Type.GROUP) {
           const isFromOther = !isCurrentUserMessage(msg, userInfo)
+          const nextUnreadCount = isFromOther ? 1 : 0
+
+          if (isFromOther) {
+            setStoredChatUnreadCount(chatID, nextUnreadCount)
+          }
 
           const newGroupChat = {
-            id: msg.chatID,
+            id: chatID,
             type: 'group',
             name: msg.chatName || 'Nhóm mới',
             avatar: msg.chatAvatar || '/user-groups.png',
@@ -1062,7 +1230,8 @@ const ChatsPage = () => {
             messageType: msg.messageType ?? msg.MessageType,
             chatFiles: msg.chatFiles ?? msg.ChatFiles,
             files: msg.files ?? msg.Files,
-            unreadCount: isFromOther ? 1 : 0,
+            unreadCount: nextUnreadCount,
+            hasNotification: nextUnreadCount > 0,
             countUser: msg.countUser || 2,
             createdDate:
               msg.createdDate || msg.timestamp || new Date().toISOString()
@@ -1071,7 +1240,7 @@ const ChatsPage = () => {
           // Auto-focus vào group chat mới khi user gửi tin nhắn (không phải nhận)
           if (!isFromOther) {
             setTimeout(() => {
-              setSelectedChat(msg.chatID)
+              setSelectedChat(chatID)
               setActiveTab('groups')
             }, 100)
           }
@@ -1085,7 +1254,7 @@ const ChatsPage = () => {
     })
 
     return unregister
-  }, [registerChatCallback, selectedChat, userInfo])
+  }, [registerChatCallback, replaceChatsUrl, resolveActiveRealtimeChat, selectedChat, userInfo])
 
   // useEffect để xử lý URL parameter và tự động chọn chat
   useEffect(() => {
@@ -1155,14 +1324,52 @@ const ChatsPage = () => {
   useEffect(() => {
     if (selectedChat && selectedChat !== 'heritage-assistant') {
       if (!isExistingChatId(selectedChat)) {
-        latestLoadChatIdRef.current = selectedChat
-        setChatMessages([])
-        resetMessagePagination()
-        setSelectedChatLinkId(null)
-        setIsChatsAI(false)
+        if (activeTab === CHAT_TABS.individual) {
+          const pendingSelectedChat = selectedChat
+          const pendingSelectedChatKey = normalizeChatId(pendingSelectedChat)
+          const lastUnresolved = unresolvedPrivateSelectionRef.current
+          const wasRecentlyChecked =
+            lastUnresolved.chatId === pendingSelectedChatKey &&
+            Date.now() - lastUnresolved.checkedAt < 30000
+
+          if (wasRecentlyChecked) {
+            clearMessagesForUnresolvedPrivateSelection(pendingSelectedChat)
+            return
+          }
+
+          resolvePrivateChatSelection(pendingSelectedChat)
+            .then(resolvedChatId => {
+              if (
+                resolvedChatId ||
+                normalizeChatId(selectedChatRef.current) !== pendingSelectedChatKey
+              ) {
+                return
+              }
+
+              unresolvedPrivateSelectionRef.current = {
+                chatId: pendingSelectedChatKey,
+                checkedAt: Date.now()
+              }
+              clearMessagesForUnresolvedPrivateSelection(pendingSelectedChat)
+            })
+            .catch(error => {
+              console.warn('Error resolving private chat selection:', error)
+              if (normalizeChatId(selectedChatRef.current) !== pendingSelectedChatKey) {
+                return
+              }
+
+              unresolvedPrivateSelectionRef.current = {
+                chatId: pendingSelectedChatKey,
+                checkedAt: Date.now()
+              }
+              clearMessagesForUnresolvedPrivateSelection(pendingSelectedChat)
+            })
+          return
+        }
+
+        clearMessagesForUnresolvedPrivateSelection(selectedChat)
         return
       }
-
       loadMessages(selectedChat)
 
       if (activeTab === 'groups' && selectedChat) {
@@ -1683,12 +1890,12 @@ const ChatsPage = () => {
           setStoredChatUnreadCount(chat.id, serverUnreadCount)
         }
 
-        return {
+        return hydrateChatPinState({
           ...chat,
           isOnline: onlineUsers.includes(chat.id),
           unreadCount: serverUnreadCount,
           hasNotification: serverUnreadCount > 0
-        }
+        })
       })
 
       setUserChatList(chatsWithOnlineStatus)
@@ -1697,6 +1904,108 @@ const ChatsPage = () => {
       console.warn('Error fetching user chats:', error)
       return []
     }
+  }
+  const findPrivateChatByPeerId = (peerId, chats = userChatListRef.current) => {
+    const targetId = normalizeChatId(peerId)
+    if (!targetId) return null
+
+    const currentUserId = getCurrentUserId(userInfo)
+
+    return (
+      (Array.isArray(chats) ? chats : []).find(chat => {
+        const rawChatUsers = chat?.chatUsers ?? chat?.ChatUsers
+        let chatUserIds = []
+
+        if (rawChatUsers) {
+          try {
+            const parsedUsers =
+              typeof rawChatUsers === 'string'
+                ? JSON.parse(rawChatUsers)
+                : rawChatUsers
+
+            if (Array.isArray(parsedUsers)) {
+              chatUserIds = parsedUsers
+                .map(user => user?.UserID ?? user?.userID ?? user?.id ?? user?.ID)
+                .map(normalizeChatId)
+                .filter(id => id && id !== currentUserId)
+            }
+          } catch {
+            chatUserIds = []
+          }
+        }
+
+        const ids = [
+          chat?.id,
+          chat?.ID,
+          chat?.chatID,
+          chat?.ChatID,
+          chat?.userID,
+          chat?.UserID,
+          ...getChatPeerIds(chat, currentUserId),
+          ...chatUserIds
+        ]
+          .map(normalizeChatId)
+          .filter(Boolean)
+
+        return ids.includes(targetId)
+      }) || null
+    )
+  }
+
+  const getResolvedChatId = chat =>
+    normalizeChatId(chat?.id ?? chat?.ID ?? chat?.chatID ?? chat?.ChatID)
+
+  const switchToResolvedPrivateChat = (chat, fallbackId = '') => {
+    const actualChatId = getResolvedChatId(chat)
+    if (!actualChatId) return ''
+
+    knownChatIdsRef.current.add(actualChatId)
+    unresolvedPrivateSelectionRef.current = { chatId: null, checkedAt: 0 }
+
+    if (actualChatId !== normalizeChatId(fallbackId)) {
+      selectedChatRef.current = actualChatId
+      latestLoadChatIdRef.current = actualChatId
+      setSelectedChat(actualChatId)
+      replaceChatsUrl(CHAT_TABS.individual, { chatId: actualChatId })
+    }
+
+    return actualChatId
+  }
+
+  const resolvePrivateChatSelection = async (chatId, options = {}) => {
+    const targetId = normalizeChatId(chatId)
+    if (
+      !targetId ||
+      targetId === 'heritage-assistant' ||
+      activeTabRef.current !== CHAT_TABS.individual
+    ) {
+      return ''
+    }
+
+    const localMatch = findPrivateChatByPeerId(targetId)
+    if (localMatch) {
+      const actualChatId = getResolvedChatId(localMatch)
+      return options.switchSelection === false
+        ? actualChatId
+        : switchToResolvedPrivateChat(localMatch, targetId)
+    }
+
+    const latestChats = await loadChatUser()
+    const latestMatch = findPrivateChatByPeerId(targetId, latestChats)
+    if (!latestMatch) return ''
+
+    const actualChatId = getResolvedChatId(latestMatch)
+    return options.switchSelection === false
+      ? actualChatId
+      : switchToResolvedPrivateChat(latestMatch, targetId)
+  }
+
+  const clearMessagesForUnresolvedPrivateSelection = chatId => {
+    latestLoadChatIdRef.current = chatId
+    setChatMessages([])
+    resetMessagePagination()
+    setSelectedChatLinkId(null)
+    setIsChatsAI(false)
   }
   const loadMessages = async (chatId, options = {}) => {
     if (!chatId) {
@@ -2097,14 +2406,14 @@ const ChatsPage = () => {
           )
           : false
 
-        return {
+        return hydrateChatPinState({
           ...chat,
           unreadCount: finalUnreadCount,
           onlineMembersCount,
           isActive: onlineMembersCount > 0,
           totalMembers,
           isNew
-        }
+        })
       })
 
       setGroupChatList(groupsWithStatusAndCount)
@@ -2359,13 +2668,13 @@ const ChatsPage = () => {
           }
           const finalUnreadCount = serverUnreadCount
 
-          return {
+          return hydrateChatPinState({
             ...chat,
             unreadCount: finalUnreadCount,
             onlineMembersCount,
             isActive: onlineMembersCount > 0,
             totalMembers
-          }
+          })
         })
 
         setGroupChatList(groupsWithStatusAndCount)
@@ -2390,11 +2699,20 @@ const ChatsPage = () => {
 
       isPolling = true
       try {
-        const activeChatId = selectedChatRef.current
+        let activeChatId = selectedChatRef.current
+        if (
+          activeChatId &&
+          activeTabRef.current === CHAT_TABS.individual &&
+          !isExistingChatId(activeChatId)
+        ) {
+          activeChatId =
+            (await resolvePrivateChatSelection(activeChatId)) || activeChatId
+        }
+
         await Promise.allSettled([
           loadChatUser(),
           forceReloadGroupData(),
-          activeChatId
+          activeChatId && isExistingChatId(activeChatId)
             ? loadMessages(activeChatId, {
                 force: true,
                 silent: true,
@@ -2437,7 +2755,21 @@ const ChatsPage = () => {
 
   // Handle chọn chat và load messages
   const handleChatSelect = async (chatId, fromUrl = false) => {
-    const hasExistingChat = isExistingChatId(chatId)
+    let hasExistingChat = isExistingChatId(chatId)
+
+    if (!hasExistingChat && activeTabRef.current === CHAT_TABS.individual) {
+      const resolvedChatId = await resolvePrivateChatSelection(chatId, {
+        switchSelection: false
+      })
+
+      if (resolvedChatId) {
+        chatId = resolvedChatId
+        knownChatIdsRef.current.add(resolvedChatId)
+        unresolvedPrivateSelectionRef.current = { chatId: null, checkedAt: 0 }
+        hasExistingChat = true
+      }
+    }
+
     const chatForSelection = [...userChatList, ...groupChatList].find(
       chat => chat.id === chatId || chat.chatID === chatId
     )
@@ -2875,13 +3207,18 @@ const ChatsPage = () => {
           }, 100)
 
           if (
+            activeTab === CHAT_TABS.individual &&
             !isExistingChat &&
             actualChatId &&
             actualChatId !== selectedChat
           ) {
+            selectedChatRef.current = actualChatId
+            latestLoadChatIdRef.current = actualChatId
+            knownChatIdsRef.current.add(actualChatId)
+            unresolvedPrivateSelectionRef.current = { chatId: null, checkedAt: 0 }
             setSelectedChat(actualChatId)
+            replaceChatsUrl(CHAT_TABS.individual, { chatId: actualChatId })
           }
-
           setTimeout(() => scrollToBottom(), 40)
 
           const messageTime = new Date().toISOString()
@@ -3320,13 +3657,46 @@ const ChatsPage = () => {
     )
   }
 
+  const getPinResponsePayload = response =>
+    response?.data?.data ?? response?.data ?? response ?? {}
+
+  const resolveChatPinDate = (response, fallbackPinDate) => {
+    const payload = getPinResponsePayload(response)
+    const hasPinFlag =
+      Object.prototype.hasOwnProperty.call(payload, 'isPinned') ||
+      Object.prototype.hasOwnProperty.call(payload, 'IsPinned') ||
+      Object.prototype.hasOwnProperty.call(payload, 'isPin') ||
+      Object.prototype.hasOwnProperty.call(payload, 'IsPin')
+
+    if (hasPinFlag) {
+      const rawPinned =
+        payload?.isPinned ?? payload?.IsPinned ?? payload?.isPin ?? payload?.IsPin
+      const pinned = rawPinned === true || rawPinned === 'true' || rawPinned === 1 || rawPinned === '1'
+
+      return pinned
+        ? payload?.pinDate ?? payload?.PinDate ?? fallbackPinDate ?? new Date().toISOString()
+        : null
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(payload, 'pinDate') ||
+      Object.prototype.hasOwnProperty.call(payload, 'PinDate')
+    ) {
+      return payload?.pinDate ?? payload?.PinDate ?? null
+    }
+
+    return fallbackPinDate
+  }
+
   const updateChatPinState = (chatId, pinDate) => {
     const targetId = normalizeChatId(chatId)
+    setStoredChatPinDate(targetId, pinDate)
+
     const updateList = list =>
       list.map(chat =>
         normalizeChatId(getChatIdentity(chat)) === targetId
           ? applyChatPinState(chat, pinDate)
-          : chat
+          : hydrateChatPinState(chat)
       )
 
     setUserChatList(updateList)
@@ -3334,11 +3704,13 @@ const ChatsPage = () => {
   }
 
   const handlePinChat = async chatId => {
-    const nextPinDate = getNextChatPinDate(findChatById(chatId))
+    const fallbackPinDate = getNextChatPinDate(findChatById(chatId))
 
     try {
       const response = await pinChat(chatId)
       if (response.status === 200) {
+        const nextPinDate = resolveChatPinDate(response, fallbackPinDate)
+
         await loadUserReq()
         await loadData()
         updateChatPinState(chatId, nextPinDate)
@@ -3351,11 +3723,13 @@ const ChatsPage = () => {
   }
 
   const handlePinChatIndividual = async chatId => {
-    const nextPinDate = getNextChatPinDate(findChatById(chatId))
+    const fallbackPinDate = getNextChatPinDate(findChatById(chatId))
 
     try {
       const response = await pinChat(chatId)
       if (response.status === 200) {
+        const nextPinDate = resolveChatPinDate(response, fallbackPinDate)
+
         await loadUserReq()
         await loadChatUser()
         await loadData()
@@ -3942,8 +4316,11 @@ const ChatsPage = () => {
         type: 'heritage-assistant',
         isOnline: true // AI luôn online
       }
-      : chatList.find(chat => chat.id == selectedChat)
-
+      : chatList.find(
+        chat =>
+          normalizeChatId(chat.id) === normalizeChatId(selectedChat) ||
+          normalizeChatId(chat.chatID) === normalizeChatId(selectedChat)
+      )
   const visibleUserRequests =
     activeTab === 'groups' &&
       selectedChat &&

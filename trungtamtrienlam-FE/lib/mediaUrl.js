@@ -1,4 +1,4 @@
-﻿import { ApiConstants } from '@/constants/apiConstants'
+import { ApiConstants } from '@/constants/apiConstants'
 
 const ABSOLUTE_URL_RE = /^(https?:|blob:|data:)/i
 
@@ -19,9 +19,18 @@ export function buildMediaUrl(filePath) {
 
 export function getStaffFileUrl(staffFilesJson, typeFile) {
     try {
-        const files = JSON.parse(staffFilesJson || '[]')
-        const staffFile = files.find((file) => file.TypeFile === typeFile)
-        return buildMediaUrl(staffFile?.File)
+        const files = Array.isArray(staffFilesJson)
+            ? staffFilesJson
+            : JSON.parse(staffFilesJson || '[]')
+        const staffFile = files.find((file) => Number(file.TypeFile ?? file.typeFile) === Number(typeFile))
+        return buildMediaUrl(
+            staffFile?.File ??
+            staffFile?.file ??
+            staffFile?.Path ??
+            staffFile?.path ??
+            staffFile?.Url ??
+            staffFile?.url
+        )
     } catch {
         return null
     }

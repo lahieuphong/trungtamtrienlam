@@ -4,19 +4,13 @@ import ChatItem from './ChatItem'
 import Image from 'next/image'
 import ToggleButtonGroup from '../ToggleButtonGroup'
 import { getChatPinDate, isChatPinned } from '@/helpers/chatPinHelpers'
+import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
+import {
+  getChatUnreadCount as getUnreadCount,
+  sumUniqueChatUnreadCount
+} from '@/helpers/chatUnreadHelpers'
 
 import { Button, Input } from '../Form'
-
-const getUnreadCount = chat => {
-  const count = Number(
-    chat?.unreadCount ??
-      chat?.UnreadCount ??
-      chat?.countUnread ??
-      chat?.CountUnread ??
-      0
-  )
-  return Number.isFinite(count) ? count : 0
-}
 
 export default function ChatSidebar ({
   searchTerm,
@@ -34,21 +28,32 @@ export default function ChatSidebar ({
   hasLoaded = true,
   onMarkChatAsRead
 }) {
+  const { userInfo } = useLoadLocalStorage()
   const isHadAI = chatList?.some(chat => chat.isAI)
 
-  const individualUnreadCount = useMemo(() => {
-    const count = userChatList.reduce((total, chat) => {
-      return total + getUnreadCount(chat)
-    }, 0)
-    return count
-  }, [userChatList])
+  const individualUnreadCount = useMemo(
+    () =>
+      sumUniqueChatUnreadCount(userChatList, {
+        userInfo,
+        excludeCurrentUser: true
+      }),
+    [userChatList, userInfo]
+  )
 
-  const groupUnreadCount = useMemo(() => {
-    const count = groupChatList.reduce((total, chat) => {
-      return total + getUnreadCount(chat)
-    }, 0)
-    return count
-  }, [groupChatList])
+  const groupUnreadCount = useMemo(
+    () => sumUniqueChatUnreadCount(groupChatList),
+    [groupChatList]
+  )
+
+  const renderTabUnreadBadge = count => {
+    if (count <= 0) return null
+
+    return (
+      <span className='ml-1.5 inline-flex h-4 min-w-4 -translate-y-1 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white shadow-sm ring-2 ring-white'>
+        {count > 99 ? '99+' : count}
+      </span>
+    )
+  }
 
   const sortedChatList = useMemo(() => {
     if (!chatList || !Array.isArray(chatList)) return []
@@ -135,30 +140,18 @@ export default function ChatSidebar ({
               {
                 value: 'individual',
                 label: (
-                  <div className='relative flex items-center'>
-                    Cá nhân
-                    {individualUnreadCount > 0 && (
-                      <div className='absolute -top-3 -right-5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 bg-red-500'>
-                        <span className='text-xs text-white font-bold leading-none'>
-                          {individualUnreadCount > 99 ? '99+' : individualUnreadCount}
-                        </span>
-                      </div>
-                    )}
+                  <div className='inline-flex min-w-0 items-center justify-center'>
+                    <span>Cá nhân</span>
+                    {renderTabUnreadBadge(individualUnreadCount)}
                   </div>
                 )
               },
               {
                 value: 'groups',
                 label: (
-                  <div className='relative flex items-center'>
-                    Nhóm
-                    {groupUnreadCount > 0 && (
-                      <div className='absolute -top-3 -right-5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 bg-red-500'>
-                        <span className='text-xs text-white font-bold leading-none'>
-                          {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
-                        </span>
-                      </div>
-                    )}
+                  <div className='inline-flex min-w-0 items-center justify-center'>
+                    <span>Nhóm</span>
+                    {renderTabUnreadBadge(groupUnreadCount)}
                   </div>
                 )
               }
@@ -172,7 +165,7 @@ export default function ChatSidebar ({
               border: '1px solid #e2e8f0',
               borderRadius: '8px',
               padding: '2px',
-              overflow: 'hidden',
+              overflow: 'visible',
               position: 'relative'
             }}
             buttonStyle={{

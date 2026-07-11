@@ -31,6 +31,10 @@ import {
   getChatAttachmentPreview,
   hasChatAttachmentPreview
 } from '@/helpers/chatPreviewHelpers'
+import {
+  getChatUnreadCount as getUnreadCount,
+  sumUniqueChatUnreadCount
+} from '@/helpers/chatUnreadHelpers'
 
 const NEW_CHAT_USER_PREVIEW_LIMIT = 6
 
@@ -55,16 +59,6 @@ const setStoredUnreadCount = (chatId, count) => {
   }, 0)
 }
 
-const getUnreadCount = chat => {
-  const value =
-    chat?.unreadCount ??
-    chat?.UnreadCount ??
-    chat?.countUnread ??
-    chat?.CountUnread ??
-    0
-  const count = Number(value)
-  return Number.isFinite(count) ? count : 0
-}
 
 const getLastMessageId = chat =>
   chat?.lastMessageId ||
@@ -334,15 +328,19 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
   const formatGroupMessageDisplayPreview = group =>
     formatChatListPreview(formatGroupMessagePreview(group))
 
-  const individualUnreadCount = useMemo(() => {
-    const count = userChatList.reduce((total, chat) => total + getUnreadCount(chat), 0)
-    return count
-  }, [userChatList])
+  const individualUnreadCount = useMemo(
+    () =>
+      sumUniqueChatUnreadCount(userChatList, {
+        userInfo,
+        excludeCurrentUser: true
+      }),
+    [userChatList, userInfo]
+  )
 
-  const groupUnreadCount = useMemo(() => {
-    const count = groupChatList.reduce((total, chat) => total + getUnreadCount(chat), 0)
-    return count
-  }, [groupChatList])
+  const groupUnreadCount = useMemo(
+    () => sumUniqueChatUnreadCount(groupChatList),
+    [groupChatList]
+  )
 
   const totalUnreadCount = individualUnreadCount + groupUnreadCount
 

@@ -298,15 +298,25 @@ def _file_size_mb(file_obj):
     return round(size / (1024 * 1024), 4)
 
 
-def _save_chat_file(file_obj, chat_id):
+def _chat_media_category(chat_type):
+    return 'groups' if _int(chat_type, CHAT_TYPE_PRIVATE) == CHAT_TYPE_GROUP else 'individual'
+
+
+def _chat_media_path(chat, *parts):
+    path_parts = ['chats', _chat_media_category(getattr(chat, 'type', CHAT_TYPE_PRIVATE)), chat.id]
+    path_parts.extend(_string(part).strip('/\\') for part in parts if _string(part))
+    return '/'.join(path_parts)
+
+
+def _save_chat_file(file_obj, chat):
     filename = Path(getattr(file_obj, 'name', '') or 'file').name
-    path = default_storage.save(f'legacy_aidi/chats/{chat_id}/{filename}', file_obj)
+    path = default_storage.save(_chat_media_path(chat, filename), file_obj)
     return path
 
 
-def _save_chat_avatar(file_obj, chat_id):
+def _save_chat_avatar(file_obj, chat):
     filename = Path(getattr(file_obj, 'name', '') or 'avatar').name
-    path = default_storage.save(f'legacy_aidi/chats/{chat_id}/avatar/{filename}', file_obj)
+    path = default_storage.save(_chat_media_path(chat, 'avatar', filename), file_obj)
     return default_storage.url(path)
 
 
@@ -901,7 +911,7 @@ class ChatCreateApi(GenericAPIView):
                 )
 
                 if avatar_upload:
-                    chat.avatar = _save_chat_avatar(avatar_upload, chat.id)
+                    chat.avatar = _save_chat_avatar(avatar_upload, chat)
                     chat.save(update_fields=['avatar', 'updated_date'])
 
                 for user_id in chat_user_ids:
@@ -1009,7 +1019,7 @@ class ChatUpdateAvatarApi(APIView):
 
         try:
             with transaction.atomic():
-                avatar = _save_chat_avatar(avatar_upload, chat.id)
+                avatar = _save_chat_avatar(avatar_upload, chat)
                 chat.avatar = avatar
                 chat.updated_by = current_user_id
                 chat.message_type = MESSAGE_TYPE_EVENT
@@ -1890,7 +1900,7 @@ class ChatSendApi(GenericAPIView):
 
                 chat_files = []
                 for upload in _collect_uploads(request):
-                    saved_path = _save_chat_file(upload, chat.id)
+                    saved_path = _save_chat_file(upload, chat)
                     chat_files.append(ManagedChatFile.objects.create(
                         chat_id=chat.id,
                         message_id=message.id,
