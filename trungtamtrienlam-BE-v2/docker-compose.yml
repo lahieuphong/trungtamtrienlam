@@ -1,0 +1,146 @@
+name: ${COMPOSE_PROJECT_NAME:-trungtamtrienlam-backend-v2-dev}
+
+networks:
+  app-net:
+    name: ${APP_NETWORK_NAME:-trungtamtrienlam-backend-v2-dev-net}
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        BUILD_ENV: dev
+      target: container-dev
+      network: host
+
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      POETRY_VIRTUALENVS_CREATE: "false"
+      POETRY_VIRTUALENVS_IN_PROJECT: "false"
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+
+    env_file:
+      - .env.local
+
+    volumes:
+      - ./app/:/app
+      - ./app/media:/app/media:rw
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8002", "root.asgi:application"]
+
+    ports:
+      - "127.0.0.1:${APP_PORT:-8003}:8002"
+
+    networks:
+      - app-net
+
+  celery_worker:
+    build:
+      context: .
+      args:
+        BUILD_ENV: dev
+      target: container-dev
+      network: host
+
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      POETRY_VIRTUALENVS_CREATE: "false"
+      POETRY_VIRTUALENVS_IN_PROJECT: "false"
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      CELERY_TASK_ALWAYS_EAGER: "false"
+
+    env_file:
+      - .env.local
+
+    volumes:
+      - ./app/:/app
+      - ./app/media:/app/media:rw
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: ["celery", "-A", "root", "worker", "-l", "info"]
+
+    networks:
+      - app-net
+
+  celery_beat:
+    build:
+      context: .
+      args:
+        BUILD_ENV: dev
+      target: container-dev
+      network: host
+
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      POETRY_VIRTUALENVS_CREATE: "false"
+      POETRY_VIRTUALENVS_IN_PROJECT: "false"
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      CELERY_TASK_ALWAYS_EAGER: "false"
+
+    env_file:
+      - .env.local
+
+    volumes:
+      - ./app/:/app
+      - ./app/media:/app/media:rw
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    command: ["celery", "-A", "root", "beat", "-l", "info", "-S", "django"]
+
+    networks:
+      - app-net
+
+  postgres:
+    image: postgres:16-alpine
+
+    environment:
+      POSTGRES_DB: trungtamtrienlam
+      POSTGRES_USER: trungtamtrienlam
+      POSTGRES_PASSWORD: trungtamtrienlam
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trungtamtrienlam -d trungtamtrienlam"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    networks:
+      - app-net
+
+  redis:
+    image: redis:7-alpine
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+    networks:
+      - app-net
+
+volumes:
+  postgres-data:
+    name: ${POSTGRES_VOLUME_NAME:-trungtamtrienlam-backend-v2-dev-postgres-data}

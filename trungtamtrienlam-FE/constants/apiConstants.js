@@ -1,4 +1,4 @@
-const LOCAL_BACKEND_API_URL = 'http://localhost:8000/api'
+const LOCAL_BACKEND_API_URL = 'http://localhost:8003/api'
 const LOCAL_FRONTEND_URL = 'http://localhost:3000/'
 const LOCAL_DEV_FRONTEND_PORTS = new Set(['3000', '3001', '5173'])
 

@@ -286,16 +286,16 @@ const ChatPopupMessageInput = forwardRef(({
             </button>
 
             {showContextMenu && (
-              <div className='absolute bottom-full left-0 mb-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50'>
+              <div className='absolute bottom-full left-0 z-50 mb-2 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg'>
                 {contextMenuItems.map(item => {
                   const IconComponent = item.icon
                   return (
                     <button
                       key={item.id}
                       onClick={() => handleContextMenuClick(item.id)}
-                      className='w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 text-left'
+                      className='flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50'
                     >
-                      <IconComponent size={12} className='text-gray-700' />
+                      <IconComponent size={16} className='text-gray-700' />
                       <span className='text-gray-700'>{item.label}</span>
                     </button>
                   )

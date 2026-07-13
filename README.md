@@ -1,214 +1,211 @@
-# Hướng dẫn chạy dự án
+# Trung tâm triển lãm
 
-## 1. Chạy trên Windows
+Repository local gồm frontend Next.js và backend Django/Celery. Backend đang sử dụng chính thức là `trungtamtrienlam-BE-v2`, giữ cấu trúc chuẩn đã lấy từ production và chạy bằng Docker Compose.
 
-Trong Docker Desktop đang có 2 container:
+> Không sử dụng lại thư mục, container, virtual environment hoặc lệnh chạy của `trungtamtrienlam-BE` cũ.
 
-- `pg-trienlam`: PostgreSQL, port `5432`
-- `redis-trienlam`: Redis, port `6379`
+## Cấu trúc hiện tại
 
-Nhưng nếu thấy nút tam giác **Play** thì có khả năng container đang **tắt**. Bật lại bằng:
-
-```powershell
-docker start pg-trienlam redis-trienlam
+```text
+trungtamtrienlam/
+├── trungtamtrienlam-BE-v2/        # Backend hiện tại
+├── trungtamtrienlam-FE/           # Frontend hiện tại
+├── backup/                        # Database/media backup local
+├── start-be.bat                   # Khởi động backend trên Windows
+├── Backup_dữ_liệu_từ_database.md # Hướng dẫn backup và restore
+└── README.md
 ```
 
-Sau đó kiểm tra:
+Thư mục `backup/` và các file `.env.local` được Git bỏ qua. Không đưa database dump, media thật, mật khẩu hoặc secret lên repository public.
+
+## Yêu cầu
+
+- Docker Desktop đang chạy và có Docker Compose v2.
+- PowerShell 5.1 trở lên trên Windows.
+- Node.js và Yarn 1.22.x để chạy frontend.
+- Backend có file `trungtamtrienlam-BE-v2/.env.local` hợp lệ.
+- Frontend có file `trungtamtrienlam-FE/.env.local` hợp lệ.
+
+## Địa chỉ local
+
+| Thành phần | Địa chỉ |
+| --- | --- |
+| Frontend | <http://localhost:3000> |
+| Backend | <http://localhost:8003> |
+| API đăng nhập | `POST http://localhost:8003/api/auth/login/` |
+| Django Admin | <http://localhost:8003/admin/> |
+| Healthcheck | <http://localhost:8003/healthcheck/> |
+| Readiness | <http://localhost:8003/readiness/> |
+| WebSocket chat | `ws://localhost:8003/ws/chat/` |
+| PostgreSQL từ máy host | `127.0.0.1:5434` |
+
+Redis chỉ hoạt động trong mạng Docker và không mở cổng ra máy host.
+
+## Khởi động nhanh trên Windows
+
+Mở PowerShell tại thư mục chứa file README này.
+
+### 1. Khởi động backend
+
+Lần đầu chạy, hoặc sau khi thay đổi dependency/Dockerfile:
 
 ```powershell
-docker ps
+.\start-be.bat --build
 ```
 
-Nếu thấy `pg-trienlam` và `redis-trienlam` trong danh sách là ok.
-
-Tiếp theo chạy Backend:
+Các lần chạy bình thường:
 
 ```powershell
-cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam
 .\start-be.bat
 ```
 
-Hoặc chạy thủ công trong thư mục Backend:
+Script sẽ:
+
+1. Kiểm tra Docker, Docker Compose và `.env.local`.
+2. Khởi động PostgreSQL và Redis.
+3. Chạy Django migration an toàn.
+4. Khởi động API, Celery Worker và Celery Beat.
+5. Chờ endpoint readiness tối đa 60 giây.
+
+Script không tự restore backup, không drop database và không xóa Docker volume. Có thể thêm `--no-pause` khi chạy từ terminal hoặc automation:
 
 ```powershell
-cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE
-.\venv\Scripts\activate
-python manage.py migrate
-python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
+.\start-be.bat --no-pause
 ```
 
-Lưu ý: chat realtime dùng WebSocket ở `ws://localhost:8000/ws/chat/`, vì vậy không dùng `python manage.py runserver` cho backend khi test chat.
+### 2. Khởi động frontend
 
-Rồi chạy Frontend ở PowerShell khác:
+Mở một cửa sổ PowerShell khác:
 
 ```powershell
-cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-FE
-Copy-Item .env.example .env.local
+Set-Location .\trungtamtrienlam-FE
+
+if (-not (Test-Path .\.env.local)) {
+  Copy-Item .\.env.example .\.env.local
+}
+
+yarn install --frozen-lockfile
 yarn dev
 ```
 
-Mở:
+Ba cấu hình local quan trọng của frontend là:
 
-```text
-http://localhost:3000
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:8003/api
+NEXT_PUBLIC_WS_URL=ws://localhost:8003/ws
+NEXT_PUBLIC_CDN_URL=http://localhost:8003
 ```
 
-Nếu `python manage.py migrate` báo lỗi database không tồn tại, tạo database trong container `pg-trienlam`:
+Sau khi sửa `.env.local`, hãy dừng và chạy lại `yarn dev`. Mở <http://localhost:3000> khi frontend báo sẵn sàng.
+
+### 3. Kiểm tra hệ thống
 
 ```powershell
-docker exec -it pg-trienlam psql -U postgres -c "CREATE DATABASE trungtamtrienlam_dev;"
+Invoke-RestMethod http://localhost:8003/healthcheck/
+Invoke-RestMethod http://localhost:8003/readiness/
 ```
 
-Sau đó chạy lại:
+Kết quả readiness hợp lệ phải cho biết database và Redis đều có trạng thái `ok`.
+
+## Khôi phục dữ liệu trên máy mới
+
+Chỉ restore khi khởi tạo máy mới hoặc chủ động phục hồi dữ liệu. Không chạy restore trong mỗi lần khởi động.
 
 ```powershell
-python manage.py migrate
+Set-Location .\trungtamtrienlam-BE-v2
+
+docker compose build
+
+powershell -ExecutionPolicy Bypass -File .\scripts\restore-local-backup.ps1 `
+  -Environment dev `
+  -ConfirmDestructive
+
+Set-Location ..
+.\start-be.bat
 ```
 
-## 2. Chạy trên macOS
+Script restore chọn file `.dump` mới nhất trong thư mục `backup/`. Tham số `-ConfirmDestructive` cho phép drop và tạo lại database của riêng stack BE-v2 trước khi nạp dump; hãy tạo backup mới nếu database hiện tại có dữ liệu quan trọng.
 
-### 2.1. Bật Docker
+Database dump không chứa media. Media đang sử dụng nằm trong `trungtamtrienlam-BE-v2/app/media` và phải được backup riêng. Xem hướng dẫn đầy đủ tại [Backup dữ liệu từ database](./Backup_dữ_liệu_từ_database.md).
 
-Nếu container đã có sẵn trong Docker Desktop, bật PostgreSQL và Redis:
+## Đăng nhập
 
-```bash
-docker start pg-trienlam redis-trienlam
-docker ps
-```
-
-Cần thấy:
+Frontend gửi thông tin đăng nhập tới:
 
 ```text
-pg-trienlam
-redis-trienlam
+POST /api/auth/login/
 ```
 
-Nếu chưa có container PostgreSQL:
+Payload sử dụng `username` và `password`. Repository không lưu mật khẩu mặc định; tài khoản được lấy từ database đã restore.
+
+Nếu quên mật khẩu của tài khoản `admin`, có thể đặt lại trực tiếp trong backend:
+
+```powershell
+Set-Location .\trungtamtrienlam-BE-v2
+docker compose exec app poetry run python manage.py changepassword admin
+```
+
+Nếu frontend vẫn báo sai tài khoản hoặc mật khẩu:
+
+1. Kiểm tra readiness có trả về `ready` hay không.
+2. Kiểm tra `.env.local` của frontend đang trỏ tới cổng `8003`.
+3. Khởi động lại `yarn dev` sau khi sửa biến môi trường.
+4. Xác nhận tài khoản tồn tại, đang active và mật khẩu đúng trong database hiện tại.
+
+## Quản lý backend hằng ngày
+
+Chạy các lệnh sau trong `trungtamtrienlam-BE-v2`:
+
+```powershell
+# Xem trạng thái
+docker compose ps
+
+# Xem log gần nhất
+docker compose logs --tail 200 app postgres redis celery_worker celery_beat
+
+# Theo dõi log realtime
+docker compose logs -f app celery_worker celery_beat
+
+# Dừng tạm thời, giữ nguyên container và dữ liệu
+docker compose stop
+
+# Gỡ container/network nhưng vẫn giữ volume dữ liệu
+docker compose down
+```
+
+> Tuyệt đối không chạy `docker compose down -v`. Tùy chọn `-v` sẽ xóa PostgreSQL volume và làm mất database local.
+
+Stack development hiện dùng:
+
+- Compose project: `trungtamtrienlam-backend-v2-dev`
+- PostgreSQL volume: `trungtamtrienlam-backend-v2-dev-postgres-data`
+- Các service: `app`, `postgres`, `redis`, `celery_worker`, `celery_beat`
+
+## Chạy trên macOS hoặc Linux
+
+`start-be.bat` chỉ dành cho Windows. Trên macOS/Linux, dùng Docker Compose trực tiếp:
 
 ```bash
-docker run -d --name pg-trienlam \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=trungtamtrienlam_dev \
-  -p 5432:5432 \
-  -v pg-trienlam-data:/var/lib/postgresql/data \
-  postgres:16
+cd trungtamtrienlam-BE-v2
+
+docker compose build
+docker compose run --rm app poetry run python manage.py migrate --noinput
+docker compose up -d --wait
 ```
 
-Nếu port `6379` chưa bị chiếm, tạo Redis Docker như này:
+Chạy frontend ở terminal khác:
 
 ```bash
-docker run -d --name redis-trienlam \
-  -p 6379:6379 \
-  -v redis-trienlam-data:/data \
-  redis:7-alpine redis-server --appendonly yes
-```
+cd trungtamtrienlam-FE
 
-Nếu macOS báo lỗi `address already in use` ở port `6379`, nghĩa là máy đang có Redis khác chạy sẵn. Khi đó tạo Redis Docker bằng port ngoài `6380`:
-
-```bash
-docker run -d --name redis-trienlam \
-  -p 6380:6379 \
-  -v redis-trienlam-data:/data \
-  redis:7-alpine redis-server --appendonly yes
-```
-
-Với trường hợp dùng port `6380`, sửa file `trungtamtrienlam-BE/.env`:
-
-```env
-REDIS_URL=redis://localhost:6380/0
-CELERY_BROKER_URL=redis://localhost:6380/1
-CELERY_RESULT_BACKEND=redis://localhost:6380/2
-```
-
-Nếu Redis Docker dùng đúng port `6379`, giữ cấu hình:
-
-```env
-REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/1
-CELERY_RESULT_BACKEND=redis://localhost:6379/2
-```
-
-### 2.2. Chạy Backend trên macOS
-
-Vào thư mục Backend:
-
-```bash
-cd /Users/lahieuphong/Downloads/Phong_Nho_IT/trungtamtrienlam/trungtamtrienlam-BE
-```
-
-Tạo môi trường Python nếu chưa có:
-
-```bash
-python3.12 -m venv venv
-```
-
-Kích hoạt môi trường Python trên macOS:
-
-```bash
-source venv/bin/activate
-```
-
-Lưu ý:
-
-```text
-Windows: .\venv\Scripts\activate
-macOS:   source venv/bin/activate
-```
-
-Cài thư viện nếu chưa cài:
-
-```bash
-pip install -r requirements.txt
-```
-
-Chạy migrate và seed menu:
-
-```bash
-python manage.py migrate
-python manage.py seed_menu
-```
-
-Chạy Backend:
-
-```bash
-python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
-```
-
-Backend sẽ chạy tại:
-
-```text
-http://localhost:8000
-```
-
-### 2.3. Chạy Frontend trên macOS
-
-Mở terminal khác, vào thư mục Frontend:
-
-```bash
-cd /Users/lahieuphong/Downloads/Phong_Nho_IT/trungtamtrienlam/trungtamtrienlam-FE
-```
-
-Tạo file môi trường nếu chưa có:
-
-```bash
-cp .env.example .env.local
-```
-
-Cài thư viện nếu chưa cài:
-
-```bash
-yarn install
-```
-
-Chạy Frontend:
-
-```bash
+[ -f .env.local ] || cp .env.example .env.local
+yarn install --frozen-lockfile
 yarn dev
 ```
 
-Mở:
+Không tạo các container PostgreSQL/Redis rời bên ngoài Compose của BE-v2.
 
-```text
-http://localhost:3000
-```
+## Tài liệu chi tiết
+
+- [Backend v2](./trungtamtrienlam-BE-v2/README.md)
+- [Backup và khôi phục dữ liệu](./Backup_dữ_liệu_từ_database.md)

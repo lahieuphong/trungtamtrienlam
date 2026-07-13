@@ -967,8 +967,9 @@ const ChatsPage = () => {
             id: msg.id || msg.ID || clientTempId,
             clientTempId,
             ClientTempID: clientTempId,
-            content: msg.content,
-            message: msg.messageType,
+            content: msg.content ?? msg.Content ?? '',
+            message: msg.messageType ?? msg.MessageType,
+            messageType: msg.messageType ?? msg.MessageType,
             sender: isCurrentUserSender ? 'me' : 'other',
             timestamp: msg.createdDate || msg.timestamp || new Date(),
             avatar: msg.avatar,
@@ -976,12 +977,13 @@ const ChatsPage = () => {
             files: files,
             chatLinks: msg.chatLinks || msg.ChatLinks || '',
             isUnsend: msg.isUnsend || false,
-            eventID: msg.eventID || null,
-            eventType: msg.eventType || null,
-            isPin: msg.isPin || false,
-            NotePin: msg.notePin || false,
+            eventID: msg.eventID ?? msg.EventID ?? null,
+            eventType: msg.eventType ?? msg.EventType ?? null,
+            isPin: msg.isPin || msg.IsPin || false,
+            NotePin: msg.notePin || msg.NotePin || false,
             seenBy: seenBy,
-            ListUserJoinReminder: msg.listUserJoinRemind,
+            ListUserJoinReminder:
+              msg.listUserJoinRemind || msg.ListUserJoinReminder || [],
             isPending: false
           }
           chatMessageHistoryRef.current = mergeChatMessagesById(
@@ -2236,6 +2238,8 @@ const ChatsPage = () => {
         return {
           id: msg.id,
           content: msg.content,
+          message: msg.messageType ?? msg.MessageType,
+          messageType: msg.messageType ?? msg.MessageType,
           timestamp: msg.createdDate,
           sender: isCurrentUserMessage(msg, userInfo) ? 'me' : 'other',
           avatar: msg.senderAvatar,
@@ -2244,13 +2248,14 @@ const ChatsPage = () => {
           files: files,
           chatLinks: msg.chatLinks || msg.ChatLinks || '',
           isUnsend: msg.isUnsend || false,
-          eventID: msg.eventID || null,
-          eventType: msg.eventType || null,
-          isPin: msg.isPin || false,
-          NotePin: msg.notePin || false,
-          replyToID: msg.replyToID || null,
+          eventID: msg.eventID ?? msg.EventID ?? null,
+          eventType: msg.eventType ?? msg.EventType ?? null,
+          isPin: msg.isPin || msg.IsPin || false,
+          NotePin: msg.notePin || msg.NotePin || false,
+          replyToID: msg.replyToID || msg.ReplyToID || null,
           seenBy: seenBy,
-          ListUserJoinReminder: msg.listUserJoinRemind || []
+          ListUserJoinReminder:
+            msg.listUserJoinRemind || msg.ListUserJoinReminder || []
         }
       })
 

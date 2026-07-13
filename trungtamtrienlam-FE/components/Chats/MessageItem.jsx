@@ -76,6 +76,15 @@ export default function MessageItem ({
   )
   const progressContext = useContext(ProgressContext)
   const isOwn = isCurrentUserMessage(message, userInfo)
+  const messageType = Number(
+    message?.messageType ?? message?.MessageType ?? message?.message
+  )
+  const eventType = Number(message?.eventType ?? message?.EventType)
+  const reminderUserList =
+    message?.ListUserJoinReminder ??
+    message?.listUserJoinRemind ??
+    message?.listUserJoinReminder ??
+    []
   const [showReminderModal, setShowReminderModal] = useState(false)
 
   const normalizeUserId = value => {
@@ -590,7 +599,7 @@ export default function MessageItem ({
     }
   }
 
-  if (message.messageType === 5) {
+  if (messageType === 5) {
     let displayContent = message.content
 
     if (
@@ -813,7 +822,7 @@ export default function MessageItem ({
     }
 
     if (
-      message.eventType === 2 &&
+      eventType === 2 &&
       message.content &&
       message.content.toLowerCase().includes('tạo bình chọn')
     ) {
@@ -981,17 +990,17 @@ export default function MessageItem ({
     }
 
     if (
-      (message.eventType === 3 &&
+      (eventType === 3 &&
         message.content &&
         message.content.toLowerCase().includes('nhắc hẹn') &&
-        message.ListUserJoinReminder &&
-        Array.isArray(message.ListUserJoinReminder) &&
-        message.ListUserJoinReminder.length > 0) ||
-      (typeof message.ListUserJoinReminder === 'string' &&
-        message.ListUserJoinReminder.trim() !== '')
+        reminderUserList &&
+        Array.isArray(reminderUserList) &&
+        reminderUserList.length > 0) ||
+      (typeof reminderUserList === 'string' &&
+        reminderUserList.trim() !== '')
     ) {
       const isUserInReminderList = isReminderForUser(
-        message.ListUserJoinReminder,
+        reminderUserList,
         userInfo
       )
 
@@ -1062,7 +1071,7 @@ export default function MessageItem ({
 
     // Trường hợp thông thường: Nhắc hẹn không có ListUserJoinReminder (public notification)
     if (
-      message.eventType === 3 &&
+      eventType === 3 &&
       message.content &&
       message.content.toLowerCase().includes('nhắc hẹn')
     ) {
@@ -1240,7 +1249,7 @@ export default function MessageItem ({
   }
 
   // Kiểm tra xem message có liên quan đến poll không (thông báo hoặc hiển thị poll)
-  if (message.eventType === 2) {
+  if (eventType === 2) {
     const matchingPoll = polls.find(
       poll => String(poll.id || poll.ID) === String(message.eventID)
     )

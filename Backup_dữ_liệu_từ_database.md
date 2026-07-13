@@ -1,161 +1,88 @@
-﻿# Backup Dữ Liệu Database
+# Backup và khôi phục dữ liệu
 
-File này hướng dẫn cách giữ lại toàn bộ dữ liệu database khi clone dự án sang máy khác.
-
-## 1. Hiểu Nhanh
-
-GitHub chỉ lưu code, không tự lưu dữ liệu database.
-
-Muốn máy khác có đủ table và record, cần backup:
-
-| Cần backup | File tạo ra | Ý nghĩa |
-|---|---|---|
-| Database | `backup\trungtamtrienlam_backup.dump` | Giữ toàn bộ table và record |
-| Media/upload | `backup\media_backup.zip` | Giữ hình ảnh, file upload, chữ ký, con dấu |
-
-Tên cần nhớ:
-
-| Tên | Nghĩa là gì |
-|---|---|
-| `pg-trienlam` | Container PostgreSQL trong Docker |
-| `trungtamtrienlam_dev` | Tên database thật |
-
-Nói đơn giản:
+Backend hiện tại là `trungtamtrienlam-BE-v2`. Tất cả file backup nên được lưu tập trung tại:
 
 ```text
-pg-trienlam = nơi chạy PostgreSQL
-trungtamtrienlam_dev = database cần backup
+trungtamtrienlam\backup
 ```
 
-## 2. Backup Database
-
-Mở CMD, vào thư mục dự án:
-
-```cmd
-cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam
-```
-
-Kiểm tra container đang chạy:
-
-```cmd
-docker ps
-```
-
-Cần thấy container tên `pg-trienlam`.
-
-Tạo thư mục backup:
-
-```cmd
-mkdir backup
-```
-
-Backup database trong container:
-
-```cmd
-docker exec pg-trienlam pg_dump -U postgres -d trungtamtrienlam_dev -Fc -f /tmp/trungtamtrienlam_backup.dump
-```
-
-Copy file backup ra máy:
-
-```cmd
-docker cp pg-trienlam:/tmp/trungtamtrienlam_backup.dump backup\trungtamtrienlam_backup.dump
-```
-
-Kiểm tra:
-
-```cmd
-dir backup
-```
-
-Cần thấy file:
+File database chuẩn hiện có:
 
 ```text
-trungtamtrienlam_backup.dump
+backup\trungtamtrienlam-current-20260713064140.dump
 ```
 
-## 3. Backup Media Nếu Có File Upload
+> File `.dump` chỉ chứa database, không chứa ảnh hoặc file upload. Media đang sử dụng nằm tại `trungtamtrienlam-BE-v2\app\media` và cần được backup riêng.
 
-Nếu có ảnh, chữ ký, con dấu hoặc file upload, chạy thêm:
+## Khôi phục database
 
-```cmd
-powershell -Command "Compress-Archive -Path .\trungtamtrienlam-BE\media -DestinationPath .\backup\media_backup.zip -Force"
+Mở PowerShell tại thư mục dự án rồi chạy:
+
+```powershell
+Set-Location "E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE-v2"
+
+powershell -ExecutionPolicy Bypass -File .\scripts\restore-local-backup.ps1 `
+  -Environment dev `
+  -ConfirmDestructive
+
+docker compose run --rm app poetry run python manage.py migrate --noinput
+docker compose up -d
 ```
 
-Nếu không có thư mục `media` thì có thể bỏ qua.
+Script tự chọn file `.dump` mới nhất trong `..\backup`. Tham số `-ConfirmDestructive` cho phép xóa và tạo lại **database của stack BE-v2** trước khi restore; các Docker volume khác không bị xóa.
 
-## 4. Khi Có Dữ Liệu Mới Thì Backup Lại
+Nếu chỉ muốn khôi phục database và không xử lý media:
 
-Mỗi lần có dữ liệu mới trong hệ thống, chạy lại:
-
-```cmd
-cd E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam
-
-docker exec pg-trienlam pg_dump -U postgres -d trungtamtrienlam_dev -Fc -f /tmp/trungtamtrienlam_backup.dump
-docker cp pg-trienlam:/tmp/trungtamtrienlam_backup.dump backup\trungtamtrienlam_backup.dump
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restore-local-backup.ps1 `
+  -Environment dev `
+  -ConfirmDestructive `
+  -SkipMedia
 ```
 
-Nếu có upload thêm file, chạy thêm:
+## Tạo database backup mới
 
-```cmd
-powershell -Command "Compress-Archive -Path .\trungtamtrienlam-BE\media -DestinationPath .\backup\media_backup.zip -Force"
+Đảm bảo PostgreSQL của BE-v2 đang chạy:
+
+```powershell
+Set-Location "E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE-v2"
+docker compose up -d postgres
+
+$stamp = Get-Date -Format "yyyyMMddHHmmss"
+$file = "trungtamtrienlam-$stamp.dump"
+
+docker compose exec -T postgres pg_dump `
+  --username=trungtamtrienlam `
+  --dbname=trungtamtrienlam `
+  --format=custom `
+  --file="/tmp/$file"
+
+docker compose cp "postgres:/tmp/$file" "..\backup\$file"
+docker compose exec -T postgres rm -f "/tmp/$file"
 ```
 
-## 5. Restore Sang Máy Khác
+Kiểm tra file vừa tạo:
 
-Sau khi clone code về máy khác, copy thư mục `backup` vào dự án.
-
-Tạo database rỗng:
-
-```cmd
-docker exec pg-trienlam createdb -U postgres trungtamtrienlam_dev
+```powershell
+Get-ChildItem ..\backup\*.dump
 ```
 
-Copy file backup vào container:
+## Backup media
 
-```cmd
-docker cp backup\trungtamtrienlam_backup.dump pg-trienlam:/tmp/trungtamtrienlam_backup.dump
+Database dump không bao gồm media. Có thể tạo thêm file nén cùng thời điểm:
+
+```powershell
+$stamp = Get-Date -Format "yyyyMMddHHmmss"
+Compress-Archive `
+  -Path .\app\media\* `
+  -DestinationPath "..\backup\media-$stamp.zip" `
+  -Force
 ```
 
-Restore database:
+Không đưa dump, media backup hoặc file `.env` có dữ liệu thật lên repository public.
 
-```cmd
-docker exec pg-trienlam pg_restore -U postgres -d trungtamtrienlam_dev --clean --if-exists /tmp/trungtamtrienlam_backup.dump
-```
+## Lưu ý an toàn
 
-Nếu có `media_backup.zip`, giải nén:
-
-```cmd
-powershell -Command "Expand-Archive -Path .\backup\media_backup.zip -DestinationPath .\trungtamtrienlam-BE -Force"
-```
-
-## 6. Không Nên Push Các File Này Lên GitHub Public
-
-Không nên push:
-
-```text
-backup\trungtamtrienlam_backup.dump
-backup\media_backup.zip
-trungtamtrienlam-BE\.env
-```
-
-Vì các file này có thể chứa dữ liệu thật, tài khoản, email hoặc file nội bộ.
-
-## 7. Lỗi Thường Gặp
-
-Nếu không có container `pg-trienlam`, kiểm tra tên container bằng:
-
-```cmd
-docker ps
-```
-
-Nếu database chưa tồn tại, tạo bằng:
-
-```cmd
-docker exec pg-trienlam createdb -U postgres trungtamtrienlam_dev
-```
-
-Nếu không thấy file backup, chạy lại:
-
-```cmd
-docker cp pg-trienlam:/tmp/trungtamtrienlam_backup.dump backup\trungtamtrienlam_backup.dump
-```
+- Không chạy `docker compose down -v`; tùy chọn `-v` sẽ xóa volume database.
+- Nên tạo một dump mới trước khi restore lên database đang có dữ liệu quan trọng.
+- Chỉ restore file có nguồn gốc tin cậy.

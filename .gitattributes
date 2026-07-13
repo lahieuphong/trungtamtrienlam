@@ -1,6 +1,45 @@
-backup/media_backup.zip filter=lfs diff=lfs merge=lfs -text
+# Normalize text files for consistent diffs across Windows and Linux.
+* text=auto eol=lf
 
-# Linux deployment scripts must keep LF endings when checked out on Windows.
+# Native Windows launcher scripts must keep CRLF endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Linux and Docker entrypoints must remain executable-friendly with LF endings.
 *.sh text eol=lf
 Dockerfile text eol=lf
 docker-compose*.yml text eol=lf
+docker-compose*.yaml text eol=lf
+
+# Common binary assets and backup formats must never be treated as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.bmp binary
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+*.mp3 binary
+*.wav binary
+*.mp4 binary
+*.webm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.dump binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
