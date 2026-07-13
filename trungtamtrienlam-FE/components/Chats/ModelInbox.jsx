@@ -11,6 +11,9 @@ import { PinIcon, MoreHorizontal } from 'lucide-react'
 import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
 import PinDropdownMenu from './PinDropdownMenu'
 import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
+import ChatPinActionNotice, {
+  isChatPinActionMessage
+} from './ChatPinActionNotice'
 const MessageList = forwardRef(function MessageList (
   {
     messages,
@@ -599,39 +602,43 @@ const MessageList = forwardRef(function MessageList (
               String(lastReadMessageId) === String(message.id) &&
               renderUnreadDivider()}
 
-            <div
-              ref={el => {
-                if (el) messageRefs.current[message.id] = el
-              }}
-              id={`message-${message.id}`}
-              className={
-                highlightedMessageId === message.id
-                  ? 'bg-yellow-100 rounded-lg transition-colors duration-300'
-                  : ''
-              }
-            >
-              <MessageItem
-                message={message}
-                isAI={isAI}
-                onRecallMessage={handleRecallMessage}
-                ListUsers={ListUsers}
-                onReply={onReply}
-                onUpdateNote={onUpdateNote}
-                polls={polls}
-                onVote={onVote}
-                isRead={isMessageReadByCurrentUser(message)}
-                onMarkAsRead={() => handleMarkAsRead(message.id)}
-                reminders={reminders}
-                onEditReminder={onEditReminder}
-                onJoinReminder={onJoinReminder}
-                onDeclineReminder={onDeclineReminder}
-                onPinMessage={onPinMessage}
-                onUnpinMessage={onUnpinMessage}
-                onScrollToMessage={handleScrollToMessage}
-                handleAddNewOption={handleAddNewOption}
-                seenByUsers={seenUsersByMessageId.get(message.id) || []}
-              />
-            </div>
+            {isChatPinActionMessage(message) ? (
+              <ChatPinActionNotice message={message} />
+            ) : (
+              <div
+                ref={el => {
+                  if (el) messageRefs.current[message.id] = el
+                }}
+                id={`message-${message.id}`}
+                className={
+                  highlightedMessageId === message.id
+                    ? 'bg-yellow-100 rounded-lg transition-colors duration-300'
+                    : ''
+                }
+              >
+                <MessageItem
+                  message={message}
+                  isAI={isAI}
+                  onRecallMessage={handleRecallMessage}
+                  ListUsers={ListUsers}
+                  onReply={onReply}
+                  onUpdateNote={onUpdateNote}
+                  polls={polls}
+                  onVote={onVote}
+                  isRead={isMessageReadByCurrentUser(message)}
+                  onMarkAsRead={() => handleMarkAsRead(message.id)}
+                  reminders={reminders}
+                  onEditReminder={onEditReminder}
+                  onJoinReminder={onJoinReminder}
+                  onDeclineReminder={onDeclineReminder}
+                  onPinMessage={onPinMessage}
+                  onUnpinMessage={onUnpinMessage}
+                  onScrollToMessage={handleScrollToMessage}
+                  handleAddNewOption={handleAddNewOption}
+                  seenByUsers={seenUsersByMessageId.get(message.id) || []}
+                />
+              </div>
+            )}
           </React.Fragment>
         ))}
       </div>

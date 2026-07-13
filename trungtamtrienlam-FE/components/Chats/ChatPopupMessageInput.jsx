@@ -8,7 +8,8 @@ import {
   Bell,
   FileText,
   Users,
-  Archive
+  Archive,
+  X
 } from 'lucide-react'
 import CreatePollModal from './CreatePollModal'
 import CreateReminderModal from './CreateReminderModal'
@@ -166,13 +167,13 @@ const ChatPopupMessageInput = forwardRef(({
       {/* Hiển thị tin nhắn đang trả lời */}
       {replyToMessage && (
         <div
-          className={`mb-2 flex items-start justify-between rounded border-l-4 p-2 ${
+          className={`relative mb-2 rounded border-l-4 py-2 pl-2 pr-8 ${
             isAI
               ? 'border-amber-500 bg-amber-100/70'
               : 'border-blue-500 bg-gray-50'
           }`}
         >
-          <div>
+          <div className='min-w-0'>
             <div
               className={`mb-1 text-xs font-medium ${
                 isAI ? 'text-amber-800' : 'text-blue-600'
@@ -191,13 +192,15 @@ const ChatPopupMessageInput = forwardRef(({
                   : '')}
             </div>
           </div>
-          <Button
-            variant='ghost'
+          <button
+            type='button'
             onClick={onCancelReply}
-            className='text-gray-400 hover:text-gray-600'
+            className='absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-colors hover:bg-gray-300 hover:text-gray-900'
+            aria-label={'Gỡ trả lời'}
+            title={'Gỡ trả lời'}
           >
-            &times;
-          </Button>
+            <X size={12} strokeWidth={2.5} />
+          </button>
         </div>
       )}
 

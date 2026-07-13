@@ -501,16 +501,6 @@ const MessageList = forwardRef(function MessageList (
     onUnpinMessage({ messageID, eventID })
   }
 
-  const handleViewAllPinnedMessages = () => {
-    if (pinnedMessages.length === 0) return
-    setShowAllPins(true)
-    setOpenDropdown(false)
-    const firstPinnedMessageId = pinnedMessages[0]?.id ?? pinnedMessages[0]?.ID
-    if (firstPinnedMessageId) {
-      requestAnimationFrame(() => handleScrollToMessage(firstPinnedMessageId))
-    }
-  }
-
   const handleMessagesScroll = event => {
     if (!hasMoreMessages || isLoadingOlderMessages) return
     if (event.currentTarget.scrollTop <= 80) {
@@ -613,12 +603,7 @@ const MessageList = forwardRef(function MessageList (
               renderUnreadDivider()}
 
             {isChatPinActionMessage(message) ? (
-              <ChatPinActionNotice
-                message={message}
-                isOwn={isCurrentUserMessage(message, userInfo)}
-                hasPinnedMessages={pinnedMessages.length > 0}
-                onViewAll={handleViewAllPinnedMessages}
-              />
+              <ChatPinActionNotice message={message} />
             ) : (
               <div
                 ref={el => {

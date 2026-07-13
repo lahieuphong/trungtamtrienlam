@@ -8,7 +8,8 @@ import {
   Bell,
   FileText,
   Users,
-  Archive
+  Archive,
+  X
 } from 'lucide-react'
 import CreatePollModal from './CreatePollModal'
 import CreateReminderModal from './CreateReminderModal'
@@ -244,8 +245,8 @@ const MessageInput = forwardRef(({
         <div className='flex-1 relative'>
           {/* Hiển thị tin nhắn đang trả lời */}
           {replyToMessage && (
-            <div className='mb-2 bg-gray-50 border-l-4 border-blue-500 p-2 rounded flex justify-between items-start'>
-              <div>
+            <div className='relative mb-2 rounded border-l-4 border-blue-500 bg-gray-50 py-2 pl-2 pr-8'>
+              <div className='min-w-0'>
                 <div className='text-blue-600 text-xs font-medium mb-1'>
                   Đang trả lời{' '}
                   {replyToMessage.senderName ||
@@ -260,13 +261,15 @@ const MessageInput = forwardRef(({
                       : '')}
                 </div>
               </div>
-              <Button
-                variant='ghost'
+              <button
+                type='button'
                 onClick={onCancelReply}
-                className='text-gray-400 hover:text-gray-600'
+                className='absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-colors hover:bg-gray-300 hover:text-gray-900'
+                aria-label={'Gỡ trả lời'}
+                title={'Gỡ trả lời'}
               >
-                &times;
-              </Button>
+                <X size={12} strokeWidth={2.5} />
+              </button>
             </div>
           )}
 

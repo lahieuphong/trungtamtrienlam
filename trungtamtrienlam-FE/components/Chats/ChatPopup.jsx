@@ -438,16 +438,6 @@ export default function ChatPopup ({
     handleUnpinMessage({ messageID, eventID })
   }
 
-  const handleViewAllPinnedMessages = () => {
-    if (pinnedMessages.length === 0) return
-    setShowAllPins(true)
-    setOpenDropdown(false)
-    const firstPinnedMessageId = pinnedMessages[0]?.id ?? pinnedMessages[0]?.ID
-    if (firstPinnedMessageId) {
-      requestAnimationFrame(() => handleScrollToMessage(firstPinnedMessageId))
-    }
-  }
-
   // Wrapper functions to close modal after user request actions
   const handleAcceptUserRequestAndCloseModal = async (requestId) => {
     await handleAcceptUserRequest(requestId)
@@ -704,12 +694,7 @@ export default function ChatPopup ({
                         </div>
                       )}
                       {isChatPinActionMessage(msg) ? (
-                        <ChatPinActionNotice
-                          message={msg}
-                          isOwn={isCurrentUserPopupMessage(msg)}
-                          hasPinnedMessages={pinnedMessages.length > 0}
-                          onViewAll={handleViewAllPinnedMessages}
-                        />
+                        <ChatPinActionNotice message={msg} />
                       ) : (
                         <div
                           ref={el => {
