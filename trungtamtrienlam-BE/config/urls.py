@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from apps.authentication import views as auth_views
+from core.health import healthcheck, readiness
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -61,4 +62,8 @@ urlpatterns = [
 
     # Sao lưu & phục hồi
     path('api/backup/', include('apps.backup.urls')),
+
+    # Container/orchestrator probes (read-only)
+    path('healthcheck/', healthcheck, name='healthcheck'),
+    path('readiness/', readiness, name='readiness'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

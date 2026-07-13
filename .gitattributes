@@ -1,1 +1,6 @@
 backup/media_backup.zip filter=lfs diff=lfs merge=lfs -text
+
+# Linux deployment scripts must keep LF endings when checked out on Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf

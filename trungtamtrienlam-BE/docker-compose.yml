@@ -1,0 +1,159 @@
+name: ${COMPOSE_PROJECT_NAME:-trungtamtrienlam-backend}
+
+x-backend-environment: &backend-environment
+  DJANGO_SETTINGS_MODULE: ${DOCKER_DJANGO_SETTINGS_MODULE:-config.settings.development}
+  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the Compose environment file}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+  DB_NAME: ${DB_NAME:-trungtamtrienlam}
+  DB_USER: ${DB_USER:-trungtamtrienlam}
+  DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the Compose environment file}
+  # Local host settings use localhost; containers must use Compose DNS names.
+  DB_HOST: ${DOCKER_DB_HOST:-postgres}
+  DB_PORT: ${DOCKER_DB_PORT:-5432}
+  REDIS_URL: ${DOCKER_REDIS_URL:-redis://redis:6379/0}
+  CELERY_BROKER_URL: ${DOCKER_CELERY_BROKER_URL:-redis://redis:6379/1}
+  CELERY_RESULT_BACKEND: ${DOCKER_CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+  WAIT_FOR_DATABASE: ${WAIT_FOR_DATABASE:-true}
+  DB_WAIT_MAX_ATTEMPTS: ${DB_WAIT_MAX_ATTEMPTS:-30}
+  RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+  RUN_COLLECTSTATIC: ${RUN_COLLECTSTATIC:-false}
+
+x-backend-service: &backend-service
+  build:
+    context: .
+    target: runtime
+  image: ${BACKEND_IMAGE:-trungtamtrienlam-backend:local}
+  init: true
+  restart: unless-stopped
+  env_file:
+    # Plain `docker compose up` reuses the current local integrations/secrets.
+    # Production selects deploy/.env.production through BACKEND_ENV_FILE.
+    - path: ${BACKEND_ENV_FILE:-.env}
+      required: false
+  environment: *backend-environment
+  volumes:
+    - media_data:/app/media
+    - static_data:/app/staticfiles
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - backend
+
+services:
+  web:
+    <<: *backend-service
+    environment:
+      <<: *backend-environment
+      # Local Docker is first-run ready; the production override keeps this
+      # opt-in so deployments still require an explicit migration decision.
+      RUN_MIGRATIONS: ${WEB_RUN_MIGRATIONS:-true}
+    command:
+      - uvicorn
+      - config.asgi:application
+      - --host=0.0.0.0
+      - --port=8000
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+      - --workers=${WEB_CONCURRENCY:-2}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 8000), 2).close()"
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  celery_worker:
+    <<: *backend-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    command:
+      - celery
+      - -A
+      - config
+      - worker
+      - --loglevel=INFO
+      - --concurrency=${CELERY_CONCURRENCY:-2}
+    healthcheck:
+      disable: true
+
+  celery_beat:
+    <<: *backend-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    command:
+      - celery
+      - -A
+      - config
+      - beat
+      - --loglevel=INFO
+      - --pidfile=/tmp/celerybeat.pid
+      - --schedule=/app/run/celerybeat-schedule
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+      - celery_beat_data:/app/run
+    healthcheck:
+      disable: true
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-trungtamtrienlam}
+      POSTGRES_USER: ${DB_USER:-trungtamtrienlam}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in the Compose environment file}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:
+  static_data:
+  celery_beat_data:

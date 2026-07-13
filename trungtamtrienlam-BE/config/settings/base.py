@@ -27,6 +27,7 @@ THIRD_PARTY_APPS = [
     'corsheaders',
     'django_filters',
     'channels',
+    'django_celery_beat',
 ]
 
 LOCAL_APPS = [
@@ -147,6 +148,7 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 # ─── Channels (WebSocket / SignalR thay thế) ──────────────────────────────────
 CHANNEL_LAYERS = {
