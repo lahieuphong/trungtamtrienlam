@@ -452,6 +452,7 @@ const ChatsPage = () => {
   const selectedChatRef = useRef(selectedChat)
   const activeTabRef = useRef(activeTab)
   const isApplyingUrlTabRef = useRef(false)
+  const pendingLocalTabRef = useRef(null)
   const messageInputRef = useRef(null)
   const latestLoadChatIdRef = useRef(null)
   const messagePaneLoadingChatRef = useRef(null)
@@ -614,6 +615,15 @@ const ChatsPage = () => {
     if (!tabParam) return
 
     const nextTab = normalizeChatTab(tabParam)
+
+    if (pendingLocalTabRef.current) {
+      if (nextTab === pendingLocalTabRef.current) {
+        pendingLocalTabRef.current = null
+      } else {
+        return
+      }
+    }
+
     if (nextTab === activeTabRef.current) return
 
     isApplyingUrlTabRef.current = true
@@ -626,6 +636,10 @@ const ChatsPage = () => {
   }, [searchParams])
 
   useEffect(() => {
+    if (pendingLocalTabRef.current) {
+      return
+    }
+
     if (isApplyingUrlTabRef.current) {
       isApplyingUrlTabRef.current = false
       return
@@ -1258,6 +1272,8 @@ const ChatsPage = () => {
 
   // useEffect để xử lý URL parameter và tự động chọn chat
   useEffect(() => {
+    if (pendingLocalTabRef.current) return
+
     const chatId = searchParams.get('id') || searchParams.get('chatId')
     if (chatId && chatId !== selectedChat) {
       const autoSelectChat = () => {
@@ -2636,7 +2652,11 @@ const ChatsPage = () => {
 
   const handleTabChange = tab => {
     const nextTab = normalizeChatTab(tab)
+    const currentUrlTab = normalizeChatTab(searchParams.get('tab'))
+    const hasUrlChatId = Boolean(searchParams.get('id') || searchParams.get('chatId'))
 
+    pendingLocalTabRef.current =
+      currentUrlTab !== nextTab || hasUrlChatId ? nextTab : null
     setActiveTab(nextTab)
     setSelectedChat(null)
     setChatMessages([])
@@ -4220,6 +4240,7 @@ const ChatsPage = () => {
         toast.success('Tạo bình chọn thành công')
         if (selectedChat) {
           await loadMessages(selectedChat)
+          await loadPollsByChatID(selectedChat)
         }
       }
     } catch (error) {

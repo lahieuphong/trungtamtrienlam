@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useMemo, useState } from "react"
-import { CheckCircle2 } from "lucide-react"
+import { CheckCircle2, Circle } from "lucide-react"
 import moment from "moment"
 import VotePollModal from "./VotePollModal"
 import VoterListModal from "./VoterListModal"
@@ -15,7 +15,9 @@ const LABELS = {
   chooseMultiple: "Có thể chọn nhiều lựa chọn",
   changeVote: "Đổi lựa chọn",
   vote: "Bình chọn",
-  ended: "Đã kết thúc"
+  ended: "Đã kết thúc",
+  quickVote: "Ch\u1ECDn",
+  selected: "\u0110\u00E3 ch\u1ECDn"
 }
 
 const parseOptionList = optionLists => {
@@ -31,16 +33,25 @@ const parseOptionList = optionLists => {
   return []
 }
 
+const getPollValue = (poll, ...keys) => keys.reduce((value, key) => value ?? poll?.[key], undefined)
+
+const getPollOptionLists = poll => getPollValue(poll, "optionLists", "OptionLists", "options", "Options")
+
+const getPollDateEnd = poll => getPollValue(poll, "dateEnd", "DateEnd")
+
 const isPollClosed = (poll, referenceTime = Date.now()) => {
   if (!poll) return false
-  if (poll.isClosed || poll.isExpired || poll.isCompleted) return true
-  if (!poll.dateEnd) return false
-  const deadline = moment(poll.dateEnd)
+  if (poll.isClosed || poll.IsClosed || poll.isExpired || poll.IsExpired || poll.isCompleted || poll.IsCompleted) return true
+  const dateEnd = getPollDateEnd(poll)
+  if (!dateEnd) return false
+  const deadline = moment(dateEnd)
   return deadline.isValid() && deadline.valueOf() <= referenceTime
 }
 
 const PollOptionRow = ({ option, totalVotes, onSelect, disabled }) => {
   const percent = totalVotes ? Math.round(((option.voteCount || 0) / totalVotes) * 100) : 0
+  const actionLabel = option.userVoted ? LABELS.selected : LABELS.quickVote
+
   return (
     <div className="relative mb-2 sm:mb-3">
       <button
@@ -50,16 +61,24 @@ const PollOptionRow = ({ option, totalVotes, onSelect, disabled }) => {
         disabled={disabled}
       >
         <span className="flex items-center flex-1 min-w-0 mr-2 text-left">
-          {option.userVoted && (
-            <CheckCircle2
-              size={16}
-              className="text-blue-500 mr-2 md:mr-3 flex-shrink-0"
-            />
-          )}
+          <span className={`w-5 h-5 mr-2 md:mr-3 flex-shrink-0 flex items-center justify-center ${option.userVoted ? "text-blue-500" : "text-gray-400"}`}>
+            {option.userVoted ? (
+              <CheckCircle2 size={18} />
+            ) : (
+              <Circle size={17} />
+            )}
+          </span>
           <span className="text-xs sm:text-sm truncate">{option.name}</span>
         </span>
-        <span className="text-xs sm:text-sm font-medium ml-1 sm:ml-2 md:ml-3 flex-shrink-0">
-          {option.voteCount} {LABELS.votes}
+        <span className="flex flex-col items-end text-right ml-1 sm:ml-2 md:ml-3 flex-shrink-0">
+          <span className="text-xs sm:text-sm font-medium">
+            {option.voteCount} {LABELS.votes}
+          </span>
+          {!disabled && (
+            <span className={`text-[11px] leading-4 ${option.userVoted ? "text-blue-600" : "text-gray-500"}`}>
+              {actionLabel}
+            </span>
+          )}
         </span>
       </button>
       <div
@@ -69,31 +88,35 @@ const PollOptionRow = ({ option, totalVotes, onSelect, disabled }) => {
     </div>
   )
 }
-
 const PollCard = ({ poll, handleVote, onAddNewOption }) => {
   const [showVoteModal, setShowVoteModal] = useState(false)
   const [showVoterListModal, setShowVoterListModal] = useState(false)
   const [deadlineTick, setDeadlineTick] = useState(Date.now())
-  const options = useMemo(() => parseOptionList(poll.optionLists).map((option, index) => {
+
+  const safePoll = poll || {}
+  const pollId = getPollValue(safePoll, "id", "ID")
+  const chatId = getPollValue(safePoll, "chatID", "ChatID")
+  const dateEnd = getPollDateEnd(safePoll)
+  const options = useMemo(() => parseOptionList(getPollOptionLists(safePoll)).map((option, index) => {
     if (!option || typeof option !== "object") return null
-    const voteCount = Number(option.voteCount || 0)
+    const voteCount = Number(getPollValue(option, "voteCount", "VoteCount") || 0)
     return {
-      id: option.id || `option-${index}`,
-      name: option.optionName || `Option ${index + 1}`,
+      id: getPollValue(option, "id", "ID", "optionID", "OptionID") || `option-${index}`,
+      name: getPollValue(option, "optionName", "OptionName", "name", "Name") || `Option ${index + 1}`,
       voteCount,
-      userVoted: Boolean(option.userVoted)
+      userVoted: Boolean(getPollValue(option, "userVoted", "UserVoted", "isVoted", "IsVoted"))
     }
   }).filter(Boolean), [poll])
   const totalOptionVotes = options.reduce((sum, option) => sum + option.voteCount, 0)
-  const voterCount = Number(poll.countUserVote || 0)
+  const voterCount = Number(getPollValue(safePoll, "countUserVote", "CountUserVote") || 0)
   const userHasVoted = options.some(option => option.userVoted)
   const selectedCount = options.filter(option => option.userVoted).length
-  const isMultiChoice = Boolean(poll.isMulti)
-  const pollClosed = isPollClosed(poll, deadlineTick)
+  const isMultiChoice = Boolean(getPollValue(safePoll, "isMulti", "IsMulti"))
+  const pollClosed = isPollClosed(safePoll, deadlineTick)
 
   useEffect(() => {
-    if (!poll?.dateEnd || pollClosed) return undefined
-    const deadline = moment(poll.dateEnd)
+    if (!dateEnd || pollClosed) return undefined
+    const deadline = moment(dateEnd)
     if (!deadline.isValid()) return undefined
     const delay = deadline.valueOf() - Date.now()
     if (delay <= 0) {
@@ -102,10 +125,10 @@ const PollCard = ({ poll, handleVote, onAddNewOption }) => {
     }
     const timer = window.setTimeout(() => setDeadlineTick(Date.now()), Math.min(delay + 1000, 2147483647))
     return () => window.clearTimeout(timer)
-  }, [poll?.dateEnd, pollClosed])
+  }, [dateEnd, pollClosed])
 
   const handleQuickVote = option => {
-    if (pollClosed || !option?.id || !poll.id) return
+    if (pollClosed || !option?.id || !pollId) return
     const selectedOptionIds = options.filter(item => item.userVoted).map(item => item.id)
     let optionIds = []
     if (isMultiChoice) {
@@ -116,17 +139,19 @@ const PollCard = ({ poll, handleVote, onAddNewOption }) => {
       optionIds = [option.id]
     }
     handleVote?.({
-      VoteID: poll.id,
+      VoteID: pollId,
       OptionIDs: optionIds,
-      ChatID: poll.chatID
+      ChatID: chatId
     })
   }
+
+  if (!poll) return null
 
   return (
     <div className="border border-blue-100 rounded-lg overflow-hidden bg-blue-50 w-full max-w-[500px] mb-4">
       <div className="p-3 sm:p-4 border-b border-blue-100">
         <div className="font-medium text-gray-800 mb-2 text-sm sm:text-base">
-          {poll.voteName || LABELS.defaultTitle}
+          {getPollValue(safePoll, "voteName", "VoteName") || LABELS.defaultTitle}
         </div>
         <div className="text-xs sm:text-sm text-gray-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0">
           <div>
@@ -141,9 +166,9 @@ const PollCard = ({ poll, handleVote, onAddNewOption }) => {
               <span className="ml-2 text-xs sm:text-sm text-blue-500">{LABELS.multiChoice}</span>
             )}
           </div>
-          {poll.dateEnd && (
+          {dateEnd && (
             <div className="text-xs sm:text-sm text-gray-500 truncate max-w-full sm:max-w-[200px] sm:ml-4">
-              {moment(poll.dateEnd).format("DD/MM/YYYY - HH:mm")}
+              {moment(dateEnd).format("DD/MM/YYYY - HH:mm")}
             </div>
           )}
         </div>

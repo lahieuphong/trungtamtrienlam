@@ -1,7 +1,7 @@
 "use client"
 
 import { forwardRef } from "react"
-import Assets from "@/assets" // Giả sử đây là nơi bạn import icon
+import { Check } from "lucide-react"
 
 /**
  * Component Checkbox cơ bản
@@ -66,7 +66,7 @@ const Checkbox = forwardRef(
             `}
           >
             {/* Icon check, mỏng hơn */}
-            <Assets.Icons.check
+            <Check
               size={16}
               strokeWidth={1.5} // <-- Chỉnh độ dày của icon ở đây
               className={`transition-opacity ${checked ? 'opacity-100 text-white' : 'opacity-0'}`}
