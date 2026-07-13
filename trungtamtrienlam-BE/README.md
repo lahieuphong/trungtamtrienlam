@@ -18,7 +18,7 @@ Dữ liệu PostgreSQL và media được phục hồi từ hệ thống cũ và
 
 Mặc định script chọn file `.dump` mới nhất trong thư mục trên. Media hiện có được giữ tại:
 
-`E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE-v2\app\media`
+`E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE\app\media`
 
 Dump PostgreSQL không chứa media. Khi không truyền `-MediaSource` khác, script giữ nguyên thư mục media hiện tại và không copy chồng lên chính nó.
 
@@ -27,7 +27,7 @@ Dump PostgreSQL không chứa media. Khi không truyền `-MediaSource` khác, s
 Mở PowerShell và chạy đúng thứ tự:
 
 ~~~powershell
-Set-Location "E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE-v2"
+Set-Location "E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE"
 
 docker compose build
 
@@ -56,7 +56,7 @@ Các địa chỉ mặc định:
 Khởi động lại toàn bộ dịch vụ:
 
 ~~~powershell
-Set-Location "E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE-v2"
+Set-Location "E:\Phong_Nho_IT\trungtamtrienlam\trungtamtrienlam\trungtamtrienlam-BE"
 docker compose up -d
 ~~~
 

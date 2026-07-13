@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 
 set "ROOT=%~dp0"
-set "BE_DIR=%ROOT%trungtamtrienlam-BE-v2"
+set "BE_DIR=%ROOT%trungtamtrienlam-BE"
 set "APP_PORT_VALUE=8003"
 set "DO_BUILD=0"
 set "NO_PAUSE=0"

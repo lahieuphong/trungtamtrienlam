@@ -21,7 +21,6 @@ build/
 !.env.example
 venv/
 .venv/
-/trungtamtrienlam-BE/venv/
 
 # Database
 db.sqlite3
@@ -31,9 +30,9 @@ db.sqlite3
 # Django
 staticfiles/
 media/
-!/trungtamtrienlam-BE/media/
-!/trungtamtrienlam-BE/media/**
+/trungtamtrienlam-BE/app/media/
 /trungtamtrienlam-BE/logs/
+/trungtamtrienlam-BE/ssl/
 
 # Migrations (bỏ comment nếu muốn commit migrations)
 # */migrations/
