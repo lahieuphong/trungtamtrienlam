@@ -368,6 +368,33 @@ const withReplyInfo = list => {
 const getMessageClientTempId = message =>
   message?.clientTempId || message?.ClientTempID || message?.clientTempID || ''
 
+const getIncomingChatId = message =>
+  normalizeChatIdentity(
+    message?.chatID ?? message?.ChatID ?? message?.chatId ?? message?.ChatId
+  )
+
+const getIncomingSenderId = message =>
+  normalizeChatIdentity(
+    message?.senderID ??
+      message?.SenderID ??
+      message?.senderId ??
+      message?.SenderId
+  )
+
+const getIncomingChatUserIds = message => {
+  const rawUsers = message?.chatUsers ?? message?.ChatUsers
+  const users = safeParseJSON(rawUsers, [])
+  if (!Array.isArray(users)) return []
+
+  return users
+    .map(user =>
+      normalizeChatIdentity(
+        user?.userID ?? user?.UserID ?? user?.id ?? user?.ID
+      )
+    )
+    .filter(Boolean)
+}
+
 const mergeMessages = (...messageGroups) => {
   const byId = new Map()
 
@@ -430,12 +457,138 @@ export function useChatMessages (chatId, userId, chatType, chat) {
   const isMessageHistoryCompleteRef = useRef(false)
   const isLoadingOlderRef = useRef(false)
   const seenMessagesRef = useRef(new Set())
+  const adoptingChatIdRef = useRef('')
   const debounceTimerRef = useRef(null)
   const effectiveId = currentChatId || chatId || userId || chat?.chatID || chat?.ChatID || chat?.id || chat?.ID || ''
   const isGroup = (chatType || chat?.type) === 'group'
   const isAIChat = useMemo(() => {
     return !!(isChatsAI || chat?.isAI || effectiveId === 'heritage-assistant')
   }, [isChatsAI, chat?.isAI, effectiveId])
+
+  const resolveIncomingChat = useCallback(
+    message => {
+      if (!message) return { matches: false, chatId: '' }
+
+      const incomingChatId = getIncomingChatId(message)
+      const knownChatIds = [
+        currentChatId,
+        chatId,
+        chat?.chatID,
+        chat?.ChatID,
+        chat?.isExistingChat ? chat?.id : ''
+      ]
+        .map(normalizeChatIdentity)
+        .filter(Boolean)
+
+      if (incomingChatId && knownChatIds.includes(incomingChatId)) {
+        return {
+          matches: true,
+          chatId: incomingChatId,
+          shouldAdoptChatId: false
+        }
+      }
+
+      if (
+        isAIChat &&
+        (
+          message?.isAI ||
+          message?.IsAI ||
+          getIncomingSenderId(message) === 'heritage-1'
+        )
+      ) {
+        return {
+          matches: true,
+          chatId: incomingChatId,
+          shouldAdoptChatId: Boolean(
+            incomingChatId && !knownChatIds.includes(incomingChatId)
+          )
+        }
+      }
+
+      if (isGroup) {
+        return { matches: false, chatId: incomingChatId }
+      }
+
+      const isUnresolvedPrivatePopup = Boolean(
+        !currentChatId && !chatId && !chat?.isExistingChat
+      )
+      if (!isUnresolvedPrivatePopup) {
+        return { matches: false, chatId: incomingChatId }
+      }
+
+      const rawIncomingChatType = message?.chatType ?? message?.ChatType
+      const hasExplicitChatType =
+        rawIncomingChatType !== null &&
+        rawIncomingChatType !== undefined &&
+        rawIncomingChatType !== ''
+      const incomingChatType = hasExplicitChatType
+        ? Number(rawIncomingChatType)
+        : null
+      if (
+        hasExplicitChatType &&
+        incomingChatType !== ChatConstants.Type.PRIVATE
+      ) {
+        return { matches: false, chatId: incomingChatId }
+      }
+
+      const peerId = normalizeChatIdentity(
+        userId ||
+          chat?.userID ||
+          chat?.UserID ||
+          (!chat?.isExistingChat ? chat?.id : '')
+      )
+      if (!peerId) {
+        return { matches: false, chatId: incomingChatId }
+      }
+
+      const senderId = getIncomingSenderId(message)
+      const participantIds = getIncomingChatUserIds(message)
+      const currentId = normalizeChatIdentity(currentUserID)
+      const uniqueParticipantIds = [...new Set(participantIds)]
+      const hasExpectedPrivatePair = Boolean(
+        currentId &&
+          uniqueParticipantIds.length === 2 &&
+          uniqueParticipantIds.includes(currentId) &&
+          uniqueParticipantIds.includes(peerId)
+      )
+      const isConfirmedPrivateMessage = hasExplicitChatType
+        ? participantIds.length === 0 || hasExpectedPrivatePair
+        : hasExpectedPrivatePair
+      const matchesPeer =
+        senderId === peerId || participantIds.includes(peerId)
+      const includesCurrentUser =
+        !currentId ||
+        senderId === currentId ||
+        (hasExplicitChatType && participantIds.length === 0) ||
+        participantIds.includes(currentId)
+
+      if (!isConfirmedPrivateMessage || !matchesPeer || !includesCurrentUser) {
+        return { matches: false, chatId: incomingChatId }
+      }
+
+      return {
+        matches: true,
+        chatId: incomingChatId,
+        shouldAdoptChatId: Boolean(
+          incomingChatId && !knownChatIds.includes(incomingChatId)
+        )
+      }
+    },
+    [
+      chat?.ChatID,
+      chat?.UserID,
+      chat?.chatID,
+      chat?.id,
+      chat?.isExistingChat,
+      chat?.userID,
+      chatId,
+      currentChatId,
+      currentUserID,
+      isAIChat,
+      isGroup,
+      userId
+    ]
+  )
 
   const loadIndividualUsersList = useCallback(async () => {
     try {
@@ -936,9 +1089,20 @@ export function useChatMessages (chatId, userId, chatType, chat) {
   useEffect(() => {
     if (!registerChatCallback || !effectiveId) return
 
-    const unregister = registerChatCallback(msg => {
-      // Only process messages for current chat
-      if (msg.chatID !== effectiveId) return
+    const unregister = registerChatCallback(payload => {
+      const realtimeMessages = Array.isArray(payload) ? payload : [payload]
+
+      realtimeMessages.filter(Boolean).forEach(msg => {
+        const incomingChat = resolveIncomingChat(msg)
+        if (!incomingChat.matches) return
+
+        const realtimeChatId =
+          incomingChat.chatId || currentChatId || chatId || effectiveId
+        if (incomingChat.shouldAdoptChatId && incomingChat.chatId) {
+          adoptingChatIdRef.current = incomingChat.chatId
+          setCurrentChatId(incomingChat.chatId)
+          dispatchChatListRefresh(incomingChat.chatId)
+        }
 
       if (msg.isSeenUpdate || msg.IsSeenUpdate) {
         console.log('[chat-seen:realtime-popup-received]', {
@@ -984,14 +1148,14 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         msg.content &&
         msg.content.toLowerCase().includes('tạo bình chọn')
       ) {
-        loadPollsByChatID(effectiveId)
-        loadMessages(effectiveId)
+        loadPollsByChatID(realtimeChatId)
+        loadMessages(realtimeChatId)
         return // Don't process as regular message since we're reloading all
       }
 
       // Handle notes updates
       if (msg.content && msg.content.toLowerCase().includes('ghi chú')) {
-        loadMessages(effectiveId)
+        loadMessages(realtimeChatId)
         return // Don't process as regular message since we're reloading all
       }
 
@@ -1001,8 +1165,8 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         msg.content &&
         msg.content.toLowerCase().includes('nhắc hẹn')
       ) {
-        loadRemindersByChatID(effectiveId)
-        loadMessages(effectiveId)
+        loadRemindersByChatID(realtimeChatId)
+        loadMessages(realtimeChatId)
         return // Don't process as regular message since we're reloading all
       }
 
@@ -1013,27 +1177,31 @@ export function useChatMessages (chatId, userId, chatType, chat) {
         msg.messageType === 8 ||
         msg.messageType === 10
       ) {
-        loadMessages(effectiveId)
+        loadMessages(realtimeChatId)
       }
 
       // Handle regular messages
       if (msg.messageType !== 5) {
         upsertMessage(
           { ...msg, isPending: false },
-          { scroll: true, instant: false }
+          { scroll: isAtBottom(), instant: false }
         )
       }
+      })
     })
 
     return unregister
   }, [
     registerChatCallback,
+    chatId,
+    currentChatId,
     effectiveId,
+    isAtBottom,
     loadPollsByChatID,
     loadRemindersByChatID,
     loadMessages,
-    upsertMessage,
-    currentUserID
+    resolveIncomingChat,
+    upsertMessage
   ])
 
   useEffect(() => {
@@ -1044,57 +1212,6 @@ export function useChatMessages (chatId, userId, chatType, chat) {
       loadMessages(userId)
     }
   }, [effectiveId, currentChatId, chatId, userId, loadMessages])
-
-  useEffect(() => {
-    if (!registerChatCallback) return
-    const unregister = registerChatCallback(msg => {
-      const belongs =
-        msg.chatID === effectiveId ||
-        msg.chatID === currentChatId ||
-        msg.chatID === chatId ||
-        (msg.isAI && effectiveId === 'heritage-assistant') ||
-        (msg.senderID === 'heritage-1' &&
-          (msg.chatID === currentChatId || msg.chatID === chatId))
-
-      if (!belongs) return
-
-      if (msg.isSeenUpdate || msg.IsSeenUpdate) {
-        setMessages(prev => {
-          const incomingTempId = getMessageClientTempId(msg)
-          const idx = prev.findIndex(m =>
-            m.id === msg.id ||
-            (incomingTempId && getMessageClientTempId(m) === incomingTempId)
-          )
-          if (idx === -1) return prev
-
-          const next = [...prev]
-          next[idx] = { ...next[idx], ...msg }
-          messageHistoryRef.current = mergeMessages(
-            messageHistoryRef.current,
-            [next[idx]]
-          )
-          return next
-        })
-        return
-      }
-
-      upsertMessage(
-        { ...msg, isPending: false },
-        { scroll: isAtBottom(), instant: false }
-      )
-    })
-    return unregister
-  }, [
-    registerChatCallback,
-    chatId,
-    currentChatId,
-    chat?.id,
-    currentUserID,
-    effectiveId,
-    scrollToBottom,
-    isAtBottom,
-    upsertMessage
-  ])
 
   const handleFileUpload = useCallback(
     files => {
@@ -1825,6 +1942,15 @@ export function useChatMessages (chatId, userId, chatType, chat) {
   }, [])
 
   useEffect(() => {
+    if (
+      adoptingChatIdRef.current &&
+      normalizeChatIdentity(adoptingChatIdRef.current) ===
+        normalizeChatIdentity(effectiveId)
+    ) {
+      adoptingChatIdRef.current = ''
+      return
+    }
+
     setMessagePage(1)
     setHasMoreMessages(false)
     setIsLoadingOlder(false)

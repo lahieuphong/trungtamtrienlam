@@ -26,7 +26,8 @@ export default function ChatSidebar ({
   listUsers = [],
   isLoading = false,
   hasLoaded = true,
-  onMarkChatAsRead
+  onMarkChatAsRead,
+  className = ''
 }) {
   const { userInfo } = useLoadLocalStorage()
   const isHadAI = chatList?.some(chat => chat.isAI)
@@ -98,7 +99,9 @@ export default function ChatSidebar ({
   const showEmptyState = hasLoaded && !shouldShowLoadingList && sortedChatList.length === 0 && !(activeTab === 'individual' && !isHadAI)
   const loadingRows = activeTab === 'groups' ? 5 : 6
   return (
-    <div className='w-80 border-r border-gray-200 flex flex-col'>
+    <div
+      className={`min-w-0 flex-col border-r border-gray-200 bg-white md:w-80 ${className}`}
+    >
       {/* Header */}
       <div className='p-4 border-b border-gray-200'>
         <h1 className='text-lg font-semibold mb-4'>Tin nhắn</h1>

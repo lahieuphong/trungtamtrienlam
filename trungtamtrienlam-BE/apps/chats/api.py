@@ -230,6 +230,89 @@ def _request_chat_user_ids(request):
     return user_ids
 
 
+def _private_chat_participant_ids(current_user_id, requested_user_ids):
+    participant_ids = {
+        _string(user_id)
+        for user_id in [current_user_id, *(requested_user_ids or [])]
+        if _string(user_id)
+    }
+    return sorted(participant_ids)
+
+
+def _private_chat_key(participant_ids):
+    participant_ids = sorted({
+        _string(user_id)
+        for user_id in participant_ids
+        if _string(user_id)
+    })
+    if len(participant_ids) != 2:
+        return ''
+    return f'direct:{participant_ids[0]}:{participant_ids[1]}'
+
+
+def _find_existing_private_chat(participant_ids):
+    participant_ids = sorted({
+        _string(user_id)
+        for user_id in participant_ids
+        if _string(user_id)
+    })
+    private_key = _private_chat_key(participant_ids)
+    if not private_key:
+        return None
+
+    chat = (
+        ManagedChat.objects
+        .filter(
+            private_key=private_key,
+            type=CHAT_TYPE_PRIVATE,
+            is_deleted=False,
+        )
+        .first()
+    )
+    if chat:
+        return chat
+
+    # Compatibility for rows created before private_key was introduced.
+    candidate_chat_ids = (
+        ManagedChatUser.objects
+        .filter(user_id=participant_ids[0])
+        .values_list('chat_id', flat=True)
+    )
+    candidates = (
+        ManagedChat.objects
+        .filter(
+            id__in=candidate_chat_ids,
+            type=CHAT_TYPE_PRIVATE,
+            is_deleted=False,
+        )
+        .order_by('-updated_date', '-created_date')
+    )
+    expected_members = set(participant_ids)
+    for candidate in candidates:
+        member_ids = set(
+            ManagedChatUser.objects
+            .filter(chat_id=candidate.id)
+            .values_list('user_id', flat=True)
+        )
+        if member_ids == expected_members:
+            return candidate
+
+    return None
+
+
+def _ensure_private_chat_members(chat, participant_ids, current_user_id):
+    for user_id in participant_ids:
+        role = CHAT_ROLE_LEADER if user_id == current_user_id else CHAT_ROLE_MEMBER
+        ManagedChatUser.objects.get_or_create(
+            chat_id=chat.id,
+            user_id=user_id,
+            defaults={
+                'role': role,
+                'add_by': current_user_id,
+            },
+        )
+
+
 def _request_insert_member_user_ids(request):
     values = []
     data = getattr(request, 'data', {}) or {}
@@ -662,7 +745,8 @@ def _serialize_chat_list_item(
         'senderID': last_message.sender_id if last_message else '',
         'senderAvatar': last_sender['avatar'],
         'isAI': chat.is_ai,
-        'userID': chat.user_id or other_user_id,
+        # A direct chat identifies its peer, not whichever user created it.
+        'userID': other_user_id or chat.user_id,
         'eventType': chat.event_type,
         'pinDate': pin_date_value.isoformat() if pin_date_value else None,
         'linkId': chat.link_id,
@@ -694,18 +778,48 @@ def _create_chat_for_message(request, current_user_id):
             return chat
         return None
 
-    chat = ManagedChat.objects.create(
-        type=chat_type,
-        is_ai=is_ai,
-        created_by=current_user_id,
-        updated_by=current_user_id,
-        user_id=current_user_id,
-        name=HERITAGE_ASSISTANT_NAME if is_ai else '',
-        avatar=HERITAGE_ASSISTANT_AVATAR if is_ai else '',
-        message_type=_int(request.data.get('MessageType'), MESSAGE_TYPE_TEXT) or MESSAGE_TYPE_TEXT,
+    requested_user_ids = _request_chat_user_ids(request)
+    participant_ids = _private_chat_participant_ids(
+        current_user_id,
+        requested_user_ids,
+    )
+    private_key = (
+        _private_chat_key(participant_ids)
+        if chat_type == CHAT_TYPE_PRIVATE
+        else ''
     )
 
-    for user_id in _request_chat_user_ids(request):
+    if private_key:
+        chat = _find_existing_private_chat(participant_ids)
+        if chat:
+            if not chat.private_key:
+                chat.private_key = private_key
+                chat.save(update_fields=['private_key', 'updated_date'])
+            _ensure_private_chat_members(chat, participant_ids, current_user_id)
+            return chat
+
+    chat_create_values = {
+        'type': chat_type,
+        'is_ai': is_ai,
+        'created_by': current_user_id,
+        'updated_by': current_user_id,
+        'user_id': current_user_id,
+        'name': HERITAGE_ASSISTANT_NAME if is_ai else '',
+        'avatar': HERITAGE_ASSISTANT_AVATAR if is_ai else '',
+        'message_type': (
+            _int(request.data.get('MessageType'), MESSAGE_TYPE_TEXT)
+            or MESSAGE_TYPE_TEXT
+        ),
+    }
+    if private_key:
+        chat, _ = ManagedChat.objects.get_or_create(
+            private_key=private_key,
+            defaults=chat_create_values,
+        )
+    else:
+        chat = ManagedChat.objects.create(**chat_create_values)
+
+    for user_id in requested_user_ids:
         ManagedChatUser.objects.get_or_create(
             chat_id=chat.id,
             user_id=user_id,
@@ -724,6 +838,9 @@ def _create_chat_for_message(request, current_user_id):
                 'add_by': current_user_id,
             },
         )
+
+    if private_key:
+        _ensure_private_chat_members(chat, participant_ids, current_user_id)
 
     return chat
 
@@ -901,16 +1018,44 @@ class ChatCreateApi(GenericAPIView):
 
         try:
             with transaction.atomic():
-                chat = ManagedChat.objects.create(
-                    name=chat_name,
-                    type=chat_type,
-                    created_by=current_user_id,
-                    updated_by=current_user_id,
-                    user_id=current_user_id,
-                    message_type=MESSAGE_TYPE_TEXT,
+                participant_ids = _private_chat_participant_ids(
+                    current_user_id,
+                    chat_user_ids,
                 )
+                private_key = (
+                    _private_chat_key(participant_ids)
+                    if chat_type == CHAT_TYPE_PRIVATE
+                    else ''
+                )
+                chat = (
+                    _find_existing_private_chat(participant_ids)
+                    if private_key
+                    else None
+                )
+                created = chat is None
 
-                if avatar_upload:
+                if chat and not chat.private_key:
+                    chat.private_key = private_key
+                    chat.save(update_fields=['private_key', 'updated_date'])
+
+                if not chat:
+                    chat_create_values = {
+                        'name': chat_name,
+                        'type': chat_type,
+                        'created_by': current_user_id,
+                        'updated_by': current_user_id,
+                        'user_id': current_user_id,
+                        'message_type': MESSAGE_TYPE_TEXT,
+                    }
+                    if private_key:
+                        chat, created = ManagedChat.objects.get_or_create(
+                            private_key=private_key,
+                            defaults=chat_create_values,
+                        )
+                    else:
+                        chat = ManagedChat.objects.create(**chat_create_values)
+
+                if avatar_upload and created:
                     chat.avatar = _save_chat_avatar(avatar_upload, chat)
                     chat.save(update_fields=['avatar', 'updated_date'])
 
@@ -927,14 +1072,28 @@ class ChatCreateApi(GenericAPIView):
                         },
                     )
 
-                ManagedChatUser.objects.update_or_create(
-                    chat_id=chat.id,
-                    user_id=current_user_id,
-                    defaults={
-                        'role': CHAT_ROLE_LEADER,
-                        'add_by': current_user_id,
-                    },
-                )
+                current_member_defaults = {
+                    'role': CHAT_ROLE_LEADER,
+                    'add_by': current_user_id,
+                }
+                if chat_type == CHAT_TYPE_PRIVATE:
+                    ManagedChatUser.objects.get_or_create(
+                        chat_id=chat.id,
+                        user_id=current_user_id,
+                        defaults=current_member_defaults,
+                    )
+                else:
+                    ManagedChatUser.objects.update_or_create(
+                        chat_id=chat.id,
+                        user_id=current_user_id,
+                        defaults=current_member_defaults,
+                    )
+                if private_key:
+                    _ensure_private_chat_members(
+                        chat,
+                        participant_ids,
+                        current_user_id,
+                    )
         except DatabaseError as exc:
             return _failure(str(exc))
 
@@ -2239,12 +2398,19 @@ class ChatPinMessageApi(GenericAPIView):
             if not message.is_pin:
                 message.is_pin = True
                 message.save(update_fields=['is_pin'])
-            _broadcast_message_state(
-                message.chat_id,
-                message.id,
-                MESSAGE_TYPE_PIN,
-                'Message pinned',
-            )
+                pin_event = ManagedChatMessage.objects.create(
+                    sender_id=current_user_id,
+                    message_type=MESSAGE_TYPE_PIN,
+                    content='\u0110\u00e3 ghim m\u1ed9t tin nh\u1eafn',
+                    chat_id=message.chat_id,
+                    event_id=message.id,
+                )
+                pin_event_payload = _serialize_message(pin_event, {})
+                target_user_ids = _chat_user_ids(message.chat_id, [current_user_id])
+                transaction.on_commit(
+                    lambda chat_id=message.chat_id, user_ids=target_user_ids, payload=pin_event_payload:
+                    broadcast_chat_message(chat_id, user_ids, payload)
+                )
 
         return _success(None)
 
@@ -2336,11 +2502,19 @@ class ChatUnpinMessageApi(GenericAPIView):
                 )
 
             if updated:
-                _broadcast_message_state(
-                    chat_id,
-                    message_ids[0] if message_ids else event_ids[0],
-                    MESSAGE_TYPE_UNPIN,
-                    'Message unpinned',
+                target_id = message_ids[0] if message_ids else event_ids[0]
+                unpin_event = ManagedChatMessage.objects.create(
+                    sender_id=current_user_id,
+                    message_type=MESSAGE_TYPE_UNPIN,
+                    content='\u0110\u00e3 b\u1ecf ghim m\u1ed9t tin nh\u1eafn',
+                    chat_id=chat_id,
+                    event_id=target_id,
+                )
+                unpin_event_payload = _serialize_message(unpin_event, {})
+                target_user_ids = _chat_user_ids(chat_id, [current_user_id])
+                transaction.on_commit(
+                    lambda target_chat_id=chat_id, user_ids=target_user_ids, payload=unpin_event_payload:
+                    broadcast_chat_message(target_chat_id, user_ids, payload)
                 )
 
         return _success(None)

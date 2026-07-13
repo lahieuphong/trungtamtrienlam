@@ -103,6 +103,12 @@ class ChatVoteResult(models.Model):
 
 class ManagedChat(models.Model):
     id = models.CharField(max_length=64, primary_key=True, default=managed_chat_id_generator)
+    private_key = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        unique=True,
+    )
     name = models.CharField(max_length=255, blank=True, default='')
     type = models.IntegerField(default=1)
     avatar = models.CharField(max_length=500, blank=True, default='')

@@ -22,7 +22,8 @@ export default function ChatHeader ({
   onUpdateChatAvatar,
   activeTab,
   isAI,
-  onOpenSearch
+  onOpenSearch,
+  onBack
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -98,15 +99,20 @@ export default function ChatHeader ({
 
   return (
     <div
-      className={`h-[72px] flex-shrink-0 border-b px-4 py-0 flex items-center ${
+      className={`flex h-16 flex-shrink-0 items-center border-b px-2 py-0 sm:h-[72px] sm:px-4 ${
         isHeritageAssistant
           ? 'border-orange-200 bg-gradient-to-r from-orange-100 to-amber-100'
           : 'border-gray-200 bg-white'
       }`}
     >
-      <div className='flex w-full items-center justify-between'>
-        <div className='flex items-center gap-3'>
-          <Button className='p-2 hover:bg-gray-100 rounded-full lg:hidden'>
+      <div className='flex w-full min-w-0 items-center justify-between gap-1'>
+        <div className='flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3'>
+          <Button
+            type='button'
+            aria-label='Quay lại danh sách trò chuyện'
+            onClick={onBack}
+            className='flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg p-0 hover:bg-gray-100 md:hidden'
+          >
             <ArrowLeft size={20} />
           </Button>
 
@@ -116,7 +122,7 @@ export default function ChatHeader ({
               alt='Chatbot Icon'
               width={30}
               height={30}
-              className='rounded-full'
+              className='flex-shrink-0 rounded-full'
               unoptimized={true}
             />
           ) : (
@@ -155,8 +161,8 @@ export default function ChatHeader ({
             </div>
           )}
 
-          <div>
-            <div className='flex items-center gap-2'>
+          <div className='min-w-0 flex-1'>
+            <div className='flex min-w-0 items-center gap-2'>
               {isEditing ? (
                 <div className='flex items-center gap-2'>
                   <Input
@@ -184,8 +190,11 @@ export default function ChatHeader ({
                   </Button>
                 </div>
               ) : (
-                <h2 className='font-semibold text-gray-900 flex items-center gap-2'>
-                  {currentChat?.name}
+                <h2
+                  className='flex min-w-0 flex-1 items-center gap-2 truncate text-sm font-semibold text-gray-900 sm:text-base'
+                  title={currentChat?.name}
+                >
+                  <span className='min-w-0 truncate'>{currentChat?.name}</span>
                   {(currentChat?.type === 'group' ||
                     activeTab === 'groups') && (
                     <Button
@@ -236,7 +245,7 @@ export default function ChatHeader ({
           </div>
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-shrink-0 items-center gap-0 sm:gap-2'>
           {currentChat && onOpenSearch && (
             <Button
               className='p-2 hover:bg-gray-100 rounded-full'

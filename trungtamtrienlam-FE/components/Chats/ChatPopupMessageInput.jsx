@@ -32,7 +32,8 @@ const ChatPopupMessageInput = forwardRef(({
   replyToMessage,
   onCancelReply,
   onCreateReminder,
-  onInputFocus
+  onInputFocus,
+  isAI = false
 }, ref) => {
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [showPollModal, setShowPollModal] = useState(false)
@@ -54,10 +55,25 @@ const ChatPopupMessageInput = forwardRef(({
         console.warn('Message input ref not available')
       }
     }
-  }))
+  }), [])
 
-  const handleKeyPress = e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const resizeMessageInput = () => {
+    if (!messageInputRef.current) return
+
+    messageInputRef.current.style.height = 'auto'
+    messageInputRef.current.style.height = `${Math.min(
+      messageInputRef.current.scrollHeight,
+      128
+    )}px`
+  }
+
+  const handleKeyDown = e => {
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.isComposing &&
+      !e.nativeEvent?.isComposing
+    ) {
       e.preventDefault()
       onSendMessage()
     }
@@ -135,6 +151,10 @@ const ChatPopupMessageInput = forwardRef(({
     }
   }, [showContextMenu])
 
+  useEffect(() => {
+    resizeMessageInput()
+  }, [message])
+
   const contextMenuItems = [
     { id: 'poll', label: 'Tạo bình chọn', icon: Users },
     { id: 'reminder', label: 'Tạo nhắc hẹn', icon: Bell },
@@ -142,12 +162,22 @@ const ChatPopupMessageInput = forwardRef(({
   ]
 
   return (
-    <div className='p-3'>
+    <div className={`p-3 ${isAI ? 'bg-amber-50/70' : ''}`}>
       {/* Hiển thị tin nhắn đang trả lời */}
       {replyToMessage && (
-        <div className='mb-2 bg-gray-50 border-l-4 border-blue-500 p-2 rounded flex justify-between items-start'>
+        <div
+          className={`mb-2 flex items-start justify-between rounded border-l-4 p-2 ${
+            isAI
+              ? 'border-amber-500 bg-amber-100/70'
+              : 'border-blue-500 bg-gray-50'
+          }`}
+        >
           <div>
-            <div className='text-blue-600 text-xs font-medium mb-1'>
+            <div
+              className={`mb-1 text-xs font-medium ${
+                isAI ? 'text-amber-800' : 'text-blue-600'
+              }`}
+            >
               Đang trả lời{' '}
               {replyToMessage.senderName ||
                 (replyToMessage.sender === 'me'
@@ -178,7 +208,7 @@ const ChatPopupMessageInput = forwardRef(({
       />
 
       {/* Input Area */}
-      <div className='flex items-center gap-1 min-w-0'>
+      <div className='flex items-end gap-1 min-w-0'>
         {/* Hidden File Inputs */}
         <input
           type='file'
@@ -217,7 +247,11 @@ const ChatPopupMessageInput = forwardRef(({
 
         {/* File Upload Button */}
         <button
-          className='p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100'
+          className={`rounded-full p-1.5 ${
+            isAI
+              ? 'text-amber-600 hover:bg-amber-100 hover:text-amber-800'
+              : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+          }`}
           onClick={() => fileInputRef.current?.click()}
           title='Đính kèm file'
         >
@@ -226,7 +260,11 @@ const ChatPopupMessageInput = forwardRef(({
 
         {/* Image Upload Button */}
         <button
-          className='p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100'
+          className={`rounded-full p-1.5 ${
+            isAI
+              ? 'text-amber-600 hover:bg-amber-100 hover:text-amber-800'
+              : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+          }`}
           onClick={() => imageInputRef.current?.click()}
           title='Đính kèm hình ảnh'
         >
@@ -265,12 +303,12 @@ const ChatPopupMessageInput = forwardRef(({
         )}
 
         {/* Message Input */}
-        <input
+        <textarea
           ref={messageInputRef}
-          type='text'
+          rows={1}
           value={message}
           onChange={e => setMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onFocus={onInputFocus}
           placeholder={
@@ -278,14 +316,22 @@ const ChatPopupMessageInput = forwardRef(({
               ? 'Thêm tin nhắn hoặc gửi ngay'
               : 'Nhập tin nhắn...'
           }
-          className='flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-0 focus:border-gray-300 bg-gray-100 placeholder:text-gray-400'
+          className={`min-h-[38px] max-h-32 min-w-0 flex-1 resize-none overflow-y-auto rounded-md border px-3 py-2 text-sm leading-5 placeholder:text-gray-400 focus:outline-none focus:ring-0 ${
+            isAI
+              ? 'border-amber-300 bg-white/90 focus:border-amber-400'
+              : 'border-gray-300 bg-gray-100 focus:border-gray-300'
+          }`}
         />
 
         {/* Send Button */}
         <button
           onClick={onSendMessage}
           disabled={!message.trim() && attachedFiles.length === 0}
-          className='flex-shrink-0 p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+          className={`flex-shrink-0 rounded-full p-2 text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            isAI
+              ? 'bg-amber-500 hover:bg-amber-600'
+              : 'bg-blue-500 hover:bg-blue-600'
+          }`}
         >
           <Send size={14} />
         </button>

@@ -13,6 +13,9 @@ import AvatarWithFrame from '../avatars/avatarFrame'
 import ChatPopupMessageItem from './ChatPopupMessageItem'
 import ChatPopupMessageInput from './ChatPopupMessageInput'
 import PinDropdownMenu from './PinDropdownMenu'
+import ChatPinActionNotice, {
+  isChatPinActionMessage
+} from './ChatPinActionNotice'
 import UserRequestsModal from './UserRequestsModal'
 import { useChatMessages } from '@/hooks/useChatPopup'
 import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
@@ -336,6 +339,8 @@ export default function ChatPopup ({
     return `${sender}: ${content}`
   }
 
+  const pinnedMessages = getUniquePinnedMessages(messages)
+
   const getSeenUserId = user =>
     normalizeChatId(user?.userID ?? user?.UserID ?? user?.id ?? user?.ID)
 
@@ -411,8 +416,6 @@ export default function ChatPopup ({
     const messageID = []
     const eventID = []
 
-    const pinnedMessages = getUniquePinnedMessages(messages)
-
     arr.forEach(id => {
       const m = pinnedMessages.find(pm => {
         const messageId = pm?.id ?? pm?.ID
@@ -433,6 +436,16 @@ export default function ChatPopup ({
     })
 
     handleUnpinMessage({ messageID, eventID })
+  }
+
+  const handleViewAllPinnedMessages = () => {
+    if (pinnedMessages.length === 0) return
+    setShowAllPins(true)
+    setOpenDropdown(false)
+    const firstPinnedMessageId = pinnedMessages[0]?.id ?? pinnedMessages[0]?.ID
+    if (firstPinnedMessageId) {
+      requestAnimationFrame(() => handleScrollToMessage(firstPinnedMessageId))
+    }
   }
 
   // Wrapper functions to close modal after user request actions
@@ -475,7 +488,9 @@ export default function ChatPopup ({
 
   return (
     <div
-      className={`fixed z-[9990] bg-white rounded-t-lg shadow-2xl border border-gray-200 transition-all duration-300 flex flex-col overflow-hidden ${
+      className={`fixed z-[9990] rounded-t-lg bg-white shadow-2xl border transition-all duration-300 flex flex-col overflow-hidden ${
+        isAIHeaderChat ? 'border-amber-300 shadow-amber-200/50' : 'border-gray-200'
+      } ${
         isMinimized ? 'h-12' : 'h-96 max-h-96'
       }`}
       style={{
@@ -495,10 +510,16 @@ export default function ChatPopup ({
       )}
 
       {/* Header */}
-      <div className='flex items-center justify-between p-3 bg-blue-500 text-white rounded-t-lg'>
+      <div
+        className={`flex items-center justify-between rounded-t-lg p-3 ${
+          isAIHeaderChat
+            ? 'border-b border-amber-400 bg-gradient-to-r from-amber-300 via-yellow-300 to-amber-200 text-amber-950'
+            : 'bg-blue-500 text-white'
+        }`}
+      >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           {isAIHeaderChat ? (
-            <div className='flex h-[35px] w-[35px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/30 bg-white/10'>
+            <div className='flex h-[35px] w-[35px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-amber-500/30 bg-white/60 shadow-sm'>
               <img
                 src='/TTBT_icon_anim_idle.gif'
                 alt='Trợ lý trung tâm'
@@ -539,13 +560,17 @@ export default function ChatPopup ({
         <div className='flex shrink-0 items-center gap-1'>
           <button
             onClick={onMinimize}
-            className='p-1 hover:bg-blue-600 rounded transition-colors'
+            className={`rounded p-1 transition-colors ${
+              isAIHeaderChat ? 'hover:bg-amber-400/70' : 'hover:bg-blue-600'
+            }`}
           >
             <Minimize2 size={14} />
           </button>
           <button
             onClick={onClose}
-            className='p-1 hover:bg-blue-600 rounded transition-colors'
+            className={`rounded p-1 transition-colors ${
+              isAIHeaderChat ? 'hover:bg-amber-400/70' : 'hover:bg-blue-600'
+            }`}
           >
             <X size={14} />
           </button>
@@ -558,7 +583,11 @@ export default function ChatPopup ({
           <div
             ref={messageListRef}
             onScroll={handleMessagesScroll}
-            className='flex-1 p-3 overflow-y-auto bg-gray-50 min-h-0'
+            className={`min-h-0 flex-1 overflow-y-auto p-3 ${
+              isAIHeaderChat
+                ? 'bg-gradient-to-b from-amber-50/90 to-orange-50/40'
+                : 'bg-gray-50'
+            }`}
           >
             {isLoading ? (
               <div className='flex items-center justify-center h-full'>
@@ -584,8 +613,6 @@ export default function ChatPopup ({
                 )}
                 {/* Pinned Messages Section */}
                 {(() => {
-                  const pinnedMessages = getUniquePinnedMessages(messages)
-
                   if (pinnedMessages.length === 0) return null
 
                   return (
@@ -657,7 +684,13 @@ export default function ChatPopup ({
                       {/* Date Separator */}
                       {showDate && (
                         <div className='flex justify-center my-2'>
-                          <span className='bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full'>
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs ${
+                              isAIHeaderChat
+                                ? 'border border-amber-200 bg-amber-100 text-amber-800'
+                                : 'bg-gray-200 text-gray-600'
+                            }`}
+                          >
                             {new Date(msg.timestamp).toLocaleDateString(
                               'vi-VN',
                               {
@@ -670,35 +703,44 @@ export default function ChatPopup ({
                           </span>
                         </div>
                       )}
-                      <div
-                        ref={el => {
-                          if (el) messageRefs.current[msg.id] = el
-                        }}
-                        id={`message-${msg.id}`}
-                      >
-                        <ChatPopupMessageItem
+                      {isChatPinActionMessage(msg) ? (
+                        <ChatPinActionNotice
                           message={msg}
-                          isAI={isChatsAI}
-                          onRecallMessage={handleRecallMessage}
-                          onReply={handleReplyMessageWithFocus}
-                          onVote={handleVoteOnPoll}
-                          onEditReminder={handleEditReminder}
-                          onUpdateNote={handleUpdateNote}
-                          userInfo={userInfo}
-                          ListUsers={usersForMessageLookup}
-                          polls={polls}
-                          reminders={reminders}
-                          onJoinReminder={handleJoinReminder}
-                          onDeclineReminder={handleDeclineReminder}
-                          onPinMessage={handlePinMessage}
-                          onUnpinMessage={handleUnpinMessage}
-                          handleAddNewOption={handleAddNewOption}
-                          onScrollToMessage={handleScrollToMessage}
-                          isRead={true}
-                          onMarkAsRead={() => {}}
-                          seenByUsers={seenUsersByMessageId.get(msg.id) || []}
+                          isOwn={isCurrentUserPopupMessage(msg)}
+                          hasPinnedMessages={pinnedMessages.length > 0}
+                          onViewAll={handleViewAllPinnedMessages}
                         />
-                      </div>
+                      ) : (
+                        <div
+                          ref={el => {
+                            if (el) messageRefs.current[msg.id] = el
+                          }}
+                          id={`message-${msg.id}`}
+                        >
+                          <ChatPopupMessageItem
+                            message={msg}
+                            isAI={isChatsAI}
+                            onRecallMessage={handleRecallMessage}
+                            onReply={handleReplyMessageWithFocus}
+                            onVote={handleVoteOnPoll}
+                            onEditReminder={handleEditReminder}
+                            onUpdateNote={handleUpdateNote}
+                            userInfo={userInfo}
+                            ListUsers={usersForMessageLookup}
+                            polls={polls}
+                            reminders={reminders}
+                            onJoinReminder={handleJoinReminder}
+                            onDeclineReminder={handleDeclineReminder}
+                            onPinMessage={handlePinMessage}
+                            onUnpinMessage={handleUnpinMessage}
+                            handleAddNewOption={handleAddNewOption}
+                            onScrollToMessage={handleScrollToMessage}
+                            isRead={true}
+                            onMarkAsRead={() => {}}
+                            seenByUsers={seenUsersByMessageId.get(msg.id) || []}
+                          />
+                        </div>
+                      )}
                       {/* Message Item */}
                     </div>
                   )
@@ -760,7 +802,13 @@ export default function ChatPopup ({
             )}
 
           {/* Message Input Container */}
-          <div className='flex-shrink-0 border-t border-gray-200 bg-white'>
+          <div
+            className={`flex-shrink-0 border-t ${
+              isAIHeaderChat
+                ? 'border-amber-200 bg-amber-50/80'
+                : 'border-gray-200 bg-white'
+            }`}
+          >
             <ChatPopupMessageInput
               key={`input-${localReplyToMessage?.id || 'no-reply'}`}
               ref={messageInputRef}
@@ -769,6 +817,7 @@ export default function ChatPopup ({
               onSendMessage={handleSendMessage}
               onFileUpload={handleFileUpload}
               onInputFocus={handleInputFocus}
+              isAI={isAIHeaderChat}
               attachedFiles={attachedFiles}
               onRemoveFile={index => {
                 setAttachedFiles(prev => prev.filter((_, i) => i !== index))

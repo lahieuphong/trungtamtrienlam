@@ -1183,6 +1183,16 @@ const ChatPopupMessageItem = ({
               {message.senderName}
             </div>
           )}
+          {(message.isPin || message.IsPin) && (
+            <div
+              className={`mb-1 flex items-center gap-1 text-[11px] text-gray-500 ${
+                isOwn ? 'justify-end mr-1' : 'ml-1'
+              }`}
+            >
+              <PinIcon size={11} className='text-red-500' fill='currentColor' />
+              <span>Đã ghim</span>
+            </div>
+          )}
           <div
             onContextMenu={message.isPending ? undefined : handleContextMenu}
             className={`${getBubbleClass(isOwn, hasFileAttachments)} transition-colors duration-200 ${message.isPending ? 'shadow-sm' : ''}`}

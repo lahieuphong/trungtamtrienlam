@@ -4334,8 +4334,9 @@ const ChatsPage = () => {
 
   return (
     <>
-      <div className='flex h-[calc(100vh-64px)] bg-white overflow-y-auto relative'>
+      <div className='relative flex h-[calc(100vh-64px)] overflow-hidden bg-white'>
         <ChatSidebar
+          className={`${selectedChat ? 'hidden md:flex' : 'flex'} w-full flex-shrink-0`}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           activeTab={activeTab}
@@ -4352,7 +4353,9 @@ const ChatsPage = () => {
           tabNotificationCounts={tabNotificationCounts}
           onMarkChatAsRead={markChatAsRead}
         />
-        <div className='flex-1 flex flex-col w-full'>
+        <div
+          className={`${selectedChat ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`}
+        >
           <ChatHeader
             isAI={isChatsAI}
             currentChat={currentChat}
@@ -4362,6 +4365,7 @@ const ChatsPage = () => {
             onUpdateChatAvatar={handleUpdateChatAvatar}
             activeTab={activeTab}
             onOpenSearch={handleOpenSearchModal}
+            onBack={() => setSelectedChat(null)}
           />
 
           <div className='flex-1 overflow-hidden w-full flex flex-col'>

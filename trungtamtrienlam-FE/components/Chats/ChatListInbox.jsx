@@ -72,6 +72,19 @@ const getLastMessageId = chat =>
 const getCurrentUserId = userInfo =>
   userInfo?.userID ?? userInfo?.UserID ?? userInfo?.id ?? userInfo?.ID ?? ''
 
+const getRealtimeChatUsers = message => {
+  const rawUsers = message?.chatUsers ?? message?.ChatUsers
+  if (Array.isArray(rawUsers)) return rawUsers
+  if (!rawUsers || typeof rawUsers !== 'string') return []
+
+  try {
+    const users = JSON.parse(rawUsers)
+    return Array.isArray(users) ? users : []
+  } catch {
+    return []
+  }
+}
+
 const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger }) => {
   const router = useRouter()
   const pathname = usePathname()
@@ -113,6 +126,58 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
 
   const getChatUserId = user =>
     normalizeUserId(user?.id ?? user?.ID ?? user?.userID ?? user?.UserID ?? user?.value ?? user?.Value)
+
+  const getPrivateChatPeerId = chat => {
+    const currentId = normalizeUserId(currentUserId)
+    const members = Array.isArray(chat?.members) ? chat.members : []
+    const peerMember = members.find(
+      member => getChatUserId(member) && getChatUserId(member) !== currentId
+    )
+    if (peerMember) return getChatUserId(peerMember)
+
+    const explicitPeerId = normalizeUserId(chat?.userID ?? chat?.UserID)
+    if (explicitPeerId && explicitPeerId !== currentId) return explicitPeerId
+
+    return ''
+  }
+
+  const dedupePrivateChats = chats => {
+    const chatsByPeer = new Map()
+
+    ;(Array.isArray(chats) ? chats : []).forEach(chat => {
+      const peerId = getPrivateChatPeerId(chat)
+      const key =
+        peerId || 'chat:' + normalizeUserId(chat?.id ?? chat?.chatID)
+      const existing = chatsByPeer.get(key)
+
+      if (!existing) {
+        chatsByPeer.set(key, chat)
+        return
+      }
+
+      const existingDate = new Date(
+        existing.lastMessageDate || existing.lastMessageTime || 0
+      ).getTime()
+      const chatDate = new Date(
+        chat.lastMessageDate || chat.lastMessageTime || 0
+      ).getTime()
+      const newest = chatDate > existingDate ? chat : existing
+
+      chatsByPeer.set(key, {
+        ...newest,
+        userID: peerId || newest.userID,
+        unreadCount: Math.max(
+          getUnreadCount(existing),
+          getUnreadCount(chat)
+        ),
+        hasNotification:
+          getUnreadCount(existing) > 0 || getUnreadCount(chat) > 0,
+        isNew: Boolean(existing.isNew || chat.isNew)
+      })
+    })
+
+    return Array.from(chatsByPeer.values())
+  }
 
   const onlineUserIdSet = useMemo(
     () => new Set((Array.isArray(onlineUsers) ? onlineUsers : []).map(normalizeUserId).filter(Boolean)),
@@ -512,7 +577,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
 
   useEffect(() => {
     const existingChatUserIds = userChatList
-      .map(chat => normalizeUserId(chat.userID ?? chat.UserID ?? chat.id ?? chat.ID))
+      .map(chat => getPrivateChatPeerId(chat))
       .filter(Boolean)
     const newChatUsers = allUsersList.filter(user => {
       const userId = getChatUserId(user)
@@ -611,16 +676,13 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
     const unregister = registerChatCallback(msg => {
       if (msg?.isSeenUpdate || msg?.IsSeenUpdate) return
 
+      const realtimeChatUsers = getRealtimeChatUsers(msg)
+
       setUserChatList(prev => {
         let isIndividualChat = msg.chatType === ChatConstants.Type.PRIVATE
 
         if (!msg.chatType && msg.chatUsers && msg.chatUsers !== null) {
-          try {
-            const chatUsers = JSON.parse(msg.chatUsers || '[]')
-            isIndividualChat = Array.isArray(chatUsers) && chatUsers.length <= 2
-          } catch (e) {
-            isIndividualChat = false
-          }
+          isIndividualChat = realtimeChatUsers.length <= 2
         }
 
         if (msg.chatType && msg.chatType === ChatConstants.Type.GROUP) {
@@ -630,8 +692,17 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
           return prev
         }
 
-        const senderId = msg.senderID === userInfo?.userID ?
-          (JSON.parse(msg.chatUsers || '[]')[0]?.UserID) : msg.senderID;
+        const realtimeSenderId = normalizeUserId(msg.senderID ?? msg.SenderID)
+        const normalizedCurrentUserId = normalizeUserId(currentUserId)
+        const peerUser = realtimeChatUsers.find(
+          user => getChatUserId(user) !== normalizedCurrentUserId
+        )
+        const senderId =
+          realtimeSenderId === normalizedCurrentUserId
+            ? getChatUserId(peerUser)
+            : realtimeSenderId
+
+        if (!senderId) return prev
 
         const existingChatIndex = prev.findIndex(chat =>
           chat.id === senderId || chat.chatID === msg.chatID)
@@ -788,6 +859,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         const storedCount = getStoredUnreadCount(chat.id)
         const serverCount = getUnreadCount(chat)
         const finalUnreadCount = serverCount
+        const peerUserID = getPrivateChatPeerId(chat)
 
         if (serverCount !== storedCount) {
           setStoredUnreadCount(chat.id, serverCount)
@@ -804,7 +876,8 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         return {
           ...chat,
           type: 'individual',
-          userID: chat.userID,
+          userID: peerUserID || chat.userID,
+          isExistingChat: true,
           isOnline: getUserActivityStatus(chat),
           unreadCount: finalUnreadCount,
           hasNotification: finalUnreadCount > 0,
@@ -813,7 +886,7 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
         }
       })
 
-      const sortedChats = processedExistingChats.sort((a, b) => {
+      const sortedChats = dedupePrivateChats(processedExistingChats).sort((a, b) => {
         const dateA = new Date(a.lastMessageDate || 0)
         const dateB = new Date(b.lastMessageDate || 0)
         return dateB - dateA // Newest first
@@ -993,7 +1066,14 @@ const ChatListInbox = ({ onClose, onOpen, onUnreadCountChange, refreshTrigger })
   }
 
   const handleChatSelect = chat => {
-    const isExistingChat = !!(chat.lastMessage || chat.lastMessageDate)
+    const isExistingChat = Boolean(
+      chat.isExistingChat ||
+      chat.chatID ||
+      userChatList.some(
+        existingChat =>
+          normalizeUserId(existingChat.id) === normalizeUserId(chat.id)
+      )
+    )
     const chatType = chat.type || 'individual'
     const chatId = isExistingChat ? chat.id : (chat.userID || chat.id)
     markChatAsReadOnServer(chat)
