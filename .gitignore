@@ -28,7 +28,6 @@ db.sqlite3
 /backup/
 
 # Django
-staticfiles/
 media/
 /trungtamtrienlam-BE/app/media/
 /trungtamtrienlam-BE/logs/
