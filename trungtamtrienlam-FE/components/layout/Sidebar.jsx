@@ -323,7 +323,7 @@ export default function Sidebar() {
     )
 
     const sidebarCls = [
-        'h-screen fixed top-0 left-0 bg-white border-r border-gray-200 transition-all duration-300 z-[49]',
+        'h-screen fixed top-0 left-0 bg-white transition-all duration-300 z-[49]',
         isMobile
             ? `w-64 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`
             : collapsed ? 'w-16' : 'w-64',
@@ -362,6 +362,8 @@ export default function Sidebar() {
             </button>
 
             <aside id="sidebarFull" className={sidebarCls}>
+                <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-20 w-px bg-gray-200" />
+
                 {/* Header */}
                 <div id="headerSidebar" className="p-4 border-b border-gray-200 flex items-center justify-between h-16">
                     {(!collapsed || isMobile) ? (

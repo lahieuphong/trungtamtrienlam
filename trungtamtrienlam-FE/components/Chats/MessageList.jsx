@@ -12,6 +12,7 @@ import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
 import PinDropdownMenu from './PinDropdownMenu'
 import { isCurrentUserMessage } from '@/helpers/chatMessageHelpers'
 import ChatPinActionNotice, {
+  getChatPinActionTargetId,
   isChatPinActionMessage
 } from './ChatPinActionNotice'
 const MessageList = forwardRef(function MessageList (
@@ -501,6 +502,11 @@ const MessageList = forwardRef(function MessageList (
     onUnpinMessage({ messageID, eventID })
   }
 
+  const getPinActionTargetMessage = actionMessage => {
+    const targetId = normalizeUserId(getChatPinActionTargetId(actionMessage))
+    return targetId ? messageById.get(targetId) || null : null
+  }
+
   const handleMessagesScroll = event => {
     if (!hasMoreMessages || isLoadingOlderMessages) return
     if (event.currentTarget.scrollTop <= 80) {
@@ -603,7 +609,13 @@ const MessageList = forwardRef(function MessageList (
               renderUnreadDivider()}
 
             {isChatPinActionMessage(message) ? (
-              <ChatPinActionNotice message={message} />
+              <ChatPinActionNotice
+                message={message}
+                targetMessage={getPinActionTargetMessage(message)}
+                pinnedMessages={pinnedMessages}
+                onUnpin={handleUnpin}
+                onScrollToMessage={handleScrollToMessage}
+              />
             ) : (
               <div
                 ref={el => {

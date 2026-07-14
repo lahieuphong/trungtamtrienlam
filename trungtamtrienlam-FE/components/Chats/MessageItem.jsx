@@ -42,6 +42,103 @@ const CONTEXT_MENU_WIDTH = 208
 const CONTEXT_MENU_HEIGHT = 120
 const CONTEXT_MENU_PADDING = 8
 
+const renderSystemEventText = value => {
+  const text = String(value || '').trim()
+  if (!text) return ''
+
+  const bold = (content, key) =>
+    content ? (
+      <span key={key} className='font-semibold text-gray-800'>
+        {content}
+      </span>
+    ) : null
+
+  const normal = (content, key) => (content ? <React.Fragment key={key}>{content}</React.Fragment> : null)
+  const isMeaningfulTail = tail => {
+    const normalized = String(tail || '').trim().toLowerCase()
+    return Boolean(normalized && normalized !== 'mới')
+  }
+
+  const splitByPhrase = phrase => {
+    const index = text.indexOf(phrase)
+    if (index <= 0) return null
+
+    return {
+      before: text.slice(0, index).trim(),
+      after: text.slice(index + phrase.length).trim()
+    }
+  }
+
+  const actorOnly = phrase => {
+    const parts = splitByPhrase(phrase)
+    if (!parts) return null
+    return [bold(parts.before, 'actor'), normal(phrase, 'phrase'), normal(parts.after ? ` ${parts.after}` : '', 'after')]
+  }
+
+  const actorAndTarget = (phrase, tailPhrase) => {
+    const parts = splitByPhrase(phrase)
+    if (!parts) return null
+
+    const tailIndex = parts.after.indexOf(tailPhrase)
+    if (tailIndex < 0) return null
+
+
+    const target = parts.after.slice(0, tailIndex).trim()
+    const rest = parts.after.slice(tailIndex)
+    return [bold(parts.before, 'actor'), normal(phrase, 'phrase'), bold(target, 'target'), normal(rest, 'tail')]
+  }
+
+  const actorAndOptionalTail = phrase => {
+    const parts = splitByPhrase(phrase)
+    if (!parts) return null
+
+    return [
+      bold(parts.before, 'actor'),
+      normal(phrase, 'phrase'),
+      isMeaningfulTail(parts.after) ? bold(parts.after, 'tail') : normal(parts.after, 'tail')
+    ]
+  }
+
+  const actorReminder = () => {
+    const phrase = ' đã tạo nhắc hẹn '
+    const parts = splitByPhrase(phrase)
+    if (!parts) return null
+
+    const timePhrase = ' vào '
+    const timeIndex = parts.after.indexOf(timePhrase)
+    if (timeIndex < 0) return actorAndOptionalTail(phrase)
+
+    const reminderTitle = parts.after.slice(0, timeIndex).trim()
+    const timeText = parts.after.slice(timeIndex)
+    return [
+      bold(parts.before, 'actor'),
+      normal(phrase, 'phrase'),
+      isMeaningfulTail(reminderTitle) ? bold(reminderTitle, 'reminder') : normal(reminderTitle, 'reminder'),
+      normal(timeText, 'time')
+    ]
+  }
+
+  if (text.startsWith('Nhắc hẹn:')) {
+    const reminderText = text.slice('Nhắc hẹn:'.length).trim()
+    return [normal('Nhắc hẹn: ', 'label'), bold(reminderText, 'reminder')]
+  }
+
+  return (
+    actorAndTarget(' đã bổ nhiệm ', ' thành trưởng nhóm mới') ||
+    actorAndTarget(' đã bổ nhiệm ', ' thành phó nhóm') ||
+    actorAndTarget(' đã xóa ', ' khỏi nhóm') ||
+    actorAndOptionalTail(' đã tham gia bình chọn ') ||
+    actorOnly(' xác nhận:') ||
+    actorOnly(' đã được thêm vào nhóm') ||
+    actorAndOptionalTail(' đã tạo bình chọn ') ||
+    actorAndOptionalTail(' đã tạo ghi chú ') ||
+    actorOnly(' đã cập nhật ghi chú') ||
+    actorReminder() ||
+    actorOnly(' đã rời nhóm') ||
+    text
+  )
+}
+
 export default function MessageItem ({
   message,
   isAI,
@@ -627,9 +724,9 @@ export default function MessageItem ({
         }
 
         return (
-          <div key={message.id} className='flex justify-center mb-3 px-4'>
+          <div key={message.id} className='flex justify-center my-1.5 px-4'>
             <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-              {displayContent}
+              {renderSystemEventText(displayContent)}
             </div>
           </div>
         )
@@ -661,9 +758,9 @@ export default function MessageItem ({
           displayContent = `${actorName} đã xóa ${targetName} khỏi nhóm`
         }
         return (
-          <div key={message.id} className='flex justify-center mb-3 px-4'>
+          <div key={message.id} className='flex justify-center my-1.5 px-4'>
             <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-              {displayContent}
+              {renderSystemEventText(displayContent)}
             </div>
           </div>
         )
@@ -704,9 +801,9 @@ export default function MessageItem ({
       }
 
       return (
-        <div key={message.id} className='flex justify-center mb-3 px-4'>
+        <div key={message.id} className='flex justify-center my-1.5 px-4'>
           <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-            {displayContent}
+            {renderSystemEventText(displayContent)}
           </div>
         </div>
       )
@@ -745,9 +842,9 @@ export default function MessageItem ({
       }
 
       return (
-        <div key={message.id} className='flex justify-center mb-3 px-4'>
+        <div key={message.id} className='flex justify-center my-1.5 px-4'>
           <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-            {displayContent}
+            {renderSystemEventText(displayContent)}
           </div>
         </div>
       )
@@ -787,9 +884,9 @@ export default function MessageItem ({
       }
 
       return (
-        <div key={message.id} className='flex justify-center mb-3 px-4'>
+        <div key={message.id} className='flex justify-center my-1.5 px-4'>
           <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-            {displayContent}
+            {renderSystemEventText(displayContent)}
           </div>
         </div>
       )
@@ -812,9 +909,9 @@ export default function MessageItem ({
         displayContent = `${targetName} đã được thêm vào nhóm`
 
         return (
-          <div key={message.id} className='flex justify-center mb-3 px-4'>
+          <div key={message.id} className='flex justify-center my-1.5 px-4'>
             <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-              {displayContent}
+              {renderSystemEventText(displayContent)}
             </div>
           </div>
         )
@@ -876,15 +973,15 @@ export default function MessageItem ({
         <>
           <div
             key={`notify-${message.id}`}
-            className='flex justify-center mb-2 px-4'
+            className='flex justify-center my-1.5 px-4'
           >
             <div className='bg-gray-100 rounded-full py-2 px-4 flex items-center gap-2'>
               <Vote size={16} className='text-blue-500' />
-              <span className='text-sm text-gray-600 font-medium'>
-                {displayContent}
+              <span className='text-sm text-gray-600'>
+                {renderSystemEventText(displayContent)}
               </span>
               {/* <span
-                className='text-blue-500 hover:underline cursor-pointer'
+                className='ml-1.5 inline-block cursor-pointer text-blue-500 hover:underline'
                 onClick={() => setShowPollModal(true)}
               >
                 Xem
@@ -957,7 +1054,7 @@ export default function MessageItem ({
 
       return (
         <>
-          <div key={message.id} className='flex justify-center mb-3 px-4'>
+          <div key={message.id} className='flex justify-center my-1.5 px-4'>
             <div
               className={`bg-gray-100 rounded-full py-2 px-4 flex items-center gap-2 ${
                 message.isPin ? 'border border-blue-300' : ''
@@ -968,9 +1065,9 @@ export default function MessageItem ({
               )} */}
               <NotebookIcon className='text-gray-500' size={16} />
               <span className='text-sm text-gray-600'>
-                {displayContent}{' '}
+                {renderSystemEventText(displayContent)}{' '}
                 <span
-                  className='text-blue-500 hover:underline cursor-pointer'
+                  className='ml-1.5 inline-block cursor-pointer text-blue-500 hover:underline'
                   onClick={() => setShowNoteModal(true)}
                 >
                   Xem
@@ -1021,17 +1118,17 @@ export default function MessageItem ({
       return (
         <>
           {/* Thông báo nhắc hẹn selective */}
-          <div key={message.id} className='flex justify-center mb-3 px-4'>
+          <div key={message.id} className='flex justify-center my-1.5 px-4'>
             <div
               className={`bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex items-center gap-2 ${
                 message.isPin ? 'border border-yellow-300' : ''
               }`}
             >
               <Bell className='text-yellow-600' size={16} />
-              <span className='text-sm text-yellow-800 font-medium'>
-                {displayContent}{' '}
+              <span className='text-sm text-yellow-800'>
+                {renderSystemEventText(displayContent)}{' '}
                 <span
-                  className='text-blue-500 hover:underline cursor-pointer'
+                  className='ml-1.5 inline-block cursor-pointer text-blue-500 hover:underline'
                   onClick={() => setShowReminderModal(true)}
                 >
                   Xem
@@ -1137,17 +1234,17 @@ export default function MessageItem ({
       return (
         <>
           {/* Thông báo tạo nhắc hẹn public */}
-          <div key={message.id} className='flex justify-center mb-3 px-4'>
+          <div key={message.id} className='flex justify-center my-1.5 px-4'>
             <div
               className={`bg-gray-100 rounded-full py-2 px-4 flex items-center gap-2 ${
                 message.isPin ? 'border border-blue-300' : ''
               }`}
             >
               <Bell className='text-gray-500' size={16} />
-              <span className='text-sm text-gray-600 font-medium'>
-                {displayContent}{' '}
+              <span className='text-sm text-gray-600'>
+                {renderSystemEventText(displayContent)}{' '}
                 <span
-                  className='text-blue-500 hover:underline cursor-pointer'
+                  className='ml-1.5 inline-block cursor-pointer text-blue-500 hover:underline'
                   onClick={() => setShowReminderModal(true)}
                 >
                   Xem
@@ -1195,9 +1292,9 @@ export default function MessageItem ({
     }
 
     return (
-      <div key={message.id} className='flex justify-center mb-3 px-4'>
+      <div key={message.id} className='flex justify-center my-1.5 px-4'>
         <div className='bg-gray-100 rounded-full py-1 px-4 text-sm text-gray-600'>
-          {displayContent}
+          {renderSystemEventText(displayContent)}
         </div>
       </div>
     )

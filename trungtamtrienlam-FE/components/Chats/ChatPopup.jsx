@@ -14,6 +14,7 @@ import ChatPopupMessageItem from './ChatPopupMessageItem'
 import ChatPopupMessageInput from './ChatPopupMessageInput'
 import PinDropdownMenu from './PinDropdownMenu'
 import ChatPinActionNotice, {
+  getChatPinActionTargetId,
   isChatPinActionMessage
 } from './ChatPinActionNotice'
 import UserRequestsModal from './UserRequestsModal'
@@ -438,6 +439,16 @@ export default function ChatPopup ({
     handleUnpinMessage({ messageID, eventID })
   }
 
+  const getPinActionTargetMessage = actionMessage => {
+    const targetId = normalizeChatId(getChatPinActionTargetId(actionMessage))
+    if (!targetId) return null
+
+    return (
+      messages.find(msg => normalizeChatId(msg?.id ?? msg?.ID) === targetId) ||
+      null
+    )
+  }
+
   // Wrapper functions to close modal after user request actions
   const handleAcceptUserRequestAndCloseModal = async (requestId) => {
     await handleAcceptUserRequest(requestId)
@@ -694,7 +705,13 @@ export default function ChatPopup ({
                         </div>
                       )}
                       {isChatPinActionMessage(msg) ? (
-                        <ChatPinActionNotice message={msg} />
+                        <ChatPinActionNotice
+                          message={msg}
+                          targetMessage={getPinActionTargetMessage(msg)}
+                          pinnedMessages={pinnedMessages}
+                          onUnpin={handleUnpin}
+                          onScrollToMessage={handleScrollToMessage}
+                        />
                       ) : (
                         <div
                           ref={el => {
@@ -740,28 +757,32 @@ export default function ChatPopup ({
             chat?.id &&
             userRequests &&
             userRequests.length > 0 && (
-              <div className='px-4 pt-2 flex flex-col items-center border-t border-gray-100'>
+              <div className='px-4 pt-2 flex flex-col items-center gap-2 border-t border-gray-100'>
                 {userRequests.slice(0, 2).map((request, index) => (
                   <div
                     key={index}
-                    className='flex w-full items-center py-2 px-3 rounded-md bg-yellow-50 border border-yellow-200 mb-2'
+                    className='flex w-full items-center gap-1.5 rounded-lg border border-yellow-300 bg-yellow-50 px-2.5 py-2 text-[12px] shadow-sm'
                   >
-                    <UserIcon className='h-4 w-4 text-yellow-600 mr-2 flex-shrink-0' />
-                    <span className='font-medium text-gray-700 text-sm truncate'>
-                      {request.senderName}
-                    </span>
-                    <span className='text-xs text-gray-500 ml-1 truncate'>
-                      {isCurrentUserLeader
-                        ? 'đang chờ duyệt'
-                        : 'đang chờ quản trị viên/phó nhóm duyệt'}
-                    </span>
+                    <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-yellow-100 text-yellow-700'>
+                      <UserIcon className='h-3.5 w-3.5' />
+                    </div>
+                    <div className='min-w-0 flex-1 truncate whitespace-nowrap leading-5 text-gray-600'>
+                      <span className='font-semibold text-gray-800'>
+                        {request.senderName}
+                      </span>{' '}
+                      <span>
+                        {isCurrentUserLeader
+                          ? 'đang chờ duyệt vào nhóm.'
+                          : 'đang chờ quản trị viên hoặc phó nhóm duyệt.'}
+                      </span>
+                    </div>
                     {isCurrentUserLeader && (
                       <button
                         type='button'
                         onClick={() => {
                           setShowUserRequestsModal(true)
                         }}
-                        className='ml-auto flex-shrink-0 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700'
+                        className='ml-1 flex-shrink-0 rounded-md bg-yellow-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-yellow-600'
                       >
                         Xét duyệt
                       </button>
@@ -769,7 +790,7 @@ export default function ChatPopup ({
                   </div>
                 ))}
                 {userRequests.length > 2 && (
-                  <div className='w-full text-center py-1 bg-yellow-50 border border-yellow-200 rounded-md mb-2'>
+                  <div className='w-full rounded-lg border border-yellow-300 bg-yellow-50 py-1.5 text-center shadow-sm'>
                     <span className='text-xs text-gray-600'>
                       +{userRequests.length - 2} yêu cầu khác
                       {isCurrentUserLeader && (

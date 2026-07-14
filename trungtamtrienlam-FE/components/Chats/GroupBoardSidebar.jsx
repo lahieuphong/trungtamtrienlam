@@ -11,7 +11,12 @@ import ExpandableContent from '../ExpandableContent'
 import CreateNoteModal from './CreateNoteModal'
 import PollContent from './PollContent'
 import { Button } from '../Form'
-export default function GroupBoardSidebar ({ isOpen, onClose, currentChat }) {
+export default function GroupBoardSidebar ({
+  isOpen,
+  onClose,
+  currentChat,
+  onCreateNote
+}) {
   const [activeTab, setActiveTab] = useState('pinned')
   const [listNote, setListNote] = useState([])
   const [showCreateNoteModal, setShowCreateNoteModal] = useState(false)
@@ -62,6 +67,29 @@ export default function GroupBoardSidebar ({ isOpen, onClose, currentChat }) {
     setShowCreateNoteModal(true)
   }
 
+  const handleSubmitNote = async noteData => {
+    if (typeof onCreateNote !== 'function') {
+      console.error('GroupBoardSidebar requires an onCreateNote function')
+      return
+    }
+
+    await onCreateNote(noteData)
+    setShowCreateNoteModal(false)
+    setActiveTab('notes')
+
+    if (!currentChat?.id) return
+
+    try {
+      setIsLoading(true)
+      const response = await getNotesByChatID(currentChat.id)
+      setListNote(response.data.data || [])
+    } catch (error) {
+      console.error('Error refreshing notes after create:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <>
       <div
@@ -76,11 +104,11 @@ export default function GroupBoardSidebar ({ isOpen, onClose, currentChat }) {
           </div>
         </div>
 
-        {/* Nút quay lại thứ hai để đảm bảo */}
-        <div className='border-b border-gray-100 pt-1 pb-2 px-4'>
+        {/* Nút quay lại */}
+        <div className='border-b border-gray-100 px-4 pb-3 pt-4'>
           <Button
             onClick={onClose}
-            className='flex items-center text-blue-600 hover:text-blue-700'
+            className='flex h-10 items-center rounded-lg px-3 text-blue-600 hover:text-blue-700'
             variant='outline'
           >
             <ArrowLeft size={16} className='mr-1' />
@@ -306,6 +334,8 @@ export default function GroupBoardSidebar ({ isOpen, onClose, currentChat }) {
         <CreateNoteModal
           isOpen={showCreateNoteModal}
           onClose={() => setShowCreateNoteModal(false)}
+          onSubmit={handleSubmitNote}
+          currentChat={currentChat}
         />
       )}
     </>

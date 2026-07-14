@@ -48,6 +48,7 @@ export default function GroupInfoSidebar ({
   onChooseNewLeaderAndLeave,
   onPinChat,
   onUpdateChatAvatar,
+  onCreateNote,
   messages = []
 }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -835,6 +836,7 @@ export default function GroupInfoSidebar ({
         isOpen={showBoardSidebar}
         onClose={() => setShowBoardSidebar(false)}
         currentChat={currentChat}
+        onCreateNote={onCreateNote}
       />
     </>
   )

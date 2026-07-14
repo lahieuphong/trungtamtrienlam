@@ -13,6 +13,7 @@ import AvatarWithFrame from '../avatars/avatarFrame'
 import { Button, Input } from '../Form'
 import { useLoadLocalStorage } from '@/contexts/LocalStorageContext'
 import { ChatUserConstants } from '@/constants/chatConstants'
+import ConfirmationModal from '@/components/ConfirmationModal'
 
 const normalizeId = value => {
   if (value === null || value === undefined) return ''
@@ -33,6 +34,7 @@ export default function GroupMembersList ({
   const { userInfo } = useLoadLocalStorage()
   const [searchTerm, setSearchTerm] = useState('')
   const [showDropdown, setShowDropdown] = useState(null)
+  const [pendingAction, setPendingAction] = useState(null)
 
   const memberList = Array.isArray(members) ? members : []
   const currentUserId = normalizeId(userInfo?.userID || userInfo?.id)
@@ -113,7 +115,61 @@ export default function GroupMembersList ({
     }
   }, [showDropdown])
 
-  const handleAction = (action, memberId) => {
+  const getActionConfig = action => {
+    switch (action) {
+      case 'transfer':
+        return {
+          title: 'Xác nhận nhượng quyền trưởng nhóm',
+          description:
+            'Người này sẽ trở thành trưởng nhóm mới và có toàn quyền quản lý nhóm.',
+          confirmText: 'Nhượng quyền',
+          confirmButtonClass: 'bg-blue-500 hover:bg-blue-600 text-white',
+          confirmIcon: <KeyRound className='w-5 h-5 mr-2' />
+        }
+      case 'promote':
+        return {
+          title: 'Xác nhận thêm phó nhóm',
+          description:
+            'Người này sẽ có quyền hỗ trợ quản lý thành viên và một số thao tác trong nhóm.',
+          confirmText: 'Thêm phó nhóm',
+          confirmButtonClass: 'bg-yellow-500 hover:bg-yellow-600 text-white',
+          confirmIcon: <Crown className='w-5 h-5 mr-2' />
+        }
+      case 'demote':
+        return {
+          title: 'Xác nhận xóa quyền phó nhóm',
+          description: 'Người này sẽ trở lại vai trò thành viên thường trong nhóm.',
+          confirmText: 'Xóa quyền',
+          confirmButtonClass: 'bg-orange-500 hover:bg-orange-600 text-white',
+          confirmIcon: <UserMinus className='w-5 h-5 mr-2' />
+        }
+      case 'remove':
+      default:
+        return {
+          title: 'Xác nhận xóa khỏi nhóm',
+          description:
+            'Người này sẽ bị xóa khỏi nhóm và không còn truy cập cuộc trò chuyện nhóm.',
+          confirmText: 'Xóa khỏi nhóm',
+          confirmButtonClass: 'bg-red-500 hover:bg-red-600 text-white',
+          confirmIcon: <X className='w-5 h-5 mr-2' />
+        }
+    }
+  }
+
+  const handleAction = (action, member) => {
+    setPendingAction({
+      action,
+      memberId: getMemberId(member),
+      memberName: getMemberName(member)
+    })
+    setShowDropdown(null)
+  }
+
+  const handleConfirmAction = () => {
+    if (!pendingAction) return
+
+    const { action, memberId } = pendingAction
+
     switch (action) {
       case 'remove':
         onRemoveMember?.(currentChat?.id, memberId)
@@ -130,7 +186,8 @@ export default function GroupMembersList ({
       default:
         break
     }
-    setShowDropdown(null)
+
+    setPendingAction(null)
   }
 
   const renderMemberDropdown = member => {
@@ -145,7 +202,7 @@ export default function GroupMembersList ({
       <div className='member-dropdown absolute right-0 top-10 z-50 w-56 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5'>
         {canTransferLeader && !memberIsLeader && (
           <button
-            onClick={() => handleAction('transfer', memberId)}
+            onClick={() => handleAction('transfer', member)}
             className='flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100'
           >
             <KeyRound className='mr-2 h-4 w-4 text-blue-500' />
@@ -156,7 +213,7 @@ export default function GroupMembersList ({
           !memberIsLeader &&
           memberRole === ChatUserConstants.Role.ViceLeader && (
             <button
-              onClick={() => handleAction('demote', memberId)}
+              onClick={() => handleAction('demote', member)}
               className='flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100'
             >
               <UserMinus className='mr-2 h-4 w-4 text-orange-500' />
@@ -165,7 +222,7 @@ export default function GroupMembersList ({
           )}
         {!memberIsLeader && memberRole !== ChatUserConstants.Role.ViceLeader && (
           <button
-            onClick={() => handleAction('promote', memberId)}
+            onClick={() => handleAction('promote', member)}
             className='flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100'
           >
             <Crown className='mr-2 h-4 w-4 text-yellow-500' />
@@ -173,7 +230,7 @@ export default function GroupMembersList ({
           </button>
         )}
         <button
-          onClick={() => handleAction('remove', memberId)}
+          onClick={() => handleAction('remove', member)}
           className='flex w-full items-center px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100'
         >
           <X className='mr-2 h-4 w-4' />
@@ -185,6 +242,39 @@ export default function GroupMembersList ({
 
   return (
     <>
+      {(() => {
+        if (!pendingAction) return null
+
+        const actionConfig = getActionConfig(pendingAction.action)
+
+        return (
+          <ConfirmationModal
+            isOpen={Boolean(pendingAction)}
+            onClose={() => setPendingAction(null)}
+            onConfirm={handleConfirmAction}
+            title={actionConfig.title}
+            content={
+              <div className='space-y-3 text-sm leading-6 text-gray-700'>
+                <p>
+                  Bạn có chắc chắn muốn thực hiện thao tác này với{' '}
+                  <span className='font-semibold text-gray-900'>
+                    {pendingAction.memberName}
+                  </span>
+                  ?
+                </p>
+                <p className='rounded-lg bg-gray-50 px-3 py-2 text-gray-600'>
+                  {actionConfig.description}
+                </p>
+              </div>
+            }
+            confirmText={actionConfig.confirmText}
+            cancelText='Hủy'
+            confirmButtonClass={actionConfig.confirmButtonClass}
+            confirmIcon={actionConfig.confirmIcon}
+          />
+        )
+      })()}
+
       {isOpen && (
         <div
           className='fixed inset-0 z-40 bg-black/30'

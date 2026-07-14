@@ -1,4 +1,7 @@
+'use client'
+
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Check } from 'lucide-react'
 import { Button } from '../Form'
 
@@ -6,12 +9,17 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, currentChat
   const [content, setContent] = useState('')
   const [isPinned, setIsPinned] = useState(false)
 
-  if (!isOpen) return null
+  if (!isOpen || typeof document === 'undefined') return null
 
   const handleSubmit = (e) => {
     e.preventDefault()
     
     if (!content.trim()) {
+      return
+    }
+
+    if (typeof onSubmit !== 'function') {
+      console.error('CreateNoteModal requires an onSubmit function')
       return
     }
 
@@ -35,9 +43,9 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, currentChat
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-md mx-4">
+  const modalContent = (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">
+      <div className="relative z-[10001] bg-white rounded-lg w-full max-w-md mx-4 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">Tạo ghi chú</h2>
@@ -100,4 +108,6 @@ export default function CreateNoteModal({ isOpen, onClose, onSubmit, currentChat
       </div>
     </div>
   )
+
+  return createPortal(modalContent, document.body)
 }
