@@ -7,7 +7,7 @@ from .models import Organization, Province, StaffFile, UserConcurrently, Ward
 class ProvinceAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'code', 'unit_type', 'active_ward_count', 'is_disabled', 'is_deleted']
     list_filter = ['unit_type', 'is_disabled', 'is_deleted']
-    search_fields = ['name', 'code', 'legacy_code']
+    search_fields = ['name', 'code']
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(
@@ -21,6 +21,7 @@ class ProvinceAdmin(admin.ModelAdmin):
 
 @admin.register(Ward)
 class WardAdmin(admin.ModelAdmin):
+    exclude = ['district']
     list_display = ['id', 'name', 'province', 'code', 'unit_type', 'old_district_name', 'is_disabled', 'is_deleted']
     list_filter = ['province', 'unit_type', 'is_disabled', 'is_deleted']
     search_fields = ['name', 'code', 'old_district_name']

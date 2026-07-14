@@ -1,13 +1,13 @@
-# Trung tâm triển lãm – Backend v2
+# Trung tâm triển lãm – Backend
 
-Backend v2 giữ cấu trúc chuẩn của bản production:
+Backend hiện tại giữ cấu trúc chuẩn của bản production:
 
 - Cấu hình Django/ASGI/Celery nằm trong `app/root`.
 - Logic nghiệp vụ nằm trong `app/core`.
 - Có 18 app nghiệp vụ đang hoạt động: `accounts`, `archives`, `authentication`, `backup`, `calendars`, `chats`, `chat_notes`, `chat_reminds`, `chat_votes`, `departments`, `documents`, `media_files`, `monuments`, `notifications`, `ratings`, `settings_app`, `tasks` và `templates_app`.
 - Các thư mục `legacy_aidi`, `projects` và `payments` được giữ lại từ cây code chuẩn nhưng không được đăng ký trong `INSTALLED_APPS`.
 
-Dữ liệu PostgreSQL và media được phục hồi từ hệ thống cũ vào stack v2 tách biệt. Không đổi tên app label/migration và không cần xóa database hoặc volume của stack cũ.
+Dữ liệu PostgreSQL và media được phục hồi từ hệ thống cũ vào stack Docker tách biệt. Không đổi tên app label/migration và không cần xóa database hoặc volume của stack cũ.
 
 ## Yêu cầu trước khi chạy
 
@@ -40,7 +40,7 @@ docker compose up -d
 
 Thứ tự này quan trọng: build image, restore dữ liệu/media, chạy các migration còn thiếu, rồi mới khởi động app và Celery.
 
-Script restore yêu cầu `-ConfirmDestructive` vì nó drop rồi tạo lại database đích. Thao tác này chỉ áp dụng cho PostgreSQL thuộc project v2 dev `trungtamtrienlam-backend-v2-dev`; script không xóa Docker volume và không đụng stack backend cũ.
+Script restore yêu cầu `-ConfirmDestructive` vì nó drop rồi tạo lại database đích. Thao tác này chỉ áp dụng cho PostgreSQL thuộc project development `trungtamtrienlam-backend`; script không xóa Docker volume và không đụng stack backend cũ.
 
 Các địa chỉ mặc định:
 
@@ -66,7 +66,7 @@ Dừng tạm thời nhưng giữ nguyên container và dữ liệu:
 docker compose stop
 ~~~
 
-Gỡ container/network của riêng stack v2 nhưng vẫn giữ volume dữ liệu:
+Gỡ container/network của riêng stack backend nhưng vẫn giữ volume dữ liệu:
 
 ~~~powershell
 docker compose down
@@ -76,9 +76,9 @@ docker compose down
 
 Project, network và volume mặc định của dev được tách riêng:
 
-- Project: `trungtamtrienlam-backend-v2-dev`
-- Network: `trungtamtrienlam-backend-v2-dev-net`
-- PostgreSQL volume: `trungtamtrienlam-backend-v2-dev-postgres-data`
+- Project: `trungtamtrienlam-backend`
+- Network: `trungtamtrienlam-backend-net`
+- PostgreSQL volume: `trungtamtrienlam-backend-postgres-data`
 
 Không override `COMPOSE_PROJECT_NAME`, `APP_NETWORK_NAME` hoặc `POSTGRES_VOLUME_NAME` bằng tên của stack backend cũ.
 
@@ -165,7 +165,7 @@ Thoát `psql` bằng `\q`.
 
 ## Cấu hình frontend local
 
-Nếu frontend hiện dùng các tên biến dưới đây, có thể trỏ FE local vào backend v2 như sau:
+Nếu frontend hiện dùng các tên biến dưới đây, có thể trỏ FE local vào backend hiện tại như sau:
 
 ~~~dotenv
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8003/api
@@ -178,12 +178,12 @@ NEXT_PUBLIC_WS_URL=ws://127.0.0.1:8003/ws
 
 Compose production có project/volume riêng với dev:
 
-- Project: `trungtamtrienlam-backend-v2-prod`
-- PostgreSQL volume: `trungtamtrienlam-backend-v2-prod-postgres-data`
+- Project: `trungtamtrienlam-backend-prod`
+- PostgreSQL volume: `trungtamtrienlam-backend-prod-postgres-data`
 
 Mặc định compose production đọc `.env.local`. Có thể đặt biến `BACKEND_ENV_FILE` trỏ tới file env production được quản lý bên ngoài repo. Kiểm tra kỹ file env trước khi chạy và không đưa giá trị bí mật vào lệnh hoặc tài liệu.
 
-Quy trình khởi tạo production v2:
+Quy trình khởi tạo production:
 
 ~~~powershell
 docker compose -f .\docker-compose.prod.yml build
@@ -218,7 +218,7 @@ Kiểm tra tiến trình đang lắng nghe:
 Get-NetTCPConnection -State Listen -LocalPort 8003,5434 -ErrorAction SilentlyContinue
 ~~~
 
-Có thể đổi port cho phiên PowerShell hiện tại rồi recreate stack v2:
+Có thể đổi port cho phiên PowerShell hiện tại rồi recreate stack backend:
 
 ~~~powershell
 $env:APP_PORT = "8004"
@@ -249,4 +249,4 @@ docker compose run --rm app poetry run python manage.py check
 docker compose up -d
 ~~~
 
-Không khắc phục lỗi bằng cách xóa volume. Nếu cần phục hồi lại database v2, chạy lại restore script với đúng dump; script chỉ tạo lại database trong stack v2 đã chọn.
+Không khắc phục lỗi bằng cách xóa volume. Nếu cần phục hồi lại database hiện tại, chạy lại restore script với đúng dump; script chỉ tạo lại database trong stack backend đã chọn.

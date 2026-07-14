@@ -1,8 +1,8 @@
-name: ${COMPOSE_PROJECT_NAME:-trungtamtrienlam-backend-v2-dev}
+name: ${COMPOSE_PROJECT_NAME:-trungtamtrienlam-backend}
 
 networks:
   app-net:
-    name: ${APP_NETWORK_NAME:-trungtamtrienlam-backend-v2-dev-net}
+    name: ${APP_NETWORK_NAME:-trungtamtrienlam-backend-net}
 
 services:
   app:
@@ -143,4 +143,4 @@ services:
 
 volumes:
   postgres-data:
-    name: ${POSTGRES_VOLUME_NAME:-trungtamtrienlam-backend-v2-dev-postgres-data}
+    name: ${POSTGRES_VOLUME_NAME:-trungtamtrienlam-backend-postgres-data}

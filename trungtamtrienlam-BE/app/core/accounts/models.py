@@ -15,7 +15,6 @@ class Province(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=2, unique=True)
-    legacy_code = models.CharField(max_length=20, blank=True, null=True, db_index=True)
     name = models.CharField(max_length=255)
     unit_type = models.CharField(max_length=20, choices=UNIT_TYPE_CHOICES, default=UNIT_TYPE_PROVINCE)
     is_disabled = models.BooleanField(default=False)

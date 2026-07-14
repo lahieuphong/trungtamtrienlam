@@ -176,8 +176,8 @@ docker compose down
 
 Stack development hiện dùng:
 
-- Compose project: `trungtamtrienlam-backend-v2-dev`
-- PostgreSQL volume: `trungtamtrienlam-backend-v2-dev-postgres-data`
+- Compose project: `trungtamtrienlam-backend`
+- PostgreSQL volume: `trungtamtrienlam-backend-postgres-data`
 - Các service: `app`, `postgres`, `redis`, `celery_worker`, `celery_beat`
 
 ## Chạy trên macOS hoặc Linux

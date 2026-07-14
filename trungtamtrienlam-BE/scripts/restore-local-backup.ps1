@@ -75,7 +75,7 @@ if (-not $SkipMedia) {
 
 if (-not $ConfirmDestructive) {
     $message = @(
-        'Restore was cancelled because it drops and recreates the v2 database.'
+        'Restore was cancelled because it drops and recreates the selected database.'
         'Review the selected inputs, then rerun with -ConfirmDestructive.'
         ('Dump: {0}' -f $DumpPath)
         ('Compose: {0}' -f $composeFile)
@@ -96,21 +96,25 @@ function Assert-LastExitCode {
     }
 }
 
-$composeProjectName = 'trungtamtrienlam-backend-v2-{0}' -f $Environment
+$composeProjectName = if ($Environment -eq 'prod') {
+    'trungtamtrienlam-backend-prod'
+} else {
+    'trungtamtrienlam-backend'
+}
 $composeArgs = @('compose', '--project-name', $composeProjectName, '--file', $composeFile)
 
-Write-Host 'Stopping v2 app/worker/beat so they cannot reconnect during the restore...'
+Write-Host 'Stopping app/worker/beat so they cannot reconnect during the restore...'
 & docker @composeArgs stop app celery_worker celery_beat
-Assert-LastExitCode 'Stopping v2 application services'
+Assert-LastExitCode 'Stopping application services'
 
-Write-Host 'Starting the isolated v2 PostgreSQL service...'
+Write-Host 'Starting the isolated PostgreSQL service...'
 & docker @composeArgs up --detach --wait postgres
 Assert-LastExitCode 'Starting PostgreSQL'
 
 $containerId = (& docker @composeArgs ps --quiet postgres).Trim()
 Assert-LastExitCode 'Finding the PostgreSQL container'
 if (-not $containerId) {
-    throw 'The v2 PostgreSQL container was not found.'
+    throw 'The PostgreSQL container was not found.'
 }
 
 $pgRestoreVersion = (& docker exec $containerId pg_restore --version).Trim()
@@ -119,7 +123,7 @@ if ($pgRestoreVersion -notmatch 'PostgreSQL\) 16\.') {
     throw ('PostgreSQL 16 pg_restore is required, but the container reported: {0}' -f $pgRestoreVersion)
 }
 
-$containerDump = '/tmp/trungtamtrienlam-v2-restore.dump'
+$containerDump = '/tmp/trungtamtrienlam-restore.dump'
 
 try {
     Write-Host 'Copying dump into PostgreSQL 16 container...'
@@ -130,7 +134,7 @@ try {
     & docker exec $containerId pg_restore --list $containerDump > $null
     Assert-LastExitCode 'Validating the dump'
 
-    Write-Host ('Dropping and recreating only database ''{0}'' in the v2 Compose project...' -f $DatabaseName)
+    Write-Host ('Dropping and recreating only database ''{0}'' in the selected Compose project...' -f $DatabaseName)
     $terminateSql = 'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = ''{0}'' AND pid <> pg_backend_pid();' -f $DatabaseName
     & docker exec $containerId psql --username $DatabaseUser --dbname postgres --set ON_ERROR_STOP=on --command $terminateSql
     Assert-LastExitCode 'Terminating database connections'
@@ -154,7 +158,7 @@ if (-not $SkipMedia) {
     $mediaTarget = [System.IO.Path]::GetFullPath((Join-Path $backendRoot 'app\media'))
     $appRootPrefix = $appRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
     if (-not $mediaTarget.StartsWith($appRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw ('Refusing to copy media outside the v2 app/media directory: {0}' -f $mediaTarget)
+        throw ('Refusing to copy media outside the app/media directory: {0}' -f $mediaTarget)
     }
 
     $sameMediaDirectory = [System.String]::Equals(
@@ -163,7 +167,7 @@ if (-not $SkipMedia) {
         [System.StringComparison]::OrdinalIgnoreCase
     )
     if ($sameMediaDirectory) {
-        Write-Host ('Media is already present in the v2 target: {0}' -f $mediaTarget)
+        Write-Host ('Media is already present in the target: {0}' -f $mediaTarget)
     } else {
         New-Item -ItemType Directory -Path $mediaTarget -Force | Out-Null
         Write-Host ('Merging media into: {0}' -f $mediaTarget)

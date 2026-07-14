@@ -1,4 +1,4 @@
-name: ${COMPOSE_PROJECT_NAME:-trungtamtrienlam-backend-v2-prod}
+name: ${COMPOSE_PROJECT_NAME:-trungtamtrienlam-backend-prod}
 
 x-backend-environment: &backend-environment
   PYTHONDONTWRITEBYTECODE: '1'
@@ -38,7 +38,7 @@ x-backend-service: &backend-service
 
 networks:
   app-net:
-    name: ${APP_NETWORK_NAME:-trungtamtrienlam-backend-v2-prod-net}
+    name: ${APP_NETWORK_NAME:-trungtamtrienlam-backend-prod-net}
     driver: bridge
 
 services:
@@ -116,4 +116,4 @@ services:
 
 volumes:
   postgres-data:
-    name: ${POSTGRES_VOLUME_NAME:-trungtamtrienlam-backend-v2-prod-postgres-data}
+    name: ${POSTGRES_VOLUME_NAME:-trungtamtrienlam-backend-prod-postgres-data}
